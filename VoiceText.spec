@@ -83,6 +83,7 @@ app = BUNDLE(
     name='VoiceText.app',
     icon=None,
     bundle_identifier='com.voicetext.app',
+    codesign_identity=os.environ.get('CODESIGN_IDENTITY', '-'),
     info_plist={
         'CFBundleName': 'VoiceText',
         'CFBundleDisplayName': 'VoiceText',

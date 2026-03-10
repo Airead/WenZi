@@ -14,9 +14,10 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "block_ms": 20,
         "device": None,
         "max_session_bytes": 20 * 1024 * 1024,
+        "silence_rms": 20,
     },
     "asr": {
-        "use_vad": False,
+        "use_vad": True,
         "use_punc": True,
     },
     "output": {

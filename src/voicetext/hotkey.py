@@ -71,14 +71,29 @@ class _QuartzFnListener:
         import Quartz
         from AppKit import NSEvent
 
+        logger.debug(
+            "Quartz event: type=%s", event_type
+        )
+
         if event_type != Quartz.kCGEventFlagsChanged:
             return event
 
         ns_event = NSEvent.eventWithCGEvent_(event)
-        if ns_event is None or ns_event.keyCode() != _FN_KEYCODE:
+        if ns_event is None:
+            logger.debug("Quartz: ns_event is None")
             return event
 
-        fn_down = bool(ns_event.modifierFlags() & _FN_FLAG)
+        keycode = ns_event.keyCode()
+        flags = ns_event.modifierFlags()
+        logger.debug(
+            "Quartz flagsChanged: keyCode=%d flags=0x%08x", keycode, flags
+        )
+
+        if keycode != _FN_KEYCODE:
+            return event
+
+        fn_down = bool(flags & _FN_FLAG)
+        logger.debug("fn key event: fn_down=%s held=%s", fn_down, self._held)
 
         if fn_down and not self._held:
             self._held = True
@@ -109,8 +124,12 @@ class _QuartzFnListener:
                 None,
             )
             if self._tap is None:
-                logger.error("Failed to create Quartz event tap for fn key")
+                logger.error(
+                    "Failed to create Quartz event tap for fn key. "
+                    "Check accessibility permissions in System Settings."
+                )
                 return
+            logger.debug("Quartz event tap created successfully: %s", self._tap)
 
             source = Quartz.CFMachPortCreateRunLoopSource(None, self._tap, 0)
             self._loop = Quartz.CFRunLoopGetCurrent()

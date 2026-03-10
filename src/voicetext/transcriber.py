@@ -98,9 +98,14 @@ class Transcriber:
             tmp_path = f.name
 
         try:
-            # VAD (optional)
+            # VAD: skip ASR if no speech segments detected
             if self.use_vad and self._vad_model:
-                self._vad_model(tmp_path)
+                vad_result = self._vad_model(tmp_path)
+                has_speech = self._vad_has_speech(vad_result)
+                logger.info("VAD result: %s, has_speech=%s", vad_result, has_speech)
+                if not has_speech:
+                    logger.info("VAD detected no speech, skipping ASR")
+                    return ""
 
             # ASR
             asr_result = self._asr_model([tmp_path])
@@ -130,6 +135,18 @@ class Transcriber:
                 os.unlink(tmp_path)
             except OSError:
                 pass
+
+    @staticmethod
+    def _vad_has_speech(vad_result) -> bool:
+        """Check if VAD result contains any speech segments."""
+        if not vad_result:
+            return False
+        # Fsmn_vad returns list of [[start_ms, end_ms], ...] per audio
+        if isinstance(vad_result, list):
+            for item in vad_result:
+                if isinstance(item, list) and len(item) > 0:
+                    return True
+        return False
 
     def _extract_text(self, asr_result) -> str:
         """Extract text from funasr_onnx result format."""

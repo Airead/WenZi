@@ -37,6 +37,7 @@ class VoiceTextApp(rumps.App):
             block_ms=audio_cfg["block_ms"],
             device=audio_cfg.get("device"),
             max_session_bytes=audio_cfg["max_session_bytes"],
+            silence_rms=audio_cfg.get("silence_rms", Recorder.DEFAULT_SILENCE_RMS),
         )
 
         asr_cfg = self._config["asr"]

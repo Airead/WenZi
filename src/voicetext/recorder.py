@@ -19,17 +19,23 @@ logger = logging.getLogger(__name__)
 class Recorder:
     """Record audio from the microphone. Thread-safe start/stop."""
 
+    # RMS threshold for silence detection (int16 range: 0-32768).
+    # Typical quiet room noise is ~100-300, speech is ~1000+.
+    DEFAULT_SILENCE_RMS = 20
+
     def __init__(
         self,
         sample_rate: int = 16000,
         block_ms: int = 20,
         device: Optional[str] = None,
         max_session_bytes: int = 20 * 1024 * 1024,
+        silence_rms: int = DEFAULT_SILENCE_RMS,
     ) -> None:
         self.sample_rate = sample_rate
         self.block_ms = block_ms
         self.device = device
         self.max_session_bytes = max_session_bytes
+        self.silence_rms = silence_rms
 
         self._block_size = int(sample_rate * block_ms / 1000)
         self._queue: queue.Queue[np.ndarray] = queue.Queue(maxsize=500)
@@ -100,8 +106,17 @@ class Recorder:
             return None
 
         audio = np.concatenate(frames)
-        logger.info("Recording stopped, captured %d samples (%.1fs)",
-                     len(audio), len(audio) / self.sample_rate)
+        duration = len(audio) / self.sample_rate
+        rms = int(np.sqrt(np.mean(audio.astype(np.float64) ** 2)))
+        logger.warning(
+            "Recording stopped, captured %d samples (%.1fs), RMS=%d",
+            len(audio), duration, rms,
+        )
+
+        if rms < self.silence_rms:
+            logger.warning("Audio below silence threshold (RMS=%d < %d), discarding",
+                           rms, self.silence_rms)
+            return None
 
         # Encode as WAV in memory
         buf = io.BytesIO()

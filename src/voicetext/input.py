@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import subprocess
 import threading
+import time
 
 
 logger = logging.getLogger(__name__)
@@ -33,8 +34,10 @@ def type_text(text: str, append_newline: bool = False, method: str = "auto") -> 
 
     for mode in order:
         if mode == "clipboard" and _type_via_clipboard(payload):
+            logger.info("Text injected via clipboard: %s", payload[:50])
             return
         if mode == "applescript" and _type_via_applescript(payload):
+            logger.info("Text injected via applescript: %s", payload[:50])
             return
 
     logger.error("All text injection methods failed")
@@ -52,15 +55,23 @@ def _type_via_clipboard(payload: str) -> bool:
     try:
         proc = subprocess.run(["pbcopy"], input=payload, text=True, timeout=2)
         if proc.returncode != 0:
+            logger.warning("pbcopy failed with returncode %d", proc.returncode)
             return False
 
-        subprocess.run(
+        # Small delay to ensure clipboard is ready
+        time.sleep(0.05)
+
+        result = subprocess.run(
             [
                 "osascript", "-e",
                 'tell application "System Events" to keystroke "v" using command down',
             ],
             capture_output=True, timeout=5,
         )
+        if result.returncode != 0:
+            logger.warning("Cmd+V osascript failed: %s",
+                           result.stderr.decode(errors="replace"))
+            return False
         return True
     except Exception as exc:
         logger.warning("Clipboard injection failed: %s", exc)
@@ -68,8 +79,7 @@ def _type_via_clipboard(payload: str) -> bool:
     finally:
         if old_clip is not None:
             def _restore():
-                import time
-                time.sleep(0.2)
+                time.sleep(1.0)
                 try:
                     subprocess.run(["pbcopy"], input=old_clip, text=True, timeout=2)
                 except Exception:
