@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -26,6 +27,7 @@ class VocabularyBuilder:
         self._corrections_path = os.path.join(self._log_dir, "corrections.jsonl")
         self._vocab_path = os.path.join(self._log_dir, "vocabulary.json")
         self._batch_size = 20
+        self._batch_timeout = config.get("vocabulary", {}).get("build_timeout", 600)
 
     async def build(self, full_rebuild: bool = False) -> Dict[str, Any]:
         """Build or update the vocabulary from correction logs.
@@ -150,9 +152,12 @@ class VocabularyBuilder:
         model = provider_cfg["model"]
 
         prompt = self._build_extraction_prompt(batch)
-        response = await client.chat.completions.create(
-            model=model,
-            messages=[{"role": "user", "content": prompt}],
+        response = await asyncio.wait_for(
+            client.chat.completions.create(
+                model=model,
+                messages=[{"role": "user", "content": prompt}],
+            ),
+            timeout=self._batch_timeout,
         )
 
         content = response.choices[0].message.content

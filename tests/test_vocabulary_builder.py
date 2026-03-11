@@ -186,6 +186,24 @@ class TestExtractBatch:
         )
         assert result == []
 
+    def test_timeout(self):
+        cfg = _make_config()
+        cfg["vocabulary"] = {"build_timeout": 1}
+        builder = VocabularyBuilder(cfg)
+        batch = [{"asr_text": "test", "final_text": "test"}]
+
+        async def slow_create(**kwargs):
+            await asyncio.sleep(10)
+
+        mock_client = MagicMock()
+        mock_client.chat.completions.create = slow_create
+
+        with patch("openai.AsyncOpenAI", return_value=mock_client):
+            with pytest.raises(asyncio.TimeoutError):
+                asyncio.get_event_loop().run_until_complete(
+                    builder._extract_batch(batch)
+                )
+
 
 class TestParseLLMResponse:
     def test_parse_json_array(self):
