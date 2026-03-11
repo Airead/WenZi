@@ -38,7 +38,7 @@ class Recorder:
         self.silence_rms = silence_rms
 
         self._block_size = int(sample_rate * block_ms / 1000)
-        self._queue: queue.Queue[np.ndarray] = queue.Queue(maxsize=500)
+        self._queue: queue.Queue[np.ndarray] = queue.Queue()
         self._stream: Optional[sd.RawInputStream] = None
         self._lock = threading.Lock()
         self._recording = False
