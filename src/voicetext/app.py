@@ -139,6 +139,27 @@ class VoiceTextApp(rumps.App):
             self._enhance_menu_items[mode.value] = item
             self._enhance_menu.add(item)
 
+        # Provider submenu
+        self._enhance_menu.add(rumps.separator)
+        self._enhance_provider_menu = rumps.MenuItem("Provider")
+        self._enhance_provider_items: Dict[str, rumps.MenuItem] = {}
+        if self._enhancer:
+            for pname in self._enhancer.provider_names:
+                item = rumps.MenuItem(pname)
+                item._provider_name = pname
+                item.set_callback(self._on_enhance_provider_select)
+                if pname == self._enhancer.provider_name:
+                    item.state = 1
+                self._enhance_provider_items[pname] = item
+                self._enhance_provider_menu.add(item)
+        self._enhance_menu.add(self._enhance_provider_menu)
+
+        # Model submenu
+        self._enhance_model_menu = rumps.MenuItem("Model")
+        self._enhance_model_items: Dict[str, rumps.MenuItem] = {}
+        self._build_enhance_model_menu()
+        self._enhance_menu.add(self._enhance_model_menu)
+
         self._copy_log_item = rumps.MenuItem(
             "Copy Log Path", callback=self._on_copy_log_path
         )
@@ -256,6 +277,65 @@ class VoiceTextApp(rumps.App):
         self._config["ai_enhance"]["mode"] = mode.value
         save_config(self._config, self._config_path)
         logger.info("AI enhance mode set to: %s", mode.value)
+
+    def _on_enhance_provider_select(self, sender) -> None:
+        """Handle AI enhance provider menu item click."""
+        pname = sender._provider_name
+        if not self._enhancer or pname == self._enhancer.provider_name:
+            return
+
+        self._enhancer.provider_name = pname
+
+        # Update provider checkmarks
+        for name, item in self._enhance_provider_items.items():
+            item.state = 1 if name == pname else 0
+
+        # Rebuild model submenu for new provider
+        self._build_enhance_model_menu()
+
+        # Persist to config
+        self._config.setdefault("ai_enhance", {})
+        self._config["ai_enhance"]["default_provider"] = self._enhancer.provider_name
+        self._config["ai_enhance"]["default_model"] = self._enhancer.model_name
+        save_config(self._config, self._config_path)
+        logger.info("AI enhance provider set to: %s", pname)
+
+    def _on_enhance_model_select(self, sender) -> None:
+        """Handle AI enhance model menu item click."""
+        mname = sender._model_name
+        if not self._enhancer or mname == self._enhancer.model_name:
+            return
+
+        self._enhancer.model_name = mname
+
+        # Update model checkmarks
+        for name, item in self._enhance_model_items.items():
+            item.state = 1 if name == mname else 0
+
+        # Persist to config
+        self._config.setdefault("ai_enhance", {})
+        self._config["ai_enhance"]["default_model"] = mname
+        save_config(self._config, self._config_path)
+        logger.info("AI enhance model set to: %s", mname)
+
+    def _build_enhance_model_menu(self) -> None:
+        """Build or rebuild the AI enhance model submenu."""
+        # Clear existing items — only call .clear() if the native menu exists
+        if self._enhance_model_menu._menu is not None:
+            self._enhance_model_menu.clear()
+        self._enhance_model_items.clear()
+
+        if not self._enhancer:
+            return
+
+        for mname in self._enhancer.model_names:
+            item = rumps.MenuItem(mname)
+            item._model_name = mname
+            item.set_callback(self._on_enhance_model_select)
+            if mname == self._enhancer.model_name:
+                item.state = 1
+            self._enhance_model_items[mname] = item
+            self._enhance_model_menu.add(item)
 
     def _on_copy_log_path(self, _) -> None:
         """Copy the log file path to clipboard."""

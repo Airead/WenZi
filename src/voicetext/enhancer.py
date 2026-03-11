@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -59,16 +59,29 @@ class TextEnhancer:
         self._mode = EnhanceMode(config.get("mode", "proofread"))
         self._timeout = config.get("timeout", 30)
 
-        provider_cfg = config.get("provider", {})
-        self._base_url = provider_cfg.get("base_url", "http://localhost:11434/v1")
-        self._api_key = provider_cfg.get("api_key", "ollama")
-        self._model = provider_cfg.get("model", "qwen2.5:7b")
+        # Multi-provider support: name -> (provider_instance, models_list)
+        self._providers: Dict[str, Tuple[Any, List[str]]] = {}
+        self._active_provider: str = config.get("default_provider", "")
+        self._active_model: str = config.get("default_model", "")
 
-        self._provider = None
-        self._init_provider()
+        self._providers_config = config.get("providers", {})
+        self._init_providers()
 
-    def _init_provider(self) -> None:
-        """Initialize the custom model provider."""
+        # Validate active provider/model
+        if self._active_provider not in self._providers and self._providers:
+            self._active_provider = next(iter(self._providers))
+        if self._providers:
+            models = self._providers[self._active_provider][1]
+            if self._active_model not in models and models:
+                self._active_model = models[0]
+
+    def _init_providers(self) -> None:
+        """Initialize all configured providers."""
+        for name, pcfg in self._providers_config.items():
+            self._init_single_provider(name, pcfg)
+
+    def _init_single_provider(self, name: str, pcfg: Dict[str, Any]) -> None:
+        """Initialize a single provider and cache it."""
         try:
             from agents import ModelProvider
             from agents.models.openai_chat_completions import (
@@ -76,25 +89,28 @@ class TextEnhancer:
             )
             from openai import AsyncOpenAI
 
-            client = AsyncOpenAI(base_url=self._base_url, api_key=self._api_key)
-            model_name = self._model
+            base_url = pcfg.get("base_url", "http://localhost:11434/v1")
+            api_key = pcfg.get("api_key", "ollama")
+            models = pcfg.get("models", [])
+
+            client = AsyncOpenAI(base_url=base_url, api_key=api_key)
 
             class _CustomModelProvider(ModelProvider):
                 def get_model(self, model_name_override: str | None = None):
                     return OpenAIChatCompletionsModel(
-                        model=model_name_override or model_name,
+                        model=model_name_override or (models[0] if models else ""),
                         openai_client=client,
                     )
 
-            self._provider = _CustomModelProvider()
+            self._providers[name] = (_CustomModelProvider(), models)
             logger.info(
-                "AI enhancer initialized: model=%s, base_url=%s",
-                self._model,
-                self._base_url,
+                "AI provider initialized: %s (models=%s, base_url=%s)",
+                name,
+                models,
+                base_url,
             )
         except ImportError as e:
-            logger.warning("Failed to initialize AI enhancer: %s", e)
-            self._provider = None
+            logger.warning("Failed to initialize AI provider %s: %s", name, e)
 
     @property
     def mode(self) -> EnhanceMode:
@@ -109,12 +125,47 @@ class TextEnhancer:
     def is_active(self) -> bool:
         return self._enabled and self._mode != EnhanceMode.OFF
 
+    @property
+    def provider_name(self) -> str:
+        return self._active_provider
+
+    @provider_name.setter
+    def provider_name(self, value: str) -> None:
+        if value not in self._providers:
+            logger.warning("Unknown provider: %s", value)
+            return
+        self._active_provider = value
+        # Auto-select first model if current model not in new provider
+        models = self._providers[value][1]
+        if self._active_model not in models and models:
+            self._active_model = models[0]
+        logger.info("AI provider changed to: %s, model: %s", value, self._active_model)
+
+    @property
+    def model_name(self) -> str:
+        return self._active_model
+
+    @model_name.setter
+    def model_name(self, value: str) -> None:
+        self._active_model = value
+        logger.info("AI model changed to: %s", value)
+
+    @property
+    def provider_names(self) -> List[str]:
+        return list(self._providers.keys())
+
+    @property
+    def model_names(self) -> List[str]:
+        if self._active_provider in self._providers:
+            return list(self._providers[self._active_provider][1])
+        return []
+
     async def enhance(self, text: str) -> str:
         """Enhance text using LLM. Returns original text on failure."""
         if not self.is_active or not text or not text.strip():
             return text
 
-        if self._provider is None:
+        if not self._providers or self._active_provider not in self._providers:
             logger.warning("AI enhancer not available, returning original text")
             return text
 
@@ -125,12 +176,14 @@ class TextEnhancer:
         try:
             from agents import Agent, RunConfig, Runner
 
+            provider_instance = self._providers[self._active_provider][0]
+
             agent = Agent(
                 name="text_enhancer",
                 instructions=prompt,
-                model=self._model,
+                model=self._active_model,
             )
-            run_config = RunConfig(model_provider=self._provider)
+            run_config = RunConfig(model_provider=provider_instance)
             result = await asyncio.wait_for(
                 Runner.run(agent, input=text.strip(), run_config=run_config),
                 timeout=self._timeout,

@@ -38,10 +38,14 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "ai_enhance": {
         "enabled": False,
         "mode": "proofread",
-        "provider": {
-            "base_url": "http://localhost:11434/v1",
-            "api_key": "ollama",
-            "model": "qwen2.5:7b",
+        "default_provider": "ollama",
+        "default_model": "qwen2.5:7b",
+        "providers": {
+            "ollama": {
+                "base_url": "http://localhost:11434/v1",
+                "api_key": "ollama",
+                "models": ["qwen2.5:7b"],
+            },
         },
         "timeout": 30,
     },
