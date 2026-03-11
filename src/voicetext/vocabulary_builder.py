@@ -105,6 +105,7 @@ class VocabularyBuilder:
 
         vocabulary = {
             "last_processed_timestamp": last_ts,
+            "built_at": datetime.now(timezone.utc).isoformat(),
             "entries": merged,
         }
         self._save_vocabulary(vocabulary)
@@ -173,10 +174,17 @@ class VocabularyBuilder:
             "你是一个词汇提取助手。请从以下语音识别纠错记录中提取有价值的词汇。\n\n"
             "每条记录包含：asr_text（ASR原始结果，可能有错）和 final_text（用户确认的正确文本）。\n\n"
             "请提取专有名词、技术术语、常用短语，以及ASR容易识别错误的词汇。\n"
-            "对每个词条输出：\n"
-            '{"term": "正确写法", "category": "tech|name|place|domain|other", '
-            '"variants": ["ASR错误形式"], "context": "简短语境"}\n\n'
-            "以JSON数组格式返回，只输出JSON。\n\n"
+            "以管道符分隔的文本格式输出，第一行为表头，之后每行一个词条。\n"
+            "字段：term|category|variants|context\n"
+            "- category 取值：tech, name, place, domain, other\n"
+            "- variants 多个值用逗号分隔，无则留空\n"
+            "- context 为简短语境说明\n"
+            "- 字段内容中不要包含管道符\n\n"
+            "示例：\n"
+            "term|category|variants|context\n"
+            "Python|tech|派森|编程语言\n"
+            "Kubernetes|tech|库伯尼特斯,酷伯|容器编排\n\n"
+            "只输出表头和数据行，不要输出其他内容。\n\n"
             "纠错记录：\n"
             f"{records_text}"
         )
@@ -266,31 +274,54 @@ class VocabularyBuilder:
         }
 
     def _parse_llm_response(self, content: str) -> List[Dict[str, Any]]:
-        """Parse LLM response as JSON array of vocabulary entries."""
+        """Parse LLM response as pipe-separated text of vocabulary entries."""
         content = content.strip()
         # Strip markdown code fences if present
         if content.startswith("```"):
             lines = content.split("\n")
-            # Remove first and last fence lines
             if lines[0].startswith("```"):
                 lines = lines[1:]
             if lines and lines[-1].strip() == "```":
                 lines = lines[:-1]
             content = "\n".join(lines)
 
-        try:
-            entries = json.loads(content)
-            if not isinstance(entries, list):
-                return []
-            # Validate each entry has at least 'term'
-            valid = []
-            for entry in entries:
-                if isinstance(entry, dict) and "term" in entry:
-                    valid.append(entry)
-            return valid
-        except json.JSONDecodeError as e:
-            logger.warning("Failed to parse LLM response as JSON: %s", e)
+        lines = content.split("\n")
+        if not lines:
             return []
+
+        # Skip header line (term|category|variants|context)
+        start = 0
+        if lines[0].strip().startswith("term"):
+            start = 1
+
+        valid: List[Dict[str, Any]] = []
+        for line in lines[start:]:
+            line = line.strip()
+            if not line:
+                continue
+
+            parts = line.split("|", 3)
+            if len(parts) < 4:
+                logger.warning("Skipping line with fewer than 4 fields: %s", line)
+                continue
+
+            term = parts[0].strip()
+            if not term:
+                continue
+
+            category = parts[1].strip() or "other"
+            variants_raw = parts[2].strip()
+            variants = [v.strip() for v in variants_raw.split(",") if v.strip()] if variants_raw else []
+            context = parts[3].strip()
+
+            valid.append({
+                "term": term,
+                "category": category,
+                "variants": variants,
+                "context": context,
+            })
+
+        return valid
 
     def _merge_entries(
         self,

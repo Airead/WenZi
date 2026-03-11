@@ -56,6 +56,28 @@ def _sample_corrections():
     ]
 
 
+_PIPE_RESPONSE_TWO = (
+    "term|category|variants|context\n"
+    "Python|tech|派森|编程语言\n"
+    "Kubernetes|tech|库伯尼特斯|容器编排"
+)
+
+_PIPE_RESPONSE_ONE = (
+    "term|category|variants|context\n"
+    "Python|tech|派森|编程语言"
+)
+
+_PIPE_RESPONSE_K8S = (
+    "term|category|variants|context\n"
+    "Kubernetes|tech|库伯尼特斯|容器编排"
+)
+
+_PIPE_RESPONSE_TEST = (
+    "term|category|variants|context\n"
+    "TestTerm|tech||test"
+)
+
+
 class TestReadCorrections:
     def test_read_all(self, tmp_path):
         corrections_path = tmp_path / "corrections.jsonl"
@@ -145,9 +167,7 @@ class TestExtractBatch:
 
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = json.dumps([
-            {"term": "Python", "category": "tech", "variants": ["派森"], "context": "编程语言"}
-        ])
+        mock_response.choices[0].message.content = _PIPE_RESPONSE_ONE
 
         mock_client = MagicMock()
         mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
@@ -207,37 +227,85 @@ class TestExtractBatch:
 
 
 class TestParseLLMResponse:
-    def test_parse_json_array(self):
+    def test_parse_pipe_text(self):
         builder = VocabularyBuilder(_make_config())
-        content = '[{"term": "Python", "category": "tech"}]'
+        content = "term|category|variants|context\nPython|tech|派森|编程语言"
         result = builder._parse_llm_response(content)
         assert len(result) == 1
         assert result[0]["term"] == "Python"
+        assert result[0]["category"] == "tech"
+        assert result[0]["variants"] == ["派森"]
+        assert result[0]["context"] == "编程语言"
 
-    def test_parse_with_markdown_fences(self):
+    def test_parse_multiple_entries(self):
         builder = VocabularyBuilder(_make_config())
-        content = '```json\n[{"term": "Python"}]\n```'
-        result = builder._parse_llm_response(content)
-        assert len(result) == 1
-        assert result[0]["term"] == "Python"
-
-    def test_parse_invalid_json(self):
-        builder = VocabularyBuilder(_make_config())
-        result = builder._parse_llm_response("not json at all")
-        assert result == []
-
-    def test_parse_non_array(self):
-        builder = VocabularyBuilder(_make_config())
-        result = builder._parse_llm_response('{"term": "Python"}')
-        assert result == []
-
-    def test_parse_filters_entries_without_term(self):
-        builder = VocabularyBuilder(_make_config())
-        content = '[{"term": "Python"}, {"category": "tech"}, {"term": "Java"}]'
+        content = (
+            "term|category|variants|context\n"
+            "Python|tech|派森|编程语言\n"
+            "Kubernetes|tech|库伯尼特斯|容器编排"
+        )
         result = builder._parse_llm_response(content)
         assert len(result) == 2
         assert result[0]["term"] == "Python"
-        assert result[1]["term"] == "Java"
+        assert result[1]["term"] == "Kubernetes"
+
+    def test_parse_with_markdown_fences(self):
+        builder = VocabularyBuilder(_make_config())
+        content = "```\nterm|category|variants|context\nPython|tech|派森|编程语言\n```"
+        result = builder._parse_llm_response(content)
+        assert len(result) == 1
+        assert result[0]["term"] == "Python"
+
+    def test_parse_empty_variants(self):
+        builder = VocabularyBuilder(_make_config())
+        content = "term|category|variants|context\nPython|tech||编程语言"
+        result = builder._parse_llm_response(content)
+        assert len(result) == 1
+        assert result[0]["variants"] == []
+
+    def test_parse_multiple_variants(self):
+        builder = VocabularyBuilder(_make_config())
+        content = "term|category|variants|context\nKubernetes|tech|库伯尼特斯,酷伯,K8S|容器编排"
+        result = builder._parse_llm_response(content)
+        assert len(result) == 1
+        assert result[0]["variants"] == ["库伯尼特斯", "酷伯", "K8S"]
+
+    def test_parse_skips_short_lines(self):
+        builder = VocabularyBuilder(_make_config())
+        content = "term|category|variants|context\nPython|tech|派森|编程语言\nbadline|tech|only three"
+        result = builder._parse_llm_response(content)
+        assert len(result) == 1
+        assert result[0]["term"] == "Python"
+
+    def test_parse_empty_content(self):
+        builder = VocabularyBuilder(_make_config())
+        result = builder._parse_llm_response("")
+        assert result == []
+
+    def test_parse_header_only(self):
+        builder = VocabularyBuilder(_make_config())
+        result = builder._parse_llm_response("term|category|variants|context")
+        assert result == []
+
+    def test_parse_default_category(self):
+        builder = VocabularyBuilder(_make_config())
+        content = "term|category|variants|context\nPython||派森|编程语言"
+        result = builder._parse_llm_response(content)
+        assert len(result) == 1
+        assert result[0]["category"] == "other"
+
+    def test_parse_skips_empty_term(self):
+        builder = VocabularyBuilder(_make_config())
+        content = "term|category|variants|context\n|tech|派森|编程语言\nPython|tech||编程语言"
+        result = builder._parse_llm_response(content)
+        assert len(result) == 1
+        assert result[0]["term"] == "Python"
+
+    def test_parse_skips_blank_lines(self):
+        builder = VocabularyBuilder(_make_config())
+        content = "term|category|variants|context\nPython|tech|派森|编程语言\n\nJava|tech|加瓦|编程语言"
+        result = builder._parse_llm_response(content)
+        assert len(result) == 2
 
 
 class TestMergeEntries:
@@ -318,20 +386,15 @@ class TestBuild:
         assert result["new_records"] == 0
 
     def test_build_end_to_end(self, tmp_path):
-        # Write corrections
         corrections_path = tmp_path / "corrections.jsonl"
         records = _sample_corrections()
         with open(corrections_path, "w", encoding="utf-8") as f:
             for r in records:
                 f.write(json.dumps(r, ensure_ascii=False) + "\n")
 
-        # Mock LLM response
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = json.dumps([
-            {"term": "Python", "category": "tech", "variants": ["派森"], "context": "编程语言"},
-            {"term": "Kubernetes", "category": "tech", "variants": ["库伯尼特斯"], "context": "容器编排"},
-        ])
+        mock_response.choices[0].message.content = _PIPE_RESPONSE_TWO
 
         mock_client = MagicMock()
         mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
@@ -343,14 +406,14 @@ class TestBuild:
         assert result["new_records"] == 3
         assert result["total_entries"] == 2
 
-        # Verify vocabulary.json was written
+        # Verify vocabulary.json was written with built_at
         vocab_path = tmp_path / "vocabulary.json"
         assert vocab_path.exists()
         data = json.loads(vocab_path.read_text(encoding="utf-8"))
         assert len(data["entries"]) == 2
+        assert "built_at" in data
 
     def test_build_incremental(self, tmp_path):
-        # Write existing vocabulary
         vocab_path = tmp_path / "vocabulary.json"
         existing = {
             "last_processed_timestamp": "2026-01-01T10:00:00+00:00",
@@ -360,19 +423,15 @@ class TestBuild:
         }
         vocab_path.write_text(json.dumps(existing, ensure_ascii=False), encoding="utf-8")
 
-        # Write corrections (only newer ones should be processed)
         corrections_path = tmp_path / "corrections.jsonl"
         records = _sample_corrections()
         with open(corrections_path, "w", encoding="utf-8") as f:
             for r in records:
                 f.write(json.dumps(r, ensure_ascii=False) + "\n")
 
-        # Mock LLM
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = json.dumps([
-            {"term": "Kubernetes", "category": "tech", "variants": ["库伯尼特斯"], "context": "容器编排"},
-        ])
+        mock_response.choices[0].message.content = _PIPE_RESPONSE_K8S
 
         mock_client = MagicMock()
         mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
@@ -381,12 +440,14 @@ class TestBuild:
         with patch("openai.AsyncOpenAI", return_value=mock_client):
             result = asyncio.get_event_loop().run_until_complete(builder.build())
 
-        # Only 2 records after the timestamp should be processed
         assert result["new_records"] == 2
         assert result["total_entries"] == 2  # Python + Kubernetes
 
+        # Verify built_at is present
+        data = json.loads(vocab_path.read_text(encoding="utf-8"))
+        assert "built_at" in data
+
     def test_build_full_rebuild(self, tmp_path):
-        # Write existing vocabulary with timestamp
         vocab_path = tmp_path / "vocabulary.json"
         existing = {
             "last_processed_timestamp": "2026-01-01T10:00:00+00:00",
@@ -404,9 +465,7 @@ class TestBuild:
 
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = json.dumps([
-            {"term": "Python", "category": "tech", "variants": ["派森"]},
-        ])
+        mock_response.choices[0].message.content = _PIPE_RESPONSE_ONE
 
         mock_client = MagicMock()
         mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
@@ -417,17 +476,17 @@ class TestBuild:
                 builder.build(full_rebuild=True)
             )
 
-        # All 3 records processed, OldTerm merged with new
         assert result["new_records"] == 3
-        # OldTerm from existing + Python from LLM
-        assert result["total_entries"] == 2
+        assert result["total_entries"] == 2  # OldTerm + Python
+
+        data = json.loads(vocab_path.read_text(encoding="utf-8"))
+        assert "built_at" in data
 
 
 class TestBuildWithCancel:
     def test_cancel_after_first_batch(self, tmp_path):
         """Cancel event set after first batch - should save partial results."""
         corrections_path = tmp_path / "corrections.jsonl"
-        # Create enough records for 2 batches (batch_size=20)
         records = []
         for i in range(25):
             records.append({
@@ -441,9 +500,7 @@ class TestBuildWithCancel:
 
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = json.dumps([
-            {"term": "TestTerm", "category": "tech", "variants": [], "context": "test"}
-        ])
+        mock_response.choices[0].message.content = _PIPE_RESPONSE_TEST
 
         cancel_event = threading.Event()
         call_count = 0
@@ -451,7 +508,6 @@ class TestBuildWithCancel:
         async def mock_create(**kwargs):
             nonlocal call_count
             call_count += 1
-            # Cancel after first batch completes
             if call_count == 1:
                 cancel_event.set()
             return mock_response
@@ -466,9 +522,8 @@ class TestBuildWithCancel:
             )
 
         assert result.get("cancelled") is True
-        assert result["new_entries"] == 1  # Only first batch processed
+        assert result["new_entries"] == 1
         assert result["total_entries"] == 1
-        # Vocabulary should still be saved
         assert (tmp_path / "vocabulary.json").exists()
 
     def test_cancel_before_any_batch(self, tmp_path):
@@ -480,7 +535,7 @@ class TestBuildWithCancel:
                 f.write(json.dumps(r, ensure_ascii=False) + "\n")
 
         cancel_event = threading.Event()
-        cancel_event.set()  # Already cancelled
+        cancel_event.set()
 
         builder = VocabularyBuilder(_make_config(), log_dir=str(tmp_path))
         result = asyncio.get_event_loop().run_until_complete(
@@ -519,12 +574,11 @@ class TestExtractBatchStreaming:
         builder = VocabularyBuilder(_make_config())
         batch = [{"asr_text": "test", "final_text": "test"}]
 
-        json_parts = ['[{"term"', ': "Python"', ', "category"', ': "tech"}]']
-        full_json = "".join(json_parts)
+        pipe_parts = ["term|categ", "ory|variants|context\n", "Python|tech|派森|", "编程语言"]
+        full_text = "".join(pipe_parts)
 
-        # Build async iterator for stream chunks
         chunks = []
-        for part in json_parts:
+        for part in pipe_parts:
             chunk = MagicMock()
             chunk.choices = [MagicMock()]
             chunk.choices[0].delta.content = part
@@ -545,7 +599,7 @@ class TestExtractBatchStreaming:
                 builder._extract_batch(batch, on_stream_chunk=on_chunk)
             )
 
-        assert collected_chunks == json_parts
+        assert collected_chunks == pipe_parts
         assert len(result) == 1
         assert result[0]["term"] == "Python"
 
@@ -556,9 +610,7 @@ class TestExtractBatchStreaming:
 
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = json.dumps([
-            {"term": "Python", "category": "tech"}
-        ])
+        mock_response.choices[0].message.content = _PIPE_RESPONSE_ONE
 
         mock_client = MagicMock()
         mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
@@ -568,7 +620,6 @@ class TestExtractBatchStreaming:
                 builder._extract_batch(batch)
             )
 
-        # Verify stream=True was NOT passed
         create_call = mock_client.chat.completions.create
         create_call.assert_called_once()
         call_kwargs = create_call.call_args[1]
@@ -587,14 +638,11 @@ class TestBuildWithCallbacks:
             for r in records:
                 f.write(json.dumps(r, ensure_ascii=False) + "\n")
 
-        json_content = json.dumps([
-            {"term": "Python", "category": "tech", "variants": ["派森"]}
-        ])
+        pipe_content = _PIPE_RESPONSE_ONE
 
-        # Build streaming mock that yields the full JSON in one chunk
         stream_chunk = MagicMock()
         stream_chunk.choices = [MagicMock()]
-        stream_chunk.choices[0].delta.content = json_content
+        stream_chunk.choices[0].delta.content = pipe_content
 
         async def mock_create(**kwargs):
             return _AsyncStreamMock([stream_chunk])
@@ -618,10 +666,9 @@ class TestBuildWithCallbacks:
                 builder.build(callbacks=callbacks)
             )
 
-        # With 3 records and batch_size=20, there's 1 batch
         on_batch_start.assert_called_once_with(1, 1)
         on_batch_done.assert_called_once_with(1, 1, 1)
-        on_stream_chunk.assert_called_once_with(json_content)
+        on_stream_chunk.assert_called_once_with(pipe_content)
         assert result["new_entries"] == 1
 
 
@@ -637,7 +684,8 @@ class TestBuildExtractionPrompt:
         assert "Python" in prompt
         assert "加瓦" in prompt
         assert "Java" in prompt
-        assert "JSON" in prompt
+        assert "term|category|variants|context" in prompt
+        assert "管道" in prompt
 
 
 class TestSaveLoadVocabulary:
