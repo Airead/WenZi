@@ -294,6 +294,10 @@ class TextEnhancer:
                     if entries:
                         vocab_context = self._vocab_index.format_for_prompt(entries)
                         system_content = f"{mode_def.prompt}\n\n{vocab_context}"
+                        logger.info(
+                            "Vocabulary matched: %s",
+                            ", ".join(e.term for e in entries),
+                        )
                 except Exception as e:
                     logger.warning("Vocabulary retrieval failed: %s", e)
 
