@@ -160,6 +160,23 @@ class VoiceTextApp(rumps.App):
         self._build_enhance_model_menu()
         self._enhance_menu.add(self._enhance_model_menu)
 
+        # Provider configuration items
+        self._enhance_menu.add(rumps.separator)
+        self._enhance_add_provider_item = rumps.MenuItem(
+            "Add Provider...", callback=self._on_enhance_add_provider
+        )
+        self._enhance_menu.add(self._enhance_add_provider_item)
+
+        self._enhance_remove_provider_menu = rumps.MenuItem("Remove Provider")
+        self._enhance_remove_provider_items: Dict[str, rumps.MenuItem] = {}
+        self._build_enhance_remove_provider_menu()
+        self._enhance_menu.add(self._enhance_remove_provider_menu)
+
+        self._enhance_edit_config_item = rumps.MenuItem(
+            "Edit Config...", callback=self._on_enhance_edit_config
+        )
+        self._enhance_menu.add(self._enhance_edit_config_item)
+
         self._copy_log_item = rumps.MenuItem(
             "Copy Log Path", callback=self._on_copy_log_path
         )
@@ -336,6 +353,411 @@ class VoiceTextApp(rumps.App):
                 item.state = 1
             self._enhance_model_items[mname] = item
             self._enhance_model_menu.add(item)
+
+    def _build_enhance_remove_provider_menu(self) -> None:
+        """Build or rebuild the remove-provider submenu."""
+        if self._enhance_remove_provider_menu._menu is not None:
+            self._enhance_remove_provider_menu.clear()
+        self._enhance_remove_provider_items.clear()
+
+        if not self._enhancer:
+            return
+
+        for pname in self._enhancer.provider_names:
+            item = rumps.MenuItem(pname)
+            item._provider_name = pname
+            item.set_callback(self._on_enhance_remove_provider)
+            self._enhance_remove_provider_items[pname] = item
+            self._enhance_remove_provider_menu.add(item)
+
+    def _build_enhance_provider_menu(self) -> None:
+        """Rebuild the provider selection submenu."""
+        if self._enhance_provider_menu._menu is not None:
+            self._enhance_provider_menu.clear()
+        self._enhance_provider_items.clear()
+
+        if not self._enhancer:
+            return
+
+        for pname in self._enhancer.provider_names:
+            item = rumps.MenuItem(pname)
+            item._provider_name = pname
+            item.set_callback(self._on_enhance_provider_select)
+            if pname == self._enhancer.provider_name:
+                item.state = 1
+            self._enhance_provider_items[pname] = item
+            self._enhance_provider_menu.add(item)
+
+    @staticmethod
+    def _activate_for_dialog():
+        """Set activation policy so modal dialogs can show from non-bundled process."""
+        from AppKit import NSApp
+        NSApp.setActivationPolicy_(0)  # NSApplicationActivationPolicyRegular
+        NSApp.activateIgnoringOtherApps_(True)
+
+    @staticmethod
+    def _restore_accessory():
+        """Restore accessory activation policy (statusbar-only)."""
+        from AppKit import NSApp
+        NSApp.setActivationPolicy_(1)  # NSApplicationActivationPolicyAccessory
+
+    @staticmethod
+    def _run_window(title: str, message: str, default_text: str = "",
+                    ok: str = "OK", cancel: str = "Cancel",
+                    dimensions: tuple = (320, 22), secure: bool = False):
+        """Run a rumps.Window with proper app activation. Returns Response or None on cancel."""
+        VoiceTextApp._activate_for_dialog()
+        w = rumps.Window(
+            title=title, message=message, default_text=default_text,
+            ok=ok, cancel=cancel, dimensions=dimensions, secure=secure,
+        )
+        resp = w.run()
+        if resp.clicked != 1:
+            return None
+        return resp
+
+    @staticmethod
+    def _run_multiline_window(title: str, message: str, default_text: str = "",
+                              ok: str = "OK", cancel: str = "Cancel",
+                              dimensions: tuple = (380, 180)):
+        """Run a modal dialog with a multiline NSTextView (Enter = newline).
+
+        Returns a Response-like object with .clicked and .text, or None on cancel.
+        """
+        from AppKit import NSApp, NSAlert, NSScrollView, NSTextView, NSBezelBorder
+        from Foundation import NSMakeRect
+
+        VoiceTextApp._activate_for_dialog()
+
+        alert = NSAlert.alloc().init()
+        alert.setMessageText_(title)
+        alert.setInformativeText_(message)
+        alert.addButtonWithTitle_(ok)
+        alert.addButtonWithTitle_(cancel)
+        alert.setAlertStyle_(0)  # informational
+
+        width, height = dimensions
+        scroll_view = NSScrollView.alloc().initWithFrame_(
+            NSMakeRect(0, 0, width, height)
+        )
+        scroll_view.setHasVerticalScroller_(True)
+        scroll_view.setBorderType_(NSBezelBorder)
+
+        text_view = NSTextView.alloc().initWithFrame_(
+            NSMakeRect(0, 0, width, height)
+        )
+        text_view.setMinSize_(NSMakeRect(0, 0, width, 0).size)
+        text_view.setMaxSize_(NSMakeRect(0, 0, 1e7, 1e7).size)
+        text_view.setVerticallyResizable_(True)
+        text_view.setHorizontallyResizable_(False)
+        text_view.textContainer().setWidthTracksTextView_(True)
+        text_view.setFont_(
+            __import__("AppKit").NSFont.userFixedPitchFontOfSize_(12.0)
+        )
+        text_view.setString_(default_text)
+        scroll_view.setDocumentView_(text_view)
+
+        alert.setAccessoryView_(scroll_view)
+        alert.window().setInitialFirstResponder_(text_view)
+
+        # NSAlertFirstButtonReturn = 1000
+        result = alert.runModal()
+        clicked = 1 if result == 1000 else 0
+        text = text_view.string()
+
+        if clicked != 1:
+            return None
+
+        class _Response:
+            pass
+
+        resp = _Response()
+        resp.clicked = clicked
+        resp.text = text
+        return resp
+
+    def _on_enhance_add_provider(self, _) -> None:
+        """Add a new AI provider via multi-step dialog."""
+        try:
+            self._do_add_provider()
+        except Exception as e:
+            logger.error("Add provider failed: %s", e, exc_info=True)
+        finally:
+            self._restore_accessory()
+
+    _ADD_PROVIDER_TEMPLATE = """\
+name: my-provider
+base_url: https://api.openai.com/v1
+api_key: sk-xxx
+models:
+  gpt-4o
+  gpt-4o-mini"""
+
+    _PROVIDER_DRAFT_FILENAME = ".provider_draft"
+
+    def _get_provider_draft_path(self) -> str:
+        """Return the path to the provider draft cache file."""
+        from .config import DEFAULT_CONFIG_DIR
+        config_dir = self._config_path or DEFAULT_CONFIG_DIR
+        parent = os.path.dirname(os.path.expanduser(config_dir))
+        return os.path.join(parent, self._PROVIDER_DRAFT_FILENAME)
+
+    def _load_provider_draft(self) -> str:
+        """Load cached draft text, or return the default template."""
+        draft_path = self._get_provider_draft_path()
+        try:
+            with open(draft_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            if content.strip():
+                return content
+        except FileNotFoundError:
+            pass
+        except Exception as e:
+            logger.debug("Could not read provider draft: %s", e)
+        return self._ADD_PROVIDER_TEMPLATE
+
+    def _save_provider_draft(self, text: str) -> None:
+        """Cache the user's draft text for next time."""
+        draft_path = self._get_provider_draft_path()
+        try:
+            os.makedirs(os.path.dirname(draft_path), exist_ok=True)
+            with open(draft_path, "w", encoding="utf-8") as f:
+                f.write(text)
+        except Exception as e:
+            logger.debug("Could not save provider draft: %s", e)
+
+    def _remove_provider_draft(self) -> None:
+        """Remove the draft cache file after a successful save."""
+        draft_path = self._get_provider_draft_path()
+        try:
+            os.remove(draft_path)
+        except FileNotFoundError:
+            pass
+        except Exception as e:
+            logger.debug("Could not remove provider draft: %s", e)
+
+    def _do_add_provider(self) -> None:
+        """Internal implementation for adding a provider."""
+        if not self._enhancer:
+            self._activate_for_dialog()
+            rumps.alert("Error", "AI enhancer is not initialized.")
+            return
+
+        template = self._load_provider_draft()
+        while True:
+            resp = self._run_multiline_window(
+                title="Add AI Provider",
+                message=(
+                    "Fill in the provider config below, then click Verify.\n"
+                    "Models: one per line under 'models:'."
+                ),
+                default_text=template,
+                ok="Verify",
+                dimensions=(380, 180),
+            )
+            if resp is None:
+                # User cancelled — cache their input for next time
+                self._save_provider_draft(template)
+                return
+
+            parsed = self._parse_provider_text(resp.text)
+            if isinstance(parsed, str):
+                # Validation error
+                self._activate_for_dialog()
+                rumps.alert("Validation Error", parsed)
+                template = resp.text
+                self._save_provider_draft(resp.text)
+                continue
+
+            name, base_url, api_key, models = parsed
+
+            if name in self._enhancer.provider_names:
+                self._activate_for_dialog()
+                rumps.alert("Error", f"Provider '{name}' already exists.")
+                template = resp.text
+                self._save_provider_draft(resp.text)
+                continue
+
+            # Verify connection
+            self._activate_for_dialog()
+            rumps.alert("Verifying...", f"Testing connection to {base_url}\nModel: {models[0]}")
+
+            import asyncio
+            loop = asyncio.new_event_loop()
+            try:
+                err = loop.run_until_complete(
+                    self._enhancer.verify_provider(base_url, api_key, models[0])
+                )
+            finally:
+                loop.close()
+
+            if err:
+                self._activate_for_dialog()
+                result = rumps.alert(
+                    title="Verification Failed",
+                    message=f"{err}\n\nEdit and retry?",
+                    ok="Edit",
+                    cancel="Cancel",
+                )
+                if result != 1:
+                    self._save_provider_draft(resp.text)
+                    return
+                template = resp.text
+                self._save_provider_draft(resp.text)
+                continue
+
+            # Verify passed — ask to save
+            self._activate_for_dialog()
+            result = rumps.alert(
+                title="Verification Passed",
+                message=(
+                    f"Provider: {name}\n"
+                    f"URL: {base_url}\n"
+                    f"Models: {', '.join(models)}\n\n"
+                    "Save this provider?"
+                ),
+                ok="Save",
+                cancel="Cancel",
+            )
+            if result != 1:
+                self._save_provider_draft(resp.text)
+                return
+
+            # Save
+            success = self._enhancer.add_provider(name, base_url, api_key, models)
+            if not success:
+                self._activate_for_dialog()
+                rumps.alert(
+                    "Error",
+                    "Failed to initialize provider. "
+                    "Check that the openai package is installed.",
+                )
+                return
+
+            self._config.setdefault("ai_enhance", {})
+            providers_cfg = self._config["ai_enhance"].setdefault("providers", {})
+            providers_cfg[name] = {
+                "base_url": base_url,
+                "api_key": api_key,
+                "models": models,
+            }
+            save_config(self._config, self._config_path)
+            self._remove_provider_draft()
+
+            self._build_enhance_provider_menu()
+            self._build_enhance_model_menu()
+            self._build_enhance_remove_provider_menu()
+
+            rumps.notification(
+                "VoiceText", "Provider added", f"{name} ({', '.join(models)})"
+            )
+            logger.info("Added AI provider: %s", name)
+            return
+
+    @staticmethod
+    def _parse_provider_text(text: str):
+        """Parse the provider config text.
+
+        Returns (name, base_url, api_key, models) on success,
+        or a string error message on failure.
+        """
+        lines = text.strip().splitlines()
+        fields = {}
+        in_models = False
+        models = []
+
+        for line in lines:
+            stripped = line.strip()
+            if not stripped:
+                continue
+            if stripped.startswith("models:"):
+                in_models = True
+                # Handle inline value: "models: gpt-4o"
+                inline = stripped[len("models:"):].strip()
+                if inline:
+                    models.append(inline)
+                continue
+            if in_models:
+                # A non-indented line with "key:" pattern ends the models section
+                is_indented = line.startswith(" ") or line.startswith("\t")
+                if not is_indented and ":" in stripped:
+                    in_models = False
+                else:
+                    models.append(stripped)
+                    continue
+            if ":" in stripped:
+                key, _, val = stripped.partition(":")
+                fields[key.strip().lower()] = val.strip()
+
+        name = fields.get("name", "").strip()
+        base_url = fields.get("base_url", "").strip()
+        api_key = fields.get("api_key", "").strip()
+
+        errors = []
+        if not name:
+            errors.append("name is required")
+        if not base_url:
+            errors.append("base_url is required")
+        if not api_key:
+            errors.append("api_key is required")
+        if not models:
+            errors.append("at least one model is required")
+
+        if errors:
+            return "\n".join(errors)
+
+        return name, base_url, api_key, models
+
+    def _on_enhance_remove_provider(self, sender) -> None:
+        """Remove an AI provider after confirmation."""
+        try:
+            pname = sender._provider_name
+            if not self._enhancer:
+                return
+
+            self._activate_for_dialog()
+
+            result = rumps.alert(
+                title="Remove Provider",
+                message=f"Remove provider '{pname}' and all its models?",
+                ok="Remove",
+                cancel="Cancel",
+            )
+            if result != 1:
+                return
+
+            self._enhancer.remove_provider(pname)
+
+            # Persist to config
+            self._config.setdefault("ai_enhance", {})
+            providers_cfg = self._config["ai_enhance"].get("providers", {})
+            providers_cfg.pop(pname, None)
+            self._config["ai_enhance"]["default_provider"] = self._enhancer.provider_name
+            self._config["ai_enhance"]["default_model"] = self._enhancer.model_name
+            save_config(self._config, self._config_path)
+
+            # Rebuild menus
+            self._build_enhance_provider_menu()
+            self._build_enhance_model_menu()
+            self._build_enhance_remove_provider_menu()
+
+            rumps.notification("VoiceText", "Provider removed", pname)
+            logger.info("Removed AI provider: %s", pname)
+        except Exception as e:
+            logger.error("Remove provider failed: %s", e, exc_info=True)
+        finally:
+            self._restore_accessory()
+
+    def _on_enhance_edit_config(self, _) -> None:
+        """Open the config file in the default editor."""
+        try:
+            from .config import DEFAULT_CONFIG_PATH
+
+            config_path = self._config_path or DEFAULT_CONFIG_PATH
+            expanded = os.path.expanduser(config_path)
+            subprocess.Popen(["open", expanded])
+        except Exception as e:
+            logger.error("Failed to open config file: %s", e, exc_info=True)
 
     def _on_copy_log_path(self, _) -> None:
         """Copy the log file path to clipboard."""

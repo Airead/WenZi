@@ -1,4 +1,4 @@
-"""AI text enhancement using OpenAI Agents SDK."""
+"""AI text enhancement using OpenAI-compatible chat completions API."""
 
 from __future__ import annotations
 
@@ -52,14 +52,14 @@ _MODE_PROMPTS: Dict[EnhanceMode, str] = {
 
 
 class TextEnhancer:
-    """Enhance transcribed text using LLM via OpenAI Agents SDK."""
+    """Enhance transcribed text using LLM via OpenAI-compatible API."""
 
     def __init__(self, config: Dict[str, Any]) -> None:
         self._enabled = config.get("enabled", False)
         self._mode = EnhanceMode(config.get("mode", "proofread"))
         self._timeout = config.get("timeout", 30)
 
-        # Multi-provider support: name -> (provider_instance, models_list)
+        # Multi-provider support: name -> (AsyncOpenAI client, models list)
         self._providers: Dict[str, Tuple[Any, List[str]]] = {}
         self._active_provider: str = config.get("default_provider", "")
         self._active_model: str = config.get("default_model", "")
@@ -81,12 +81,8 @@ class TextEnhancer:
             self._init_single_provider(name, pcfg)
 
     def _init_single_provider(self, name: str, pcfg: Dict[str, Any]) -> None:
-        """Initialize a single provider and cache it."""
+        """Initialize a single provider and cache its AsyncOpenAI client."""
         try:
-            from agents import ModelProvider
-            from agents.models.openai_chat_completions import (
-                OpenAIChatCompletionsModel,
-            )
             from openai import AsyncOpenAI
 
             base_url = pcfg.get("base_url", "http://localhost:11434/v1")
@@ -94,15 +90,7 @@ class TextEnhancer:
             models = pcfg.get("models", [])
 
             client = AsyncOpenAI(base_url=base_url, api_key=api_key)
-
-            class _CustomModelProvider(ModelProvider):
-                def get_model(self, model_name_override: str | None = None):
-                    return OpenAIChatCompletionsModel(
-                        model=model_name_override or (models[0] if models else ""),
-                        openai_client=client,
-                    )
-
-            self._providers[name] = (_CustomModelProvider(), models)
+            self._providers[name] = (client, models)
             logger.info(
                 "AI provider initialized: %s (models=%s, base_url=%s)",
                 name,
@@ -160,6 +148,71 @@ class TextEnhancer:
             return list(self._providers[self._active_provider][1])
         return []
 
+    async def verify_provider(
+        self, base_url: str, api_key: str, model: str, timeout: int = 10
+    ) -> Optional[str]:
+        """Verify a provider by sending a test request.
+
+        Returns None on success, or an error message string on failure.
+        """
+        try:
+            from openai import AsyncOpenAI
+
+            client = AsyncOpenAI(base_url=base_url, api_key=api_key)
+            await asyncio.wait_for(
+                client.chat.completions.create(
+                    model=model,
+                    messages=[{"role": "user", "content": "hi"}],
+                    max_tokens=1,
+                ),
+                timeout=timeout,
+            )
+            return None
+        except asyncio.TimeoutError:
+            return f"Connection timed out after {timeout}s"
+        except Exception as e:
+            return str(e)
+
+    def add_provider(
+        self, name: str, base_url: str, api_key: str, models: List[str]
+    ) -> bool:
+        """Add a new provider and initialize it.
+
+        Returns True on success, False if initialization fails.
+        """
+        if not name or not models:
+            return False
+        pcfg = {"base_url": base_url, "api_key": api_key, "models": models}
+        self._providers_config[name] = pcfg
+        self._init_single_provider(name, pcfg)
+        if name not in self._providers:
+            # init failed, clean up config
+            del self._providers_config[name]
+            return False
+        # If this is the first provider, auto-select it
+        if len(self._providers) == 1:
+            self._active_provider = name
+            self._active_model = models[0]
+        return True
+
+    def remove_provider(self, name: str) -> bool:
+        """Remove a provider. Returns True if removed, False otherwise."""
+        if name not in self._providers:
+            return False
+        del self._providers[name]
+        self._providers_config.pop(name, None)
+        # If removed the active provider, switch to another
+        if self._active_provider == name:
+            if self._providers:
+                self._active_provider = next(iter(self._providers))
+                models = self._providers[self._active_provider][1]
+                self._active_model = models[0] if models else ""
+            else:
+                self._active_provider = ""
+                self._active_model = ""
+        logger.info("Removed AI provider: %s", name)
+        return True
+
     async def enhance(self, text: str) -> str:
         """Enhance text using LLM. Returns original text on failure."""
         if not self.is_active or not text or not text.strip():
@@ -174,21 +227,18 @@ class TextEnhancer:
             return text
 
         try:
-            from agents import Agent, RunConfig, Runner
-
-            provider_instance = self._providers[self._active_provider][0]
-
-            agent = Agent(
-                name="text_enhancer",
-                instructions=prompt,
-                model=self._active_model,
-            )
-            run_config = RunConfig(model_provider=provider_instance)
-            result = await asyncio.wait_for(
-                Runner.run(agent, input=text.strip(), run_config=run_config),
+            client = self._providers[self._active_provider][0]
+            response = await asyncio.wait_for(
+                client.chat.completions.create(
+                    model=self._active_model,
+                    messages=[
+                        {"role": "system", "content": prompt},
+                        {"role": "user", "content": text.strip()},
+                    ],
+                ),
                 timeout=self._timeout,
             )
-            enhanced = result.final_output
+            enhanced = response.choices[0].message.content
             if enhanced and enhanced.strip():
                 logger.info(
                     "Text enhanced: '%s' -> '%s'",
