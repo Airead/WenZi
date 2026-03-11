@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import gc
 import logging
-import os
-import tempfile
 import time
 from typing import Optional
 
@@ -85,59 +83,50 @@ class MLXWhisperTranscriber(BaseTranscriber):
 
     def _warmup(self) -> None:
         """Run a tiny transcription to preload the model."""
-        import wave
         import numpy as np
 
-        samples = np.zeros(int(16000 * 0.1), dtype=np.int16)
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
-            tmp_path = f.name
-            with wave.open(tmp_path, "wb") as wf:
-                wf.setnchannels(1)
-                wf.setsampwidth(2)
-                wf.setframerate(16000)
-                wf.writeframes(samples.tobytes())
-
+        # Pass a short silent audio as numpy array (bypasses ffmpeg)
+        audio = np.zeros(int(16000 * 0.1), dtype=np.float32)
         try:
             self._mlx_whisper.transcribe(
-                tmp_path,
+                audio,
                 path_or_hf_repo=self._model_name,
                 language=self._language,
             )
             logger.info("mlx-whisper warmup done")
         except Exception as e:
             logger.warning("mlx-whisper warmup failed (non-fatal): %s", e)
-        finally:
-            try:
-                os.unlink(tmp_path)
-            except OSError:
-                pass
+
+    @staticmethod
+    def _wav_bytes_to_float32(wav_data: bytes):
+        """Decode WAV bytes to float32 numpy array (mono, original sample rate)."""
+        import io
+        import wave
+        import numpy as np
+
+        with wave.open(io.BytesIO(wav_data), "rb") as wf:
+            frames = wf.readframes(wf.getnframes())
+            audio = np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32768.0
+        return audio
 
     def transcribe(self, wav_data: bytes) -> str:
         """Transcribe WAV audio bytes to text."""
         if not self._initialized:
             self.initialize()
 
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
-            f.write(wav_data)
-            tmp_path = f.name
+        # Decode WAV in Python — no ffmpeg needed
+        audio = self._wav_bytes_to_float32(wav_data)
 
-        try:
-            result = self._mlx_whisper.transcribe(
-                tmp_path,
-                path_or_hf_repo=self._model_name,
-                language=self._language,
-            )
+        result = self._mlx_whisper.transcribe(
+            audio,
+            path_or_hf_repo=self._model_name,
+            language=self._language,
+        )
 
-            text = result.get("text", "")
+        text = result.get("text", "")
 
-            if self._punc_restorer and text.strip():
-                text = self._punc_restorer.restore(text)
+        if self._punc_restorer and text.strip():
+            text = self._punc_restorer.restore(text)
 
-            logger.info("Transcription result: %s", text[:100])
-            return text
-
-        finally:
-            try:
-                os.unlink(tmp_path)
-            except OSError:
-                pass
+        logger.info("Transcription result: %s", text[:100])
+        return text
