@@ -34,14 +34,14 @@ class ResultPreviewPanel:
     """
 
     # Panel dimensions
-    _PANEL_WIDTH = 480
-    _TEXT_HEIGHT = 60
-    _EDIT_HEIGHT = 80
+    _PANEL_WIDTH = 560
+    _TEXT_HEIGHT = 70
+    _EDIT_HEIGHT = 96
     _LABEL_HEIGHT = 20
     _BUTTON_HEIGHT = 32
-    _PADDING = 12
-    _BUTTON_WIDTH = 90
-    _SEGMENT_HEIGHT = 28
+    _PADDING = 14
+    _BUTTON_WIDTH = 105
+    _SEGMENT_HEIGHT = 32
 
     def __init__(self) -> None:
         self._panel = None
@@ -88,6 +88,9 @@ class ResultPreviewPanel:
         self._punc_checkbox = None
         self._punc_checkbox_target = None
         self._on_punc_toggle: Optional[Callable[[bool], None]] = None
+        self._thinking_checkbox = None
+        self._thinking_checkbox_target = None
+        self._on_thinking_toggle: Optional[Callable[[bool], None]] = None
 
     def show(
         self,
@@ -110,6 +113,8 @@ class ResultPreviewPanel:
         source: str = "voice",
         punc_enabled: bool = True,
         on_punc_toggle: Optional[Callable[[bool], None]] = None,
+        thinking_enabled: bool = False,
+        on_thinking_toggle: Optional[Callable[[bool], None]] = None,
     ) -> None:
         """Show the preview panel with ASR text.
 
@@ -133,6 +138,8 @@ class ResultPreviewPanel:
             source: Source of text - "voice" (default) or "clipboard".
             punc_enabled: Whether punctuation restoration is enabled.
             on_punc_toggle: Callback when user toggles the Punc checkbox.
+            thinking_enabled: Whether AI thinking mode is enabled.
+            on_thinking_toggle: Callback when user toggles the Thinking checkbox.
         """
         self._on_confirm = on_confirm
         self._on_cancel = on_cancel
@@ -141,6 +148,8 @@ class ResultPreviewPanel:
         self._on_llm_model_change = on_llm_model_change
         self._on_punc_toggle = on_punc_toggle
         self._punc_enabled = punc_enabled
+        self._on_thinking_toggle = on_thinking_toggle
+        self._thinking_enabled = thinking_enabled
         self._user_edited = False
         self._show_enhance = show_enhance
         self._asr_text = asr_text
@@ -384,6 +393,12 @@ class ResultPreviewPanel:
         if self._on_punc_toggle is not None:
             self._on_punc_toggle(state)
 
+    def _on_thinking_toggled(self, state: bool) -> None:
+        """Handle thinking checkbox toggle."""
+        self._thinking_enabled = state
+        if self._on_thinking_toggle is not None:
+            self._on_thinking_toggle(state)
+
     def _on_stt_popup_changed(self, index: int) -> None:
         """Handle STT popup selection change."""
         if self._on_stt_model_change is not None:
@@ -621,6 +636,8 @@ class ResultPreviewPanel:
             enhance_label_y = y + self._TEXT_HEIGHT
             prompt_btn_width = 72
 
+            thinking_cb_width = 72
+
             if has_llm_popup:
                 # "AI" fixed label
                 ai_fixed = NSTextField.labelWithString_("AI")
@@ -649,9 +666,10 @@ class ResultPreviewPanel:
                 content_view.addSubview_(llm_popup)
                 self._llm_popup = llm_popup
 
-                # Token/status info label (between popup and prompt button)
+                # Token/status info label (between popup and thinking checkbox)
                 info_x = llm_popup_x + llm_popup_width + 4
-                info_width = self._PANEL_WIDTH - self._PADDING - prompt_btn_width - 4 - info_x
+                right_controls_width = prompt_btn_width + 4 + thinking_cb_width + 4
+                info_width = self._PANEL_WIDTH - self._PADDING - right_controls_width - info_x
 
                 # Determine initial label text
                 if not show_enhance:
@@ -677,6 +695,26 @@ class ResultPreviewPanel:
                 self._enhance_label = enhance_label
                 self._llm_popup = None
                 self._llm_popup_target = None
+
+            # "Thinking" checkbox
+            thinking_cb = NSButton.alloc().initWithFrame_(
+                NSMakeRect(
+                    self._PANEL_WIDTH - self._PADDING - prompt_btn_width - thinking_cb_width - 4,
+                    enhance_label_y,
+                    thinking_cb_width,
+                    self._LABEL_HEIGHT,
+                )
+            )
+            thinking_cb.setButtonType_(NSSwitchButton)
+            thinking_cb.setTitle_("Thinking")
+            thinking_cb.setFont_(NSFont.systemFontOfSize_(10))
+            thinking_cb.setState_(1 if self._thinking_enabled else 0)
+            self._thinking_checkbox_target = _ThinkingCheckboxTarget.alloc().init()
+            self._thinking_checkbox_target._panel_ref = self
+            thinking_cb.setTarget_(self._thinking_checkbox_target)
+            thinking_cb.setAction_(b"thinkingToggled:")
+            content_view.addSubview_(thinking_cb)
+            self._thinking_checkbox = thinking_cb
 
             # "Prompt ⓘ" button to view system prompt
             prompt_btn = NSButton.alloc().initWithFrame_(
@@ -713,6 +751,8 @@ class ResultPreviewPanel:
             self._prompt_button = None
             self._llm_popup = None
             self._llm_popup_target = None
+            self._thinking_checkbox = None
+            self._thinking_checkbox_target = None
 
         # Mode segmented control
         if has_modes:
@@ -1145,6 +1185,23 @@ def _create_punc_checkbox_target_class():
     return PuncCheckboxTarget
 
 
+def _create_thinking_checkbox_target_class():
+    """Create an NSObject subclass to handle Thinking checkbox actions."""
+    from Foundation import NSObject
+
+    class ThinkingCheckboxTarget(NSObject):
+        """Action target for Thinking NSButton checkbox."""
+
+        _panel_ref = None
+
+        def thinkingToggled_(self, sender):
+            if self._panel_ref is not None:
+                state = sender.state() == 1
+                self._panel_ref._on_thinking_toggled(state)
+
+    return ThinkingCheckboxTarget
+
+
 def _create_panel_close_delegate_class():
     """Create an NSObject subclass for NSWindowDelegate to handle panel close."""
     from Foundation import NSObject
@@ -1166,4 +1223,5 @@ _SegmentActionTarget = _create_segment_action_target_class()
 _SttPopupTarget = _create_stt_popup_target_class()
 _LlmPopupTarget = _create_llm_popup_target_class()
 _PuncCheckboxTarget = _create_punc_checkbox_target_class()
+_ThinkingCheckboxTarget = _create_thinking_checkbox_target_class()
 _PanelCloseDelegate = _create_panel_close_delegate_class()

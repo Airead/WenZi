@@ -635,6 +635,8 @@ class VoiceTextApp(rumps.App):
                 on_llm_model_change=self._on_preview_llm_change if llm_models else None,
                 punc_enabled=not self._transcriber.skip_punc,
                 on_punc_toggle=self._on_preview_punc_toggle if wav_data else None,
+                thinking_enabled=self._enhancer.thinking if self._enhancer else False,
+                on_thinking_toggle=self._on_preview_thinking_toggle if self._enhancer else None,
             )
             if need_stt:
                 # Show loading state and disable STT popup during transcription
@@ -888,6 +890,8 @@ class VoiceTextApp(rumps.App):
                 llm_current_index=llm_current_index,
                 on_llm_model_change=self._on_preview_llm_change if llm_models else None,
                 source="clipboard",
+                thinking_enabled=self._enhancer.thinking if self._enhancer else False,
+                on_thinking_toggle=self._on_preview_thinking_toggle if self._enhancer else None,
             )
             if use_enhance:
                 self._preview_panel.enhance_request_id += 1
@@ -1435,6 +1439,20 @@ Output only the processed text without any explanation."""
         self._config["ai_enhance"]["thinking"] = new_value
         save_config(self._config, self._config_path)
         logger.info("AI thinking set to: %s", new_value)
+
+    def _on_preview_thinking_toggle(self, enabled: bool) -> None:
+        """Handle Thinking checkbox toggle from preview panel."""
+        if not self._enhancer:
+            return
+
+        self._enhancer.thinking = enabled
+        self._enhance_thinking_item.state = 1 if enabled else 0
+
+        # Persist to config
+        self._config.setdefault("ai_enhance", {})
+        self._config["ai_enhance"]["thinking"] = enabled
+        save_config(self._config, self._config_path)
+        logger.info("AI thinking set to: %s (from preview panel)", enabled)
 
     def _update_vocab_title(self) -> None:
         """Update the Vocabulary menu item title with the current entry count."""
