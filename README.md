@@ -66,8 +66,13 @@ On first launch the app will prompt for:
 ### Menubar Controls
 
 - **ASR Model**: Switch between FunASR and MLX-Whisper models at runtime (models download on first use with progress display)
-- **AI Enhance**: Toggle enhancement modes and select provider/model
-- **Log Path**: Copy log file path to clipboard for debugging
+- **AI Enhance**: Select enhancement mode (proofread, format, complete, enhance, translate, commandline, etc.)
+- **Preview**: Toggle the floating preview panel for reviewing and editing results before input
+- **Vocabulary / Conversation History**: Top-level toggles for vocabulary retrieval and conversation history injection
+- **AI Settings**: Configure provider, model, thinking mode, build vocabulary, and manage providers
+- **Debug**: Debug toggles (print prompt, print request body) and copy log path
+- **Show Config...**: Open the current config file
+- **About VoiceText**: Show version and build info
 
 ## ASR Backends
 
@@ -97,10 +102,10 @@ Optional post-processing of transcribed text using any OpenAI-compatible API (cl
 |------|-------------|
 | Off | No enhancement |
 | Proofread | Fix typos, grammar, and punctuation |
-| Format | Convert spoken language to written form |
-| Complete | Complete incomplete sentences |
-| Enhance | Full enhancement (all of the above) |
 | Translate to English | Translate Chinese text to English |
+| Commandline Master | Convert natural language to shell commands |
+
+Additional modes (format, complete, enhance, etc.) can be added via Markdown files — see [docs/enhance-modes.md](docs/enhance-modes.md).
 
 ### Multi-Provider Support
 
@@ -163,6 +168,8 @@ src/voicetext/
 ├── transcriber_mlx.py     # MLX-Whisper backend
 ├── model_registry.py   # Model preset registry and cache management
 ├── enhancer.py         # AI text enhancement (OpenAI-compatible API)
+├── mode_loader.py      # Enhancement mode definitions and file loading
+├── result_window.py    # Floating preview panel for ASR/AI results
 ├── vocabulary.py       # Vocabulary embedding index and retrieval
 ├── vocabulary_builder.py # Extract vocabulary from correction logs via LLM
 ├── vocab_build_window.py # Vocabulary build progress UI
@@ -175,6 +182,7 @@ src/voicetext/
 
 - [Configuration](docs/configuration.md) — full default config, all options, and environment variables
 - [AI Enhancement Modes Guide](docs/enhance-modes.md) — how to customize and create enhancement modes
+- [Enhancement Mode Examples](docs/enhance-mode-examples.md) — ready-to-use mode templates for inspiration
 - [Vocabulary Embedding Retrieval](docs/vocabulary-embedding-retrieval.md) — design and motivation of the vocabulary retrieval system
 - [Conversation History Enhancement](docs/conversation-history-enhancement.md) — how conversation history improves AI enhancement accuracy
 

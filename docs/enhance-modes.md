@@ -18,7 +18,7 @@ VoiceText uses AI enhancement modes to post-process transcribed text. Each mode 
 Speech -> ASR transcription -> Enhancement mode (LLM) -> Final text
 ```
 
-1. On startup, VoiceText ensures the 5 built-in mode files exist in the modes directory. Missing built-in files are recreated automatically; existing files are never overwritten.
+1. On startup, VoiceText ensures the built-in mode files exist in the modes directory. Missing built-in files are recreated automatically; existing files are never overwritten.
 2. All `.md` files in the directory are loaded and appear in the **AI Enhance** menu.
 3. When an enhancement mode is active, the transcribed text is sent to the configured LLM with the mode's prompt as the system message.
 
@@ -47,15 +47,13 @@ The **filename** (without `.md`) serves as the mode ID and must match the `mode`
 
 ## Built-in Modes
 
-These 5 modes are created automatically on first launch:
+These 3 modes are created automatically on first launch:
 
-| File              | Label      | Order | Description                          |
-|-------------------|------------|-------|--------------------------------------|
-| `proofread.md`    | 纠错润色   | 10    | Fix typos, grammar, and punctuation  |
-| `format.md`       | 格式化     | 20    | Convert spoken text to written style |
-| `complete.md`     | 智能补全   | 30    | Complete incomplete sentences        |
-| `enhance.md`      | 全面增强   | 40    | All-in-one: proofread + format + complete |
-| `translate_en.md` | 翻译为英文 | 50    | Translate Chinese to English         |
+| File                   | Label      | Order | Description                              |
+|------------------------|------------|-------|------------------------------------------|
+| `proofread.md`         | 纠错润色   | 10    | Fix typos, grammar, and punctuation      |
+| `translate_en.md`      | 翻译为英文 | 20    | Translate Chinese to English             |
+| `commandline_master.md`| 命令行大神 | 30    | Convert natural language to shell commands|
 
 ## Add a New Mode
 
@@ -156,3 +154,5 @@ Output the user's input exactly as-is, without any changes.
 - **Prompt quality**: Be specific in your prompts. Tell the LLM exactly what to do and what NOT to do. Always end with "Output only the processed text without any explanation" to avoid unwanted commentary.
 - **Config compatibility**: The `mode` field in `~/.config/VoiceText/config.json` stores the mode ID (filename). If a mode file is removed but the config still references it, the app falls back to the first available mode.
 - **Non-`.md` files are ignored**: You can safely keep notes (`.txt`) or backups (`.bak`) in the modes directory.
+
+For more inspiration, see [Enhancement Mode Examples](enhance-mode-examples.md) — a collection of ready-to-use templates covering writing, translation, developer tools, and more.
