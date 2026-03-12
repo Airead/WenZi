@@ -1,6 +1,6 @@
 [project]
 name = "voicetext"
-version = "0.0.3"
+version = "0.0.4"
 description = "macOS menubar app: hold hotkey to record, release to transcribe and type"
 requires-python = ">=3.10"
 dependencies = [
