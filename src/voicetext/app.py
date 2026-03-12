@@ -1555,7 +1555,8 @@ extra_body: {"chat_template_kwargs": {"enable_thinking": false}}"""
         from ._build_info import BUILD_DATE, GIT_HASH
 
         message = f"Version: {__version__}\nBuild:   {GIT_HASH}\nDate:    {BUILD_DATE}"
-        rumps.alert(title="VoiceText", message=message)
+        self._topmost_alert(title="VoiceText", message=message)
+        self._restore_accessory()
 
     def _on_quit_click(self, _) -> None:
         if self._hotkey_listener:
