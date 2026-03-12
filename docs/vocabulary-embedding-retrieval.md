@@ -123,15 +123,29 @@ corrections.jsonl
 
 ## Configuration
 
-In `config.yaml` under `ai_enhance`:
+In `config.json` under `ai_enhance`:
 
-```yaml
-vocabulary:
-  enabled: false          # Toggle vocabulary retrieval
-  top_k: 5                # Number of entries to retrieve per query
-  embedding_model: paraphrase-multilingual-MiniLM-L12-v2
-  build_timeout: 600      # Per-batch LLM timeout in seconds
+```json
+{
+    "vocabulary": {
+        "enabled": false,
+        "top_k": 5,
+        "embedding_model": "paraphrase-multilingual-MiniLM-L12-v2",
+        "build_timeout": 600,
+        "auto_build": true,
+        "auto_build_threshold": 10
+    }
+}
 ```
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `enabled` | bool | `false` | Toggle vocabulary retrieval during enhancement |
+| `top_k` | int | `5` | Number of entries to retrieve per query |
+| `embedding_model` | string | `"paraphrase-multilingual-MiniLM-L12-v2"` | Embedding model for vocabulary index |
+| `build_timeout` | int | `600` | Per-batch LLM timeout in seconds |
+| `auto_build` | bool | `true` | Enable automatic vocabulary building after corrections accumulate |
+| `auto_build_threshold` | int | `10` | Number of corrections to trigger an automatic build |
 
 ## Key Files
 
@@ -139,6 +153,8 @@ vocabulary:
 |---|---|
 | `src/voicetext/vocabulary_builder.py` | Extracts vocabulary from correction logs via LLM |
 | `src/voicetext/vocabulary.py` | Embedding index construction and retrieval |
+| `src/voicetext/auto_vocab_builder.py` | Automatic vocabulary building triggered by correction count |
 | `src/voicetext/enhancer.py` | Integrates vocabulary context into enhancement prompts |
 | `src/voicetext/vocab_build_window.py` | UI for vocabulary build progress |
 | `src/voicetext/app.py` | Menu items for vocabulary toggle and build trigger |
+| `src/voicetext/config.py` | Default configuration for vocabulary settings |

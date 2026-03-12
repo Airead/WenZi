@@ -128,7 +128,7 @@ In `config.json` under `ai_enhance`:
 | `enabled` | bool | `false` | Toggle conversation history injection |
 | `max_entries` | int | `10` | Maximum number of recent entries to inject |
 
-The toggle is also available in the menubar under **AI Enhance → Conversation History**.
+The toggle is also available as a top-level item in the menubar: **Conversation History**.
 
 ## Key Files
 

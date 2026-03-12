@@ -3,8 +3,9 @@
 A macOS menubar speech-to-text application. Hold a hotkey to record, release to transcribe and automatically type the result into the active application.
 
 - **Offline-first**: Uses [FunASR](https://github.com/modelscope/FunASR) ONNX models by default — no cloud dependency
-- **Multi-backend**: Supports FunASR (Chinese-optimized) and [MLX-Whisper](https://github.com/ml-explore/mlx-examples/tree/main/whisper) (99 languages, Apple Silicon GPU)
+- **Multi-backend**: Supports FunASR (Chinese-optimized), [MLX-Whisper](https://github.com/ml-explore/mlx-examples/tree/main/whisper) (99 languages, Apple Silicon GPU), and remote Whisper API (OpenAI-compatible, e.g. Groq)
 - **AI Enhancement**: Optional LLM-powered text proofreading, formatting, completion, and translation via OpenAI-compatible APIs
+- **Clipboard Enhancement**: AI-enhance selected text in any app with a hotkey — copies selection, enhances via LLM, and outputs the result
 - **Vocabulary Retrieval**: Personal vocabulary index with embedding-based retrieval to improve correction of proper nouns and domain terms, with automatic background building
 - **Conversation History**: Injects recent confirmed outputs into the AI prompt for topic continuity and consistent entity resolution
 - **Lightweight**: Runs as a menubar-only app (hidden from Dock)
@@ -67,17 +68,33 @@ When **Preview** is enabled, a floating panel shows the result for review before
 
 - Edit the text before confirming
 - Use `⌘1` ~ `⌘9` to quickly switch AI enhancement modes and re-enhance with the selected mode
+- Toggle the **Punc** checkbox to enable/disable punctuation restoration and re-transcribe
+- Switch STT or LLM model via dropdown popups
+- Play back or save the recorded audio
+
+### Clipboard Enhancement
+
+Press the clipboard enhance hotkey (default: `Ctrl+Cmd+V`) to AI-enhance selected text in any application:
+
+1. The current selection is automatically copied via `Cmd+C`
+2. The text is sent to the configured LLM for enhancement
+3. The result is placed on the clipboard (or shown in the preview panel if enabled)
+
+Configure the hotkey and output method in `config.json` under `clipboard_enhance`.
 
 ### Menubar Controls
 
-- **Model**: Switch between FunASR and MLX-Whisper models at runtime (models download on first use with progress display)
+- **STT Model**: Switch between local ASR models (FunASR, MLX-Whisper) and remote Whisper API providers. Add or remove ASR providers at runtime
+- **LLM Model**: Switch between AI enhancement LLM providers and models. Add or remove LLM providers at runtime
 - **AI Enhance**: Select enhancement mode (proofread, translate, commandline, custom modes, etc.) and add new modes
+- **Enhance Clipboard**: Trigger clipboard AI enhancement from the menu
 - **Preview**: Toggle the floating preview panel for reviewing and editing results before input
 - **Vocabulary (N)**: Toggle vocabulary retrieval for improving correction of proper nouns and domain terms. Entry count shown in title
 - **Conversation History**: Toggle conversation history injection for topic continuity
-- **AI Settings**: Configure provider, model, thinking mode, build vocabulary, auto build toggle, and manage providers
+- **AI Settings**: Configure thinking mode, build vocabulary, auto build toggle, and edit config
 - **Debug**: Log level, debug toggles (print prompt, print request body), and copy log path
-- **Show Config...**: Open the current config file
+- **Show Config...**: Display the current configuration
+- **Reload Config**: Reload config from disk and apply changes without restarting
 - **Usage Stats**: View cumulative and today's usage statistics, plus stored data counts (conversations, corrections, vocabulary entries)
 - **About VoiceText**: Show version and build info
 
@@ -98,6 +115,10 @@ OpenAI Whisper running on Apple Metal GPU via MLX. Supports 99 languages with mu
 | Whisper small | `mlx-community/whisper-small` | ~460 MB |
 | Whisper medium | `mlx-community/whisper-medium` | ~1.5 GB |
 | Whisper large-v3-turbo | `mlx-community/whisper-large-v3-turbo` | ~1.6 GB |
+
+### Whisper API (Remote)
+
+OpenAI-compatible audio transcription API. Works with cloud providers like Groq, OpenAI, and any compatible endpoint. Configure remote ASR providers from the **STT Model** menu or in `config.json` under `asr.providers`. See [docs/provider-model-guide.md](docs/provider-model-guide.md) for setup details.
 
 ## AI Text Enhancement
 
@@ -124,7 +145,7 @@ Configure multiple LLM providers and switch between them at runtime from the men
 - Optional extended thinking mode
 - Configurable timeout
 
-Providers can be added, removed, and verified directly from the menubar UI. See [docs/provider-model-guide.md](docs/provider-model-guide.md) for step-by-step setup instructions covering both GUI and config file approaches.
+Providers can be added, removed, and verified directly from the **LLM Model** menubar submenu. See [docs/provider-model-guide.md](docs/provider-model-guide.md) for step-by-step setup instructions covering both GUI and config file approaches.
 
 ### Vocabulary Retrieval
 
@@ -170,31 +191,33 @@ Logs are saved to `~/Library/Logs/VoiceText/voicetext.log` with rotation (5 MB p
 
 ```
 src/voicetext/
-├── app.py              # Menubar application (rumps)
-├── config.py           # Configuration loading and defaults
-├── hotkey.py           # Global hotkey listener (Quartz / pynput)
-├── recorder.py         # Audio recording (sounddevice)
-├── transcriber.py      # Abstract transcriber interface and factory
+├── app.py                 # Menubar application (rumps)
+├── config.py              # Configuration loading and defaults
+├── hotkey.py              # Global hotkey listener (Quartz / pynput)
+├── recorder.py            # Audio recording (sounddevice)
+├── transcriber.py         # Abstract transcriber interface and factory
 ├── transcriber_funasr.py  # FunASR ONNX backend
 ├── transcriber_mlx.py     # MLX-Whisper backend
-├── model_registry.py   # Model preset registry and cache management
-├── auto_vocab_builder.py # Automatic vocabulary building triggered by correction count
-├── enhancer.py         # AI text enhancement (OpenAI-compatible API)
-├── mode_loader.py      # Enhancement mode definitions and file loading
-├── result_window.py    # Floating preview panel for ASR/AI results
-├── vocabulary.py       # Vocabulary embedding index and retrieval
-├── vocabulary_builder.py # Extract vocabulary from correction logs via LLM
-├── vocab_build_window.py # Vocabulary build progress UI
+├── transcriber_whisper_api.py # Remote Whisper API backend (OpenAI-compatible)
+├── model_registry.py      # Model preset registry and cache management
+├── auto_vocab_builder.py  # Automatic vocabulary building triggered by correction count
+├── enhancer.py            # AI text enhancement (OpenAI-compatible API)
+├── mode_loader.py         # Enhancement mode definitions and file loading
+├── result_window.py       # Floating preview panel for ASR/AI results
+├── vocabulary.py          # Vocabulary embedding index and retrieval
+├── vocabulary_builder.py  # Extract vocabulary from correction logs via LLM
+├── vocab_build_window.py  # Vocabulary build progress UI
 ├── conversation_history.py # Conversation history recording and context injection
-├── correction_log.py   # User-edited text logging (JSONL)
-├── usage_stats.py      # Usage statistics with cumulative and daily breakdown
-├── punctuation.py      # Punctuation restoration (CT-Transformer)
-└── input.py            # Text injection (clipboard / AppleScript)
+├── correction_log.py      # User-edited text logging (JSONL)
+├── usage_stats.py         # Usage statistics with cumulative and daily breakdown
+├── punctuation.py         # Punctuation restoration (CT-Transformer)
+└── input.py               # Text injection (clipboard / AppleScript)
 ```
 
 ## Documentation
 
 - [Configuration](docs/configuration.md) — full default config, all options, and environment variables
+- [Provider & Model Setup Guide](docs/provider-model-guide.md) — step-by-step setup for ASR and LLM providers
 - [AI Enhancement Modes Guide](docs/enhance-modes.md) — how to customize and create enhancement modes
 - [Enhancement Mode Examples](docs/enhance-mode-examples.md) — ready-to-use mode templates for inspiration
 - [Vocabulary Embedding Retrieval](docs/vocabulary-embedding-retrieval.md) — design and motivation of the vocabulary retrieval system

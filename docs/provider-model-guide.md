@@ -8,7 +8,11 @@ This guide explains how to configure ASR (speech recognition) models and AI enha
   - [Via GUI](#asr-via-gui)
   - [Via Config File](#asr-via-config-file)
   - [Available Models](#available-asr-models)
-- [AI Provider Configuration](#ai-provider-configuration)
+- [Remote ASR Providers](#remote-asr-providers)
+  - [Via GUI](#remote-asr-via-gui)
+  - [Via Config File](#remote-asr-via-config-file)
+  - [Remote ASR Examples](#remote-asr-examples)
+- [AI (LLM) Provider Configuration](#ai-llm-provider-configuration)
   - [Via GUI](#provider-via-gui)
   - [Via Config File](#provider-via-config-file)
   - [Provider Examples](#provider-examples)
@@ -21,28 +25,34 @@ This guide explains how to configure ASR (speech recognition) models and AI enha
 
 ## ASR Model Selection
 
-VoiceText supports two ASR backends:
+VoiceText supports three ASR backends:
 
 | Backend | Best For | GPU | Offline |
 |---------|----------|-----|---------|
 | **FunASR Paraformer** (default) | Chinese speech | CPU (ONNX) | Yes (after first download) |
 | **MLX-Whisper** | Multi-language, Apple Silicon | GPU (MLX) | Yes (after first download) |
+| **Whisper API** (remote) | Cloud-based, any hardware | N/A | No (requires API) |
 
 ### ASR Via GUI
 
-Click the **Model** submenu in the menubar. Select any model — a checkmark indicates the active one:
+Click the **STT Model** submenu in the menubar. Select any model — a checkmark indicates the active one:
 
 ```
-Model
+STT Model
 ├── ✓ FunASR Paraformer (Chinese)
 ├──   Whisper tiny (MLX)
 ├──   Whisper base (MLX)
 ├──   Whisper small (MLX)
 ├──   Whisper medium (MLX)
-└──   Whisper large-v3-turbo (MLX)
+├──   Whisper large-v3-turbo (MLX)
+├──   ─────────────────
+├──   groq / whisper-large-v3       (remote, if configured)
+├──   ─────────────────
+├──   Add ASR Provider...
+└──   Remove ASR Provider
 ```
 
-If the selected MLX-Whisper model hasn't been downloaded yet, VoiceText will download it automatically on first use.
+If the selected MLX-Whisper model hasn't been downloaded yet, VoiceText will download it automatically on first use. Remote ASR models from configured providers also appear in this menu.
 
 ### ASR Via Config File
 
@@ -85,13 +95,79 @@ After editing, restart VoiceText for changes to take effect.
 
 ---
 
-## AI Provider Configuration
+## Remote ASR Providers
+
+In addition to local ASR backends, VoiceText supports remote ASR via OpenAI-compatible audio transcription APIs (e.g. Groq, OpenAI). Remote providers are configured separately from LLM providers.
+
+### Remote ASR Via GUI
+
+1. Open menubar → **STT Model** → **Add ASR Provider...**
+
+2. Fill in the provider details (same dialog format as LLM providers):
+
+   ```
+   name: groq
+   base_url: https://api.groq.com/openai/v1
+   api_key: gsk-xxx
+   models:
+     whisper-large-v3
+   ```
+
+3. Click **Verify** — VoiceText will test the connection by sending a short silent audio clip.
+
+4. If verification passes, click **Save**. The new models appear in the **STT Model** menu.
+
+### Remote ASR Via Config File
+
+Edit `~/.config/VoiceText/config.json` and add entries under `asr`:
+
+```json
+{
+  "asr": {
+    "default_provider": "groq",
+    "default_model": "whisper-large-v3",
+    "providers": {
+      "groq": {
+        "base_url": "https://api.groq.com/openai/v1",
+        "api_key": "gsk-xxx",
+        "models": ["whisper-large-v3"]
+      }
+    }
+  }
+}
+```
+
+When `default_provider` and `default_model` are set, VoiceText starts with the remote ASR model. Set both to `null` to use a local backend.
+
+### Remote ASR Examples
+
+**Groq**
+```json
+"groq": {
+  "base_url": "https://api.groq.com/openai/v1",
+  "api_key": "gsk-xxx",
+  "models": ["whisper-large-v3"]
+}
+```
+
+**OpenAI**
+```json
+"openai": {
+  "base_url": "https://api.openai.com/v1",
+  "api_key": "sk-xxx",
+  "models": ["whisper-1"]
+}
+```
+
+---
+
+## AI (LLM) Provider Configuration
 
 AI enhancement uses OpenAI-compatible LLM providers. You can configure multiple providers and switch between them at any time.
 
 ### Provider Via GUI
 
-1. Open menubar → **AI Settings** → **Add Provider...**
+1. Open menubar → **LLM Model** → **Add Provider...**
 
 2. A text editor dialog appears with a template:
 
@@ -203,24 +279,22 @@ After editing, restart VoiceText for changes to take effect.
 
 ### Switching Via GUI
 
-**Switch provider:** Menubar → **AI Settings** → **Provider** → select one
+**Switch LLM provider/model:** Menubar → **LLM Model** → select one
 
 ```
-AI Settings
-├── Provider
-│   ├── ✓ ollama
-│   └──   openai
-├── Model
-│   ├── ✓ qwen2.5:7b
-│   └──   llama3.1:8b
-├── Thinking  ☐
-├── ─────────────────
-├── ...
+LLM Model
+├── ✓ ollama / qwen2.5:7b
+├──   ollama / llama3.1:8b
+├──   openai / gpt-4o
+├──   openai / gpt-4o-mini
+├──   ─────────────────
+├──   Add Provider...
+└──   Remove Provider
 ```
 
-The model list updates automatically when you switch providers, showing only models available for the selected provider.
+All models from all configured providers are shown in a flat list. The active model has a checkmark.
 
-**Switch model:** Menubar → **AI Settings** → **Model** → select one
+**Switch STT model:** Menubar → **STT Model** → select one (local or remote)
 
 **Toggle thinking mode:** Menubar → **AI Settings** → **Thinking** (checkbox)
 
@@ -244,15 +318,19 @@ Update `default_provider` and `default_model` in `config.json`:
 
 ## Removing a Provider
 
-### Via GUI
+### LLM Provider
 
-Menubar → **AI Settings** → **Remove Provider** → select the provider to remove → confirm in the dialog.
+**Via GUI:** Menubar → **LLM Model** → **Remove Provider** → select the provider to remove → confirm in the dialog.
 
-> The currently active provider cannot be removed. Switch to a different provider first.
+**Via Config File:** Delete the provider entry from `ai_enhance.providers` in `config.json`. If it was the active provider, update `default_provider` and `default_model` to point to a remaining provider.
 
-### Via Config File
+### ASR Provider
 
-Delete the provider entry from `ai_enhance.providers` in `config.json`. If it was the active provider, update `default_provider` and `default_model` to point to a remaining provider.
+**Via GUI:** Menubar → **STT Model** → **Remove ASR Provider** → select the provider to remove → confirm in the dialog.
+
+**Via Config File:** Delete the provider entry from `asr.providers` in `config.json`. If it was the active provider, update `asr.default_provider` and `asr.default_model` to `null`.
+
+> The currently active provider cannot be removed. Switch to a different provider/model first.
 
 ---
 

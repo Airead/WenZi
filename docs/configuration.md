@@ -21,7 +21,10 @@ Default config path: `~/.config/VoiceText/config.json`. Pass a JSON config file 
     "language": "zh",
     "model": null,
     "preset": null,
-    "temperature": 0.0
+    "temperature": 0.0,
+    "default_provider": null,
+    "default_model": null,
+    "providers": {}
   },
   "output": {
     "method": "auto",
@@ -55,6 +58,10 @@ Default config path: `~/.config/VoiceText/config.json`. Pass a JSON config file 
       "max_entries": 10
     }
   },
+  "clipboard_enhance": {
+    "hotkey": "ctrl+cmd+v",
+    "output": "clipboard"
+  },
   "logging": {
     "level": "INFO"
   }
@@ -83,13 +90,16 @@ Default config path: `~/.config/VoiceText/config.json`. Pass a JSON config file 
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `asr.backend` | `"funasr"` | ASR backend: `funasr` or `mlx-whisper` |
+| `asr.backend` | `"funasr"` | ASR backend: `funasr`, `mlx-whisper`, or `whisper-api` |
 | `asr.use_vad` | `true` | Enable voice activity detection (prevents hallucination on silence) |
 | `asr.use_punc` | `true` | Enable automatic punctuation restoration |
-| `asr.language` | `"zh"` | Language code (used by MLX-Whisper) |
+| `asr.language` | `"zh"` | Language code (used by MLX-Whisper and Whisper API) |
 | `asr.model` | `null` | Model identifier (e.g. `mlx-community/whisper-small`) |
 | `asr.preset` | `null` | Preset ID from model registry (e.g. `mlx-whisper-small`) |
-| `asr.temperature` | `0.0` | Decoding temperature (MLX-Whisper) |
+| `asr.temperature` | `0.0` | Decoding temperature (MLX-Whisper and Whisper API) |
+| `asr.default_provider` | `null` | Default remote ASR provider name (e.g. `"groq"`) |
+| `asr.default_model` | `null` | Default remote ASR model (e.g. `"whisper-large-v3"`) |
+| `asr.providers` | `{}` | Remote ASR providers (same format as `ai_enhance.providers`) |
 
 ### Output
 
@@ -127,6 +137,13 @@ Default config path: `~/.config/VoiceText/config.json`. Pass a JSON config file 
 |-----|---------|-------------|
 | `ai_enhance.conversation_history.enabled` | `false` | Enable conversation history context injection |
 | `ai_enhance.conversation_history.max_entries` | `10` | Number of recent confirmed entries to inject |
+
+### Clipboard Enhancement
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `clipboard_enhance.hotkey` | `"ctrl+cmd+v"` | Hotkey to trigger clipboard AI enhancement (modifier+key format) |
+| `clipboard_enhance.output` | `"clipboard"` | Output method: `"clipboard"` places result on clipboard |
 
 ### Logging
 
