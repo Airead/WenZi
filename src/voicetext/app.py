@@ -409,7 +409,7 @@ class VoiceTextApp(rumps.App):
         if self._enhancer:
             available_modes = [("off", "Off")] + self._enhancer.available_modes
 
-        # Show panel on main thread
+        # Show panel on main thread, then start enhancement after panel is built
         def _show():
             self._activate_for_dialog()
             self._preview_panel.show(
@@ -421,16 +421,15 @@ class VoiceTextApp(rumps.App):
                 current_mode=self._enhance_mode,
                 on_mode_change=self._on_preview_mode_change,
             )
+            # Start enhancement after show() so request_id is not reset
+            if use_enhance:
+                self._preview_panel.enhance_request_id += 1
+                self._run_enhance_in_background(
+                    asr_text, self._preview_panel.enhance_request_id, result_holder
+                )
 
         AppHelper.callAfter(_show)
         self._set_status("Preview...")
-
-        # Run AI enhancement in background if enabled
-        if use_enhance:
-            self._preview_panel.enhance_request_id += 1
-            self._run_enhance_in_background(
-                asr_text, self._preview_panel.enhance_request_id, result_holder
-            )
 
         # Wait for user decision
         result_event.wait()
