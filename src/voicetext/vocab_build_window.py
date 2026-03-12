@@ -250,9 +250,7 @@ class VocabBuildProgressPanel:
         self._stream_font = NSFont.userFixedPitchFontOfSize_(12.0)
         tv.setFont_(self._stream_font)
         tv.setEditable_(False)
-        tv.setBackgroundColor_(
-            NSColor.colorWithCalibratedRed_green_blue_alpha_(0.95, 0.95, 0.95, 1.0)
-        )
+        tv.setBackgroundColor_(NSColor.textBackgroundColor())
         scroll.setDocumentView_(tv)
         content_view.addSubview_(scroll)
         self._stream_text_view = tv
@@ -263,9 +261,7 @@ class VocabBuildProgressPanel:
         token_label = NSTextField.labelWithString_("Tokens: 0")
         token_label.setFrame_(NSMakeRect(self._PADDING, y, inner_width, self._LABEL_HEIGHT))
         token_label.setFont_(NSFont.systemFontOfSize_(11))
-        token_label.setTextColor_(
-            NSColor.colorWithCalibratedRed_green_blue_alpha_(0.4, 0.4, 0.4, 1.0)
-        )
+        token_label.setTextColor_(NSColor.secondaryLabelColor())
         content_view.addSubview_(token_label)
         self._token_label = token_label
 
@@ -285,9 +281,7 @@ class VocabBuildProgressPanel:
         info_label = NSTextField.labelWithString_(info_text)
         info_label.setFrame_(NSMakeRect(self._PADDING, y, inner_width, self._LABEL_HEIGHT))
         info_label.setFont_(NSFont.systemFontOfSize_(11))
-        info_label.setTextColor_(
-            NSColor.colorWithCalibratedRed_green_blue_alpha_(0.4, 0.4, 0.4, 1.0)
-        )
+        info_label.setTextColor_(NSColor.secondaryLabelColor())
         content_view.addSubview_(info_label)
         self._info_label = info_label
 

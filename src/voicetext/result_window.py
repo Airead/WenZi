@@ -919,7 +919,6 @@ class ResultPreviewPanel:
 
             enhance_scroll, enhance_tv = self._make_text_view(
                 NSMakeRect(self._PADDING, y, inner_width, self._TEXT_HEIGHT),
-                bg_color=(0.93, 0.95, 0.98),
             )
             enhance_tv.setString_("")
             content_view.addSubview_(enhance_scroll)
@@ -1117,14 +1116,8 @@ class ResultPreviewPanel:
         self._panel = panel
 
     @staticmethod
-    def _make_text_view(frame, bg_color=None):
-        """Create a read-only NSScrollView + NSTextView pair.
-
-        Args:
-            frame: The frame rect for the scroll view.
-            bg_color: Optional (r, g, b) tuple for background color.
-                      Defaults to light gray (0.95, 0.95, 0.95).
-        """
+    def _make_text_view(frame):
+        """Create a read-only NSScrollView + NSTextView pair."""
         from AppKit import NSBezelBorder, NSColor, NSFont, NSScrollView, NSTextView
         from Foundation import NSMakeRect
 
@@ -1142,10 +1135,7 @@ class ResultPreviewPanel:
         tv.textContainer().setWidthTracksTextView_(True)
         tv.setFont_(NSFont.userFixedPitchFontOfSize_(12.0))
         tv.setEditable_(False)
-        r, g, b = bg_color if bg_color else (0.95, 0.95, 0.95)
-        tv.setBackgroundColor_(
-            NSColor.colorWithCalibratedRed_green_blue_alpha_(r, g, b, 1.0)
-        )
+        tv.setBackgroundColor_(NSColor.textBackgroundColor())
 
         scroll.setDocumentView_(tv)
         return scroll, tv
