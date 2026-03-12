@@ -387,40 +387,50 @@ class VoiceTextApp(rumps.App):
             return
 
         self._busy = True
-        self._set_status("Transcribing...")
 
-        # Run transcription in background to keep UI responsive
-        def _do_transcribe():
-            try:
-                from .transcriber import BaseTranscriber
+        if self._preview_enabled:
+            self._set_status("Transcribing...")
+            # Show preview immediately, transcribe in background
+            def _do_preview():
+                try:
+                    self._do_transcribe_with_preview(
+                        asr_text=None,
+                        use_enhance=bool(self._enhancer and self._enhancer.is_active),
+                        audio_duration=0.0,
+                        wav_data=wav_data,
+                    )
+                except Exception as e:
+                    logger.error("Preview transcription failed: %s", e)
+                    self._set_status("Error")
+                    self._busy = False
 
-                audio_duration = BaseTranscriber.wav_duration_seconds(wav_data)
-                self._transcriber.skip_punc = bool(
-                    self._enhancer and self._enhancer.is_active
-                )
-                text = self._transcriber.transcribe(wav_data)
-                if text and text.strip():
-                    asr_text = text.strip()
-                    use_enhance = bool(self._enhancer and self._enhancer.is_active)
+            threading.Thread(target=_do_preview, daemon=True).start()
+        else:
+            self._set_status("Transcribing...")
+            # Run transcription in background to keep UI responsive
+            def _do_transcribe():
+                try:
+                    from .transcriber import BaseTranscriber
 
-                    if self._preview_enabled:
-                        self._do_transcribe_with_preview(
-                            asr_text, use_enhance,
-                            audio_duration=audio_duration,
-                            wav_data=wav_data,
-                        )
-                    else:
+                    audio_duration = BaseTranscriber.wav_duration_seconds(wav_data)
+                    self._transcriber.skip_punc = bool(
+                        self._enhancer and self._enhancer.is_active
+                    )
+                    text = self._transcriber.transcribe(wav_data)
+                    if text and text.strip():
+                        asr_text = text.strip()
+                        use_enhance = bool(self._enhancer and self._enhancer.is_active)
                         self._do_transcribe_direct(asr_text, use_enhance)
-                else:
-                    self._set_status("(empty)")
-                    logger.warning("Transcription returned empty text")
-            except Exception as e:
-                logger.error("Transcription failed: %s", e)
-                self._set_status("Error")
-            finally:
-                self._busy = False
+                    else:
+                        self._set_status("(empty)")
+                        logger.warning("Transcription returned empty text")
+                except Exception as e:
+                    logger.error("Transcription failed: %s", e)
+                    self._set_status("Error")
+                finally:
+                    self._busy = False
 
-        threading.Thread(target=_do_transcribe, daemon=True).start()
+            threading.Thread(target=_do_transcribe, daemon=True).start()
 
     def _do_transcribe_direct(self, asr_text: str, use_enhance: bool) -> None:
         """Original flow: enhance (if enabled) and type directly."""
@@ -471,10 +481,14 @@ class VoiceTextApp(rumps.App):
             logger.error("Failed to log conversation: %s", e)
 
     def _do_transcribe_with_preview(
-        self, asr_text: str, use_enhance: bool,
+        self, asr_text: str | None, use_enhance: bool,
         audio_duration: float = 0.0, wav_data: Optional[bytes] = None,
     ) -> None:
-        """Show preview panel, optionally run AI enhance, wait for user decision."""
+        """Show preview panel, optionally run AI enhance, wait for user decision.
+
+        If asr_text is None, the panel opens immediately in a loading state
+        and STT runs in the background.
+        """
         from PyObjCTools import AppHelper
         import time
 
@@ -485,7 +499,7 @@ class VoiceTextApp(rumps.App):
         except Exception as e:
             logger.error("Failed to record usage stats: %s", e)
 
-        self._current_preview_asr_text = asr_text
+        self._current_preview_asr_text = asr_text or ""
 
         result_event = threading.Event()
         result_holder = {"text": None, "confirmed": False, "enhanced_text": None}
@@ -595,18 +609,22 @@ class VoiceTextApp(rumps.App):
                 parts.append(self._enhancer.model_name)
             enhance_info = " / ".join(parts)
 
-        # Show panel on main thread, then start enhancement after panel is built
+        # Determine whether STT needs to run in background
+        need_stt = asr_text is None
+        display_asr_text = "" if need_stt else asr_text
+
+        # Show panel on main thread, then start enhancement/STT after panel is built
         def _show():
             self._activate_for_dialog()
             self._preview_panel.show(
-                asr_text=asr_text,
+                asr_text=display_asr_text,
                 show_enhance=use_enhance,
                 on_confirm=on_confirm,
                 on_cancel=on_cancel,
                 available_modes=available_modes,
                 current_mode=self._enhance_mode,
                 on_mode_change=self._on_preview_mode_change,
-                asr_info=asr_info,
+                asr_info=asr_info if not need_stt else "",
                 asr_wav_data=wav_data,
                 enhance_info=enhance_info,
                 stt_models=stt_models if stt_models else None,
@@ -618,8 +636,13 @@ class VoiceTextApp(rumps.App):
                 punc_enabled=not self._transcriber.skip_punc,
                 on_punc_toggle=self._on_preview_punc_toggle if wav_data else None,
             )
-            # Start enhancement after show() so request_id is not reset
-            if use_enhance:
+            if need_stt:
+                # Show loading state and disable STT popup during transcription
+                self._preview_panel.set_asr_loading()
+                if use_enhance:
+                    self._preview_panel.set_enhance_loading()
+            elif use_enhance:
+                # ASR already available, start enhancement immediately
                 self._preview_panel.enhance_request_id += 1
                 self._run_enhance_in_background(
                     asr_text, self._preview_panel.enhance_request_id, result_holder
@@ -628,8 +651,67 @@ class VoiceTextApp(rumps.App):
         AppHelper.callAfter(_show)
         self._set_status("Preview...")
 
+        # Run STT in background if needed
+        if need_stt:
+            def _do_stt():
+                try:
+                    from .transcriber import BaseTranscriber
+
+                    audio_dur = BaseTranscriber.wav_duration_seconds(wav_data)
+                    self._preview_audio_duration = audio_dur
+                    self._transcriber.skip_punc = bool(
+                        self._enhancer and self._enhancer.is_active
+                    )
+                    text = self._transcriber.transcribe(wav_data)
+                    if text and text.strip():
+                        stt_text = text.strip()
+                    else:
+                        stt_text = "(empty)"
+                        logger.warning("Transcription returned empty text")
+
+                    self._current_preview_asr_text = stt_text
+
+                    # Build ASR info
+                    parts = []
+                    if not stt_models:
+                        try:
+                            parts.insert(0, self._transcriber.model_display_name)
+                        except Exception:
+                            pass
+                    if audio_dur > 0:
+                        parts.append(f"{audio_dur:.1f}s")
+                    new_asr_info = "  ".join(parts)
+
+                    request_id = self._preview_panel._asr_request_id
+
+                    def _on_stt_done():
+                        self._preview_panel.set_asr_result(
+                            stt_text, asr_info=new_asr_info, request_id=request_id,
+                        )
+                        # Start enhancement now that ASR is ready
+                        if use_enhance and stt_text != "(empty)":
+                            self._preview_panel.enhance_request_id += 1
+                            self._run_enhance_in_background(
+                                stt_text, self._preview_panel.enhance_request_id,
+                                result_holder,
+                            )
+                        elif use_enhance:
+                            # Empty text — clear enhance loading
+                            self._preview_panel.set_enhance_off()
+
+                    AppHelper.callAfter(_on_stt_done)
+                except Exception as e:
+                    logger.error("Background STT failed: %s", e)
+                    self._preview_panel.set_asr_result(
+                        f"(error: {e})",
+                        request_id=self._preview_panel._asr_request_id,
+                    )
+
+            threading.Thread(target=_do_stt, daemon=True).start()
+
         # Wait for user decision
         result_event.wait()
+        self._busy = False
 
         # Restore menu bar mode and inject text
         AppHelper.callAfter(self._restore_accessory)
@@ -646,7 +728,7 @@ class VoiceTextApp(rumps.App):
 
             try:
                 self._conversation_history.log(
-                    asr_text=asr_text,
+                    asr_text=self._current_preview_asr_text,
                     enhanced_text=result_holder["enhanced_text"],
                     final_text=final_text,
                     enhance_mode=self._enhance_mode,
