@@ -17,29 +17,17 @@ jobs:
         run: |
           set -x
 
-          echo "=== Password debug ==="
-          echo "Password value: $MACOS_CERTIFICATE_PWD"
-          echo "Password length: ${#MACOS_CERTIFICATE_PWD}"
-          echo "Password hex:"
-          echo -n "$MACOS_CERTIFICATE_PWD" | xxd | head -5
-
-          echo "=== Certificate debug ==="
-          echo "Certificate base64 length: ${#MACOS_CERTIFICATE}"
-          echo "Certificate first 40 chars: ${MACOS_CERTIFICATE:0:40}"
-
           CERT_FILE="$RUNNER_TEMP/certificate.p12"
+          CERT_PEM="$RUNNER_TEMP/certificate.pem"
           KEYCHAIN_FILE="$RUNNER_TEMP/build.keychain-db"
           KEYCHAIN_PWD="build-keychain-pwd"
 
           echo "$MACOS_CERTIFICATE" | base64 --decode > "$CERT_FILE"
           echo "p12 file size: $(wc -c < "$CERT_FILE") bytes"
-          echo "p12 file type: $(file "$CERT_FILE")"
-          echo "p12 sha256: $(shasum -a 256 "$CERT_FILE")"
 
-          echo "=== OpenSSL p12 info ==="
-          openssl pkcs12 -in "$CERT_FILE" -info -passin pass:"$MACOS_CERTIFICATE_PWD" -nokeys 2>&1 || true
-          echo "=== Try with -legacy ==="
-          openssl pkcs12 -in "$CERT_FILE" -info -passin pass:"$MACOS_CERTIFICATE_PWD" -nokeys -legacy 2>&1 || true
+          echo "=== Extract certificate PEM for trust ==="
+          openssl pkcs12 -in "$CERT_FILE" -passin pass:"$MACOS_CERTIFICATE_PWD" \
+            -nokeys -out "$CERT_PEM" 2>&1 || true
 
           echo "=== Keychain setup ==="
           security delete-keychain "$KEYCHAIN_FILE" 2>/dev/null || true
@@ -49,10 +37,19 @@ jobs:
 
           echo "=== Import certificate ==="
           security import "$CERT_FILE" -P "$MACOS_CERTIFICATE_PWD" \
-            -A -t cert -f pkcs12 -k "$KEYCHAIN_FILE" 2>&1 || true
+            -A -t cert -f pkcs12 -k "$KEYCHAIN_FILE" 2>&1
 
-          echo "=== Keychain contents ==="
+          echo "=== Add trust for self-signed cert ==="
+          security add-trusted-cert -d -r trustRoot \
+            -k "$KEYCHAIN_FILE" "$CERT_PEM" 2>&1 || true
+
+          security set-key-partition-list -S apple-tool:,apple: \
+            -k "$KEYCHAIN_PWD" "$KEYCHAIN_FILE"
+
           security list-keychains -d user -s "$KEYCHAIN_FILE" login.keychain-db
+
+          echo "=== Keychain identities ==="
+          security find-identity "$KEYCHAIN_FILE" 2>&1
           security find-identity -v "$KEYCHAIN_FILE" 2>&1
           security find-identity -v -p codesigning "$KEYCHAIN_FILE" 2>&1
 
@@ -73,4 +70,4 @@ jobs:
             exit 1
           fi
 
-          rm -f "$CERT_FILE"
+          rm -f "$CERT_FILE" "$CERT_PEM"
