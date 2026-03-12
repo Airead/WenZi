@@ -385,7 +385,9 @@ class VoiceTextApp(rumps.App):
 
                     if self._preview_enabled:
                         self._do_transcribe_with_preview(
-                            asr_text, use_enhance, audio_duration=audio_duration,
+                            asr_text, use_enhance,
+                            audio_duration=audio_duration,
+                            wav_data=wav_data,
                         )
                     else:
                         self._do_transcribe_direct(asr_text, use_enhance)
@@ -449,7 +451,8 @@ class VoiceTextApp(rumps.App):
             logger.error("Failed to log conversation: %s", e)
 
     def _do_transcribe_with_preview(
-        self, asr_text: str, use_enhance: bool, audio_duration: float = 0.0,
+        self, asr_text: str, use_enhance: bool,
+        audio_duration: float = 0.0, wav_data: Optional[bytes] = None,
     ) -> None:
         """Show preview panel, optionally run AI enhance, wait for user decision."""
         from PyObjCTools import AppHelper
@@ -532,6 +535,7 @@ class VoiceTextApp(rumps.App):
                 current_mode=self._enhance_mode,
                 on_mode_change=self._on_preview_mode_change,
                 asr_info=asr_info,
+                asr_wav_data=wav_data,
                 enhance_info=enhance_info,
             )
             # Start enhancement after show() so request_id is not reset

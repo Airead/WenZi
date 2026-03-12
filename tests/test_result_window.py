@@ -933,3 +933,79 @@ class TestResultPreviewPanelASRInfo:
         )
 
         assert panel._asr_info == ""
+
+
+class TestResultPreviewPanelPlayback:
+    """Test ASR audio playback button functionality."""
+
+    def test_wav_data_stored_on_show(self):
+        from voicetext.result_window import ResultPreviewPanel
+
+        panel = _setup_panel_with_final_field(ResultPreviewPanel())
+        wav = b"RIFF....WAVEfmt "
+
+        panel.show(
+            asr_text="hello",
+            show_enhance=False,
+            on_confirm=MagicMock(),
+            on_cancel=MagicMock(),
+            asr_wav_data=wav,
+        )
+
+        assert panel._asr_wav_data == wav
+
+    def test_wav_data_default_none(self):
+        from voicetext.result_window import ResultPreviewPanel
+
+        panel = _setup_panel_with_final_field(ResultPreviewPanel())
+
+        panel.show(
+            asr_text="hello",
+            show_enhance=False,
+            on_confirm=MagicMock(),
+            on_cancel=MagicMock(),
+        )
+
+        assert panel._asr_wav_data is None
+
+    def test_play_audio_noop_when_no_wav(self):
+        from voicetext.result_window import ResultPreviewPanel
+
+        panel = ResultPreviewPanel()
+        panel._asr_wav_data = None
+
+        # Should not raise
+        panel.playAudioClicked_(None)
+
+    def test_play_audio_calls_play_wav(self):
+        from voicetext.result_window import ResultPreviewPanel
+
+        panel = ResultPreviewPanel()
+        panel._asr_wav_data = b"fake-wav-data"
+        panel._play_wav = MagicMock()
+
+        panel.playAudioClicked_(None)
+
+        panel._play_wav.assert_called_once_with(b"fake-wav-data")
+
+    def test_close_stops_playback(self):
+        from voicetext.result_window import ResultPreviewPanel
+
+        panel = ResultPreviewPanel()
+        panel._panel = MagicMock()
+        mock_sound = MagicMock()
+        panel._asr_sound = mock_sound
+
+        panel.close()
+
+        mock_sound.stop.assert_called_once()
+        assert panel._asr_sound is None
+
+    def test_stop_playback_handles_no_sound(self):
+        from voicetext.result_window import ResultPreviewPanel
+
+        panel = ResultPreviewPanel()
+        panel._asr_sound = None
+
+        # Should not raise
+        panel._stop_playback()

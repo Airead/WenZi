@@ -61,6 +61,9 @@ class ResultPreviewPanel:
         self._available_modes: List[Tuple[str, str]] = []
         self._current_mode: str = "off"
         self._asr_info: str = ""
+        self._asr_wav_data: Optional[bytes] = None
+        self._asr_play_button = None
+        self._asr_sound = None
         self._enhance_info: str = ""
         self._enhance_request_id: int = 0
         self._system_prompt: str = ""
@@ -78,6 +81,7 @@ class ResultPreviewPanel:
         current_mode: Optional[str] = None,
         on_mode_change: Optional[Callable[[str], None]] = None,
         asr_info: str = "",
+        asr_wav_data: Optional[bytes] = None,
         enhance_info: str = "",
     ) -> None:
         """Show the preview panel with ASR text.
@@ -91,6 +95,7 @@ class ResultPreviewPanel:
             current_mode: Currently selected mode_id.
             on_mode_change: Callback when user switches mode in the segmented control.
             asr_info: Model/duration info string to display in ASR label.
+            asr_wav_data: Raw WAV audio bytes for playback.
             enhance_info: Provider/model info string to display in enhance label.
         """
         self._on_confirm = on_confirm
@@ -102,6 +107,7 @@ class ResultPreviewPanel:
         self._available_modes = available_modes or []
         self._current_mode = current_mode or "off"
         self._asr_info = asr_info
+        self._asr_wav_data = asr_wav_data
         self._enhance_info = enhance_info
         self._enhance_request_id = 0
 
@@ -233,6 +239,7 @@ class ResultPreviewPanel:
 
     def close(self) -> None:
         """Close the panel."""
+        self._stop_playback()
         self._remove_event_monitor()
         if self._panel is not None:
             self._panel.orderOut_(None)
@@ -488,10 +495,33 @@ class ResultPreviewPanel:
         asr_label_text = "ASR"
         if self._asr_info:
             asr_label_text = f"ASR ({self._asr_info})"
+        play_btn_width = 62
+        label_width = inner_width - play_btn_width - 4 if self._asr_wav_data else inner_width
         asr_label = NSTextField.labelWithString_(asr_label_text)
-        asr_label.setFrame_(NSMakeRect(self._PADDING, y + self._TEXT_HEIGHT, inner_width, self._LABEL_HEIGHT))
+        asr_label.setFrame_(NSMakeRect(self._PADDING, y + self._TEXT_HEIGHT, label_width, self._LABEL_HEIGHT))
         asr_label.setFont_(NSFont.boldSystemFontOfSize_(12))
         content_view.addSubview_(asr_label)
+
+        # "Play ▶" button to replay recorded audio
+        if self._asr_wav_data:
+            play_btn = NSButton.alloc().initWithFrame_(
+                NSMakeRect(
+                    self._PANEL_WIDTH - self._PADDING - play_btn_width,
+                    y + self._TEXT_HEIGHT,
+                    play_btn_width,
+                    self._LABEL_HEIGHT,
+                )
+            )
+            play_btn.setTitle_("Play \u25b6")
+            play_btn.setBezelStyle_(1)
+            play_btn.setBordered_(True)
+            play_btn.setFont_(NSFont.systemFontOfSize_(10))
+            play_btn.setTarget_(self)
+            play_btn.setAction_(b"playAudioClicked:")
+            content_view.addSubview_(play_btn)
+            self._asr_play_button = play_btn
+        else:
+            self._asr_play_button = None
 
         # ASR Result text view (read-only)
         asr_scroll, asr_tv = self._make_text_view(
@@ -565,6 +595,35 @@ class ResultPreviewPanel:
         self.close()
         if self._on_cancel is not None:
             self._on_cancel()
+
+    def playAudioClicked_(self, sender) -> None:
+        """Handle Play ▶ button click — play back the recorded WAV audio."""
+        if not self._asr_wav_data:
+            return
+        self._play_wav(self._asr_wav_data)
+
+    def _play_wav(self, wav_data: bytes) -> None:
+        """Play WAV audio data using NSSound."""
+        from AppKit import NSSound
+        from Foundation import NSData
+
+        # Stop any currently playing sound
+        self._stop_playback()
+
+        ns_data = NSData.dataWithBytes_length_(wav_data, len(wav_data))
+        sound = NSSound.alloc().initWithData_(ns_data)
+        if sound:
+            sound.play()
+            self._asr_sound = sound
+
+    def _stop_playback(self) -> None:
+        """Stop any currently playing audio."""
+        if self._asr_sound is not None:
+            try:
+                self._asr_sound.stop()
+            except Exception:
+                pass
+            self._asr_sound = None
 
     def promptInfoClicked_(self, sender) -> None:
         """Handle Prompt ⓘ button click — show system prompt in a popup panel."""
