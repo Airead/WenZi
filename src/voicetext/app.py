@@ -19,6 +19,7 @@ from CoreFoundation import kCFBooleanTrue
 from .config import load_config, save_config
 from .conversation_history import ConversationHistory
 from .correction_log import CorrectionLogger
+from .usage_stats import UsageStats
 from .enhancer import MODE_OFF, TextEnhancer, create_enhancer
 from .result_window import ResultPreviewPanel
 from .hotkey import HoldHotkeyListener
@@ -82,6 +83,7 @@ class VoiceTextApp(rumps.App):
         self._preview_panel = ResultPreviewPanel()
         self._correction_logger = CorrectionLogger()
         self._conversation_history = ConversationHistory()
+        self._usage_stats = UsageStats()
 
         # Resolve current preset
         self._current_preset_id = asr_cfg.get("preset")
@@ -271,6 +273,11 @@ class VoiceTextApp(rumps.App):
             "Show Config...", callback=self._on_show_config
         )
 
+        # Usage Stats item
+        self._usage_stats_item = rumps.MenuItem(
+            "Usage Stats", callback=self._on_show_usage_stats
+        )
+
         # About item
         self._about_item = rumps.MenuItem("About VoiceText", callback=self._on_about)
 
@@ -289,6 +296,7 @@ class VoiceTextApp(rumps.App):
             self._debug_menu,
             None,
             self._show_config_item,
+            self._usage_stats_item,
             self._about_item,
         ]
         self.quit_button.set_callback(self._on_quit_click)
@@ -362,6 +370,13 @@ class VoiceTextApp(rumps.App):
 
     def _do_transcribe_direct(self, asr_text: str, use_enhance: bool) -> None:
         """Original flow: enhance (if enabled) and type directly."""
+        try:
+            self._usage_stats.record_transcription(
+                mode="direct", enhance_mode=self._enhance_mode
+            )
+        except Exception as e:
+            logger.error("Failed to record usage stats: %s", e)
+
         text = asr_text
         enhanced_text = None
         if use_enhance:
@@ -371,6 +386,10 @@ class VoiceTextApp(rumps.App):
                 text, _usage = loop.run_until_complete(self._enhancer.enhance(text))
                 loop.close()
                 enhanced_text = text
+                try:
+                    self._usage_stats.record_token_usage(_usage)
+                except Exception as e:
+                    logger.error("Failed to record token usage: %s", e)
             except Exception as e:
                 logger.error("AI enhancement failed: %s", e)
 
@@ -380,6 +399,11 @@ class VoiceTextApp(rumps.App):
             method=self._output_method,
         )
         self._set_status("VT")
+
+        try:
+            self._usage_stats.record_confirm(modified=False)
+        except Exception as e:
+            logger.error("Failed to record usage stats: %s", e)
 
         try:
             self._conversation_history.log(
@@ -396,6 +420,13 @@ class VoiceTextApp(rumps.App):
         """Show preview panel, optionally run AI enhance, wait for user decision."""
         from PyObjCTools import AppHelper
         import time
+
+        try:
+            self._usage_stats.record_transcription(
+                mode="preview", enhance_mode=self._enhance_mode
+            )
+        except Exception as e:
+            logger.error("Failed to record usage stats: %s", e)
 
         self._current_preview_asr_text = asr_text
 
@@ -415,10 +446,18 @@ class VoiceTextApp(rumps.App):
                     )
                 except Exception as e:
                     logger.error("Failed to log correction: %s", e)
+            try:
+                self._usage_stats.record_confirm(modified=correction_info is not None)
+            except Exception as e:
+                logger.error("Failed to record usage stats: %s", e)
             result_event.set()
 
         def on_cancel() -> None:
             result_holder["confirmed"] = False
+            try:
+                self._usage_stats.record_cancel()
+            except Exception as e:
+                logger.error("Failed to record usage stats: %s", e)
             result_event.set()
 
         # Build mode list for the segmented control
@@ -503,6 +542,10 @@ class VoiceTextApp(rumps.App):
                 loop.close()
                 if result_holder is not None:
                     result_holder["enhanced_text"] = enhanced
+                try:
+                    self._usage_stats.record_token_usage(usage)
+                except Exception as e:
+                    logger.error("Failed to record token usage: %s", e)
                 system_prompt = self._enhancer.last_system_prompt
                 self._preview_panel.set_enhance_result(
                     enhanced, request_id=request_id, usage=usage,
@@ -1655,6 +1698,81 @@ extra_body: {"chat_template_kwargs": {"enable_thinking": false}}"""
         # Use a monospace text field as accessory to keep alignment and force width
         text_field = NSTextField.alloc().initWithFrame_(NSMakeRect(0, 0, 360, 210))
         text_field.setStringValue_(info)
+        text_field.setEditable_(False)
+        text_field.setBezeled_(False)
+        text_field.setDrawsBackground_(False)
+        text_field.setSelectable_(True)
+        text_field.setFont_(NSFont.monospacedSystemFontOfSize_weight_(12.0, 0.0))
+        alert.setAccessoryView_(text_field)
+
+        alert.window().setLevel_(NSStatusWindowLevel)
+        alert.runModal()
+        self._restore_accessory()
+
+    def _on_show_usage_stats(self, _) -> None:
+        """Show usage statistics in a large dialog with today + cumulative stats."""
+        from AppKit import NSAlert, NSFont, NSStatusWindowLevel, NSTextField
+        from Foundation import NSMakeRect
+
+        try:
+            s = self._usage_stats.get_stats()
+            today = self._usage_stats.get_today_stats()
+        except Exception as e:
+            logger.error("Failed to get usage stats: %s", e)
+            self._topmost_alert("Error", f"Failed to load usage stats: {e}")
+            self._restore_accessory()
+            return
+
+        def _fmt_section(label: str, data: dict) -> list[str]:
+            t = data.get("totals", {})
+            tk = data.get("token_usage", {})
+            em = data.get("enhance_mode_usage", {})
+
+            lines = [f"--- {label} ---"]
+            lines.append(f"Transcriptions: {t.get('transcriptions', 0)}")
+            lines.append(
+                f"  Direct: {t.get('direct_mode', 0)}  |  "
+                f"Preview: {t.get('preview_mode', 0)}"
+            )
+            lines.append(
+                f"  Accept: {t.get('direct_accept', 0)}  |  "
+                f"Modified: {t.get('user_modification', 0)}  |  "
+                f"Cancel: {t.get('cancel', 0)}"
+            )
+
+            total_tk = tk.get("total_tokens", 0)
+            prompt_tk = tk.get("prompt_tokens", 0)
+            comp_tk = tk.get("completion_tokens", 0)
+            lines.append(
+                f"Tokens: {total_tk:,} total  "
+                f"(\u2191{prompt_tk:,}  \u2193{comp_tk:,})"
+            )
+
+            if em:
+                lines.append("Enhance modes:")
+                for mode, count in sorted(em.items()):
+                    lines.append(f"  {mode}: {count}")
+            return lines
+
+        parts = _fmt_section(f"Today ({today.get('date', '')})", today)
+        parts.append("")
+        parts += _fmt_section("All Time", s)
+
+        first = s.get("first_recorded")
+        if first:
+            parts.append(f"Since: {first[:10]}")
+
+        text = "\n".join(parts)
+
+        self._activate_for_dialog()
+
+        alert = NSAlert.alloc().init()
+        alert.setMessageText_("Usage Statistics")
+        alert.addButtonWithTitle_("OK")
+        alert.setAlertStyle_(0)
+
+        text_field = NSTextField.alloc().initWithFrame_(NSMakeRect(0, 0, 380, 280))
+        text_field.setStringValue_(text)
         text_field.setEditable_(False)
         text_field.setBezeled_(False)
         text_field.setDrawsBackground_(False)
