@@ -5,7 +5,7 @@ A macOS menubar speech-to-text application. Hold a hotkey to record, release to 
 - **Offline-first**: Uses [FunASR](https://github.com/modelscope/FunASR) ONNX models by default — no cloud dependency
 - **Multi-backend**: Supports FunASR (Chinese-optimized) and [MLX-Whisper](https://github.com/ml-explore/mlx-examples/tree/main/whisper) (99 languages, Apple Silicon GPU)
 - **AI Enhancement**: Optional LLM-powered text proofreading, formatting, completion, and translation via OpenAI-compatible APIs
-- **Vocabulary Retrieval**: Personal vocabulary index with embedding-based retrieval to improve correction of proper nouns and domain terms
+- **Vocabulary Retrieval**: Personal vocabulary index with embedding-based retrieval to improve correction of proper nouns and domain terms, with automatic background building
 - **Conversation History**: Injects recent confirmed outputs into the AI prompt for topic continuity and consistent entity resolution
 - **Lightweight**: Runs as a menubar-only app (hidden from Dock)
 
@@ -73,12 +73,12 @@ When **Preview** is enabled, a floating panel shows the result for review before
 - **Model**: Switch between FunASR and MLX-Whisper models at runtime (models download on first use with progress display)
 - **AI Enhance**: Select enhancement mode (proofread, translate, commandline, custom modes, etc.) and add new modes
 - **Preview**: Toggle the floating preview panel for reviewing and editing results before input
-- **Vocabulary**: Toggle vocabulary retrieval for improving correction of proper nouns and domain terms
+- **Vocabulary (N)**: Toggle vocabulary retrieval for improving correction of proper nouns and domain terms. Entry count shown in title
 - **Conversation History**: Toggle conversation history injection for topic continuity
-- **AI Settings**: Configure provider, model, thinking mode, build vocabulary, and manage providers
+- **AI Settings**: Configure provider, model, thinking mode, build vocabulary, auto build toggle, and manage providers
 - **Debug**: Log level, debug toggles (print prompt, print request body), and copy log path
 - **Show Config...**: Open the current config file
-- **Usage Stats**: View cumulative and today's usage statistics
+- **Usage Stats**: View cumulative and today's usage statistics, plus stored data counts (conversations, corrections, vocabulary entries)
 - **About VoiceText**: Show version and build info
 
 ## ASR Backends
@@ -130,11 +130,12 @@ Providers can be added, removed, and verified directly from the menubar UI. See 
 
 VoiceText can build a personal vocabulary index from your correction history to improve recognition of proper nouns, technical terms, and domain-specific words. When enabled, relevant vocabulary entries are retrieved via embedding similarity and injected into the LLM prompt as context.
 
-The vocabulary is not built automatically — you should accumulate a number of corrections first (by editing AI-enhanced text in the preview window), then manually trigger a build when ready. The more corrections you accumulate before building, the richer and more useful the vocabulary becomes.
+The vocabulary supports both automatic and manual building:
 
 - **Accumulate corrections**: Edit AI-enhanced text in the preview window; each edit is logged to `corrections.jsonl`
-- **Build**: When you have enough corrections, click **AI Settings > Build Vocabulary...** to extract terms using LLM. Supports incremental builds — only new corrections since the last build are processed
-- **Toggle**: Click **Vocabulary** in the menubar to enable/disable retrieval during enhancement
+- **Auto build**: By default, vocabulary is automatically rebuilt in the background after every 10 corrections. A macOS notification shows the result. Toggle via **AI Settings > Auto Build Vocabulary**
+- **Manual build**: Click **AI Settings > Build Vocabulary...** to trigger a build on demand. Supports incremental builds — only new corrections since the last build are processed
+- **Toggle**: Click **Vocabulary (N)** in the menubar to enable/disable retrieval during enhancement. The entry count is shown in the menu title
 - Uses `fastembed` with a multilingual embedding model for local, offline semantic matching
 
 See [docs/vocabulary-embedding-retrieval.md](docs/vocabulary-embedding-retrieval.md) for detailed design and motivation.
@@ -177,6 +178,7 @@ src/voicetext/
 ├── transcriber_funasr.py  # FunASR ONNX backend
 ├── transcriber_mlx.py     # MLX-Whisper backend
 ├── model_registry.py   # Model preset registry and cache management
+├── auto_vocab_builder.py # Automatic vocabulary building triggered by correction count
 ├── enhancer.py         # AI text enhancement (OpenAI-compatible API)
 ├── mode_loader.py      # Enhancement mode definitions and file loading
 ├── result_window.py    # Floating preview panel for ASR/AI results

@@ -78,3 +78,17 @@ class TestCorrectionLogger:
         logger.log("a", "e", "f", "proofread")
 
         assert (tmp_path / "test_logs" / "corrections.jsonl").exists()
+
+    def test_count_empty(self, tmp_path):
+        logger = CorrectionLogger(log_dir=str(tmp_path))
+        assert logger.count() == 0
+
+    def test_count_no_file(self, tmp_path):
+        logger = CorrectionLogger(log_dir=str(tmp_path / "nonexistent"))
+        assert logger.count() == 0
+
+    def test_count_multiple_records(self, tmp_path):
+        logger = CorrectionLogger(log_dir=str(tmp_path))
+        for i in range(5):
+            logger.log(f"asr_{i}", f"enh_{i}", f"final_{i}", "proofread")
+        assert logger.count() == 5

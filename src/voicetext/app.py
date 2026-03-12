@@ -16,6 +16,7 @@ import rumps
 from ApplicationServices import AXIsProcessTrusted, AXIsProcessTrustedWithOptions
 from CoreFoundation import kCFBooleanTrue
 
+from .auto_vocab_builder import AutoVocabBuilder
 from .config import load_config, save_config
 from .conversation_history import ConversationHistory
 from .correction_log import CorrectionLogger
@@ -128,6 +129,17 @@ class VoiceTextApp(rumps.App):
         if self._enhancer and not ai_cfg.get("enabled", False):
             self._enhance_mode = MODE_OFF
 
+        # Auto vocabulary builder
+        vocab_cfg = ai_cfg.get("vocabulary", {})
+        self._auto_vocab_builder = AutoVocabBuilder(
+            config=self._config,
+            enabled=vocab_cfg.get("auto_build", True),
+            threshold=vocab_cfg.get("auto_build_threshold", 10),
+            on_build_done=self._update_vocab_title,
+        )
+        if self._enhancer:
+            self._auto_vocab_builder.set_enhancer(self._enhancer)
+
         # AI Enhance submenu (mode selection only)
         self._enhance_menu = rumps.MenuItem("AI Enhance")
         self._enhance_menu_items: Dict[str, rumps.MenuItem] = {}
@@ -165,6 +177,7 @@ class VoiceTextApp(rumps.App):
             "Vocabulary", callback=self._on_vocab_toggle
         )
         self._enhance_vocab_item.state = 1 if vocab_enabled else 0
+        self._update_vocab_title()
 
         history_enabled = ai_cfg.get("conversation_history", {}).get("enabled", False)
         self._enhance_history_item = rumps.MenuItem(
@@ -209,6 +222,12 @@ class VoiceTextApp(rumps.App):
             "Build Vocabulary...", callback=self._on_vocab_build
         )
         self._ai_settings_menu.add(self._enhance_vocab_build_item)
+
+        self._enhance_auto_build_item = rumps.MenuItem(
+            "Auto Build Vocabulary", callback=self._on_auto_build_toggle
+        )
+        self._enhance_auto_build_item.state = 1 if vocab_cfg.get("auto_build", True) else 0
+        self._ai_settings_menu.add(self._enhance_auto_build_item)
 
         # Provider management items
         self._ai_settings_menu.add(rumps.separator)
@@ -444,6 +463,7 @@ class VoiceTextApp(rumps.App):
                         final_text=correction_info["final_text"],
                         enhance_mode=self._enhance_mode,
                     )
+                    self._auto_vocab_builder.on_correction_logged()
                 except Exception as e:
                     logger.error("Failed to log correction: %s", e)
             try:
@@ -805,6 +825,21 @@ Output only the processed text without any explanation."""
         save_config(self._config, self._config_path)
         logger.info("AI thinking set to: %s", new_value)
 
+    def _update_vocab_title(self) -> None:
+        """Update the Vocabulary menu item title with the current entry count."""
+        from .vocabulary import get_vocab_entry_count
+
+        count = 0
+        if self._enhancer and self._enhancer.vocab_index is not None:
+            count = self._enhancer.vocab_index.entry_count
+        if count == 0:
+            count = get_vocab_entry_count()
+
+        if count > 0:
+            self._enhance_vocab_item.title = f"Vocabulary ({count})"
+        else:
+            self._enhance_vocab_item.title = "Vocabulary"
+
     def _on_vocab_toggle(self, sender) -> None:
         """Toggle vocabulary-based retrieval."""
         if not self._enhancer:
@@ -820,6 +855,19 @@ Output only the processed text without any explanation."""
         self._config["ai_enhance"]["vocabulary"]["enabled"] = new_value
         save_config(self._config, self._config_path)
         logger.info("Vocabulary set to: %s", new_value)
+
+    def _on_auto_build_toggle(self, sender) -> None:
+        """Toggle automatic vocabulary building."""
+        new_value = not self._auto_vocab_builder._enabled
+        self._auto_vocab_builder._enabled = new_value
+        sender.state = 1 if new_value else 0
+
+        # Persist to config
+        self._config.setdefault("ai_enhance", {})
+        self._config["ai_enhance"].setdefault("vocabulary", {})
+        self._config["ai_enhance"]["vocabulary"]["auto_build"] = new_value
+        save_config(self._config, self._config_path)
+        logger.info("Auto vocabulary build set to: %s", new_value)
 
     def _on_history_toggle(self, sender) -> None:
         """Toggle conversation history context injection."""
@@ -841,6 +889,10 @@ Output only the processed text without any explanation."""
         """Build vocabulary from correction logs in a background thread."""
         if not self._enhancer:
             self._topmost_alert("AI Enhance is not configured.")
+            return
+
+        if self._auto_vocab_builder.is_building():
+            self._topmost_alert("Vocabulary is being auto-built. Please wait.")
             return
 
         logger.info("Starting vocabulary build...")
@@ -902,6 +954,7 @@ Output only the processed text without any explanation."""
                 # Reload vocabulary index if enhancer has one
                 if self._enhancer and self._enhancer.vocab_index is not None:
                     self._enhancer.vocab_index.reload()
+                self._update_vocab_title()
 
                 cancelled = summary.get("cancelled", False)
                 status = "Cancelled" if cancelled else "Built"
@@ -1762,6 +1815,18 @@ extra_body: {"chat_template_kwargs": {"enable_thinking": false}}"""
         if first:
             parts.append(f"Since: {first[:10]}")
 
+        # Stored data stats
+        from .vocabulary import get_vocab_entry_count
+
+        conversation_count = self._conversation_history.count()
+        correction_count = self._correction_logger.count()
+        vocab_count = get_vocab_entry_count()
+        parts.append("")
+        parts.append("--- Stored Data ---")
+        parts.append(f"Conversations: {conversation_count} records")
+        parts.append(f"Corrections:   {correction_count} records")
+        parts.append(f"Vocabulary:    {vocab_count} entries")
+
         text = "\n".join(parts)
 
         self._activate_for_dialog()
@@ -1771,7 +1836,7 @@ extra_body: {"chat_template_kwargs": {"enable_thinking": false}}"""
         alert.addButtonWithTitle_("OK")
         alert.setAlertStyle_(0)
 
-        text_field = NSTextField.alloc().initWithFrame_(NSMakeRect(0, 0, 380, 280))
+        text_field = NSTextField.alloc().initWithFrame_(NSMakeRect(0, 0, 380, 380))
         text_field.setStringValue_(text)
         text_field.setEditable_(False)
         text_field.setBezeled_(False)

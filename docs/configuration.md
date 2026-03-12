@@ -46,7 +46,9 @@ Default config path: `~/.config/VoiceText/config.json`. Pass a JSON config file 
       "enabled": false,
       "top_k": 5,
       "embedding_model": "paraphrase-multilingual-MiniLM-L12-v2",
-      "build_timeout": 600
+      "build_timeout": 600,
+      "auto_build": true,
+      "auto_build_threshold": 10
     },
     "conversation_history": {
       "enabled": false,
@@ -116,6 +118,8 @@ Default config path: `~/.config/VoiceText/config.json`. Pass a JSON config file 
 | `ai_enhance.vocabulary.top_k` | `5` | Number of vocabulary entries to retrieve per query |
 | `ai_enhance.vocabulary.embedding_model` | `"paraphrase-multilingual-MiniLM-L12-v2"` | Embedding model for vocabulary index |
 | `ai_enhance.vocabulary.build_timeout` | `600` | Per-batch LLM timeout for vocabulary building (seconds) |
+| `ai_enhance.vocabulary.auto_build` | `true` | Enable automatic vocabulary building after corrections accumulate |
+| `ai_enhance.vocabulary.auto_build_threshold` | `10` | Number of corrections to trigger an automatic build |
 
 ### Conversation History
 

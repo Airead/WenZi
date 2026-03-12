@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from voicetext.vocabulary import VocabularyEntry, VocabularyIndex
+from voicetext.vocabulary import VocabularyEntry, VocabularyIndex, get_vocab_entry_count
 
 
 # --- VocabularyEntry tests ---
@@ -358,3 +358,80 @@ class TestVocabularyIndexReload:
         with patch.object(idx, "_lazy_load_model"):
             idx.reload()
         assert idx.is_loaded
+
+
+class TestEntryCount:
+    def test_entry_count_after_load(self, tmp_path):
+        vocab_path = tmp_path / "vocabulary.json"
+        vocab_path.write_text(
+            json.dumps(_make_vocab_json(_sample_entries())),
+            encoding="utf-8",
+        )
+
+        mock_model = MagicMock()
+        mock_model.embed = lambda texts: [
+            np.random.randn(384).astype(np.float32) for _ in texts
+        ]
+
+        idx = VocabularyIndex({}, vocab_dir=str(tmp_path))
+        assert idx.entry_count == 0
+
+        idx._model = mock_model
+        with patch.object(idx, "_lazy_load_model"):
+            idx.load()
+        assert idx.entry_count == 3
+
+    def test_entry_count_after_reload(self, tmp_path):
+        vocab_path = tmp_path / "vocabulary.json"
+        vocab_path.write_text(
+            json.dumps(_make_vocab_json(_sample_entries())),
+            encoding="utf-8",
+        )
+
+        mock_model = MagicMock()
+        mock_model.embed = lambda texts: [
+            np.random.randn(384).astype(np.float32) for _ in texts
+        ]
+
+        idx = VocabularyIndex({}, vocab_dir=str(tmp_path))
+        idx._model = mock_model
+        with patch.object(idx, "_lazy_load_model"):
+            idx.load()
+
+        # Add one more entry and reload
+        entries = _sample_entries() + [
+            {"term": "Docker", "category": "tech", "variants": [], "context": "", "frequency": 1}
+        ]
+        vocab_path.write_text(
+            json.dumps(_make_vocab_json(entries)),
+            encoding="utf-8",
+        )
+        with patch.object(idx, "_lazy_load_model"):
+            idx.reload()
+        assert idx.entry_count == 4
+
+
+class TestGetVocabEntryCount:
+    def test_count_with_entries(self, tmp_path):
+        vocab_path = tmp_path / "vocabulary.json"
+        vocab_path.write_text(
+            json.dumps(_make_vocab_json(_sample_entries())),
+            encoding="utf-8",
+        )
+        assert get_vocab_entry_count(str(tmp_path)) == 3
+
+    def test_count_no_file(self, tmp_path):
+        assert get_vocab_entry_count(str(tmp_path)) == 0
+
+    def test_count_empty_entries(self, tmp_path):
+        vocab_path = tmp_path / "vocabulary.json"
+        vocab_path.write_text(
+            json.dumps(_make_vocab_json([])),
+            encoding="utf-8",
+        )
+        assert get_vocab_entry_count(str(tmp_path)) == 0
+
+    def test_count_invalid_json(self, tmp_path):
+        vocab_path = tmp_path / "vocabulary.json"
+        vocab_path.write_text("not json", encoding="utf-8")
+        assert get_vocab_entry_count(str(tmp_path)) == 0

@@ -185,3 +185,18 @@ class TestConversationHistoryFormatForPrompt:
         result = history.format_for_prompt(entries)
         assert "- same" in result
         assert "平平 → 萍萍" in result
+
+
+class TestConversationHistoryCount:
+    def test_count_no_file(self, history):
+        assert history.count() == 0
+
+    def test_count_empty_file(self, history, history_dir):
+        with open(os.path.join(history_dir, "conversation_history.jsonl"), "w") as f:
+            f.write("")
+        assert history.count() == 0
+
+    def test_count_multiple(self, history):
+        for i in range(4):
+            history.log(f"asr_{i}", f"enh_{i}", f"final_{i}", "proofread", True)
+        assert history.count() == 4

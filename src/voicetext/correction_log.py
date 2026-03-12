@@ -41,3 +41,13 @@ class CorrectionLogger:
             f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
         logger.debug("Correction logged: %s", self._log_path)
+
+    def count(self) -> int:
+        """Return the number of correction records in the log file."""
+        if not os.path.exists(self._log_path):
+            return 0
+        try:
+            with open(self._log_path, "r", encoding="utf-8") as f:
+                return sum(1 for line in f if line.strip())
+        except Exception:
+            return 0

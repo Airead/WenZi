@@ -45,6 +45,16 @@ class ConversationHistory:
 
         logger.debug("Conversation logged: %s", self._history_path)
 
+    def count(self) -> int:
+        """Return the number of conversation records in the log file."""
+        if not os.path.exists(self._history_path):
+            return 0
+        try:
+            with open(self._history_path, "r", encoding="utf-8") as f:
+                return sum(1 for line in f if line.strip())
+        except Exception:
+            return 0
+
     def get_recent(self, n: Optional[int] = None, max_entries: int = 10) -> List[Dict[str, Any]]:
         """Read the most recent N preview_enabled=true records.
 

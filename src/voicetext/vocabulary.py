@@ -53,6 +53,10 @@ class VocabularyIndex:
     def is_loaded(self) -> bool:
         return self._loaded
 
+    @property
+    def entry_count(self) -> int:
+        return len(self._entries)
+
     def load(self) -> bool:
         """Load vocabulary.json and build/load the embedding index.
 
@@ -289,3 +293,16 @@ class VocabularyIndex:
         except Exception as e:
             logger.warning("Failed to read vocabulary.json: %s", e)
             return []
+
+
+def get_vocab_entry_count(config_dir: str = DEFAULT_CONFIG_DIR) -> int:
+    """Read the number of entries in vocabulary.json without loading the index."""
+    vocab_path = os.path.join(os.path.expanduser(config_dir), "vocabulary.json")
+    if not os.path.exists(vocab_path):
+        return 0
+    try:
+        with open(vocab_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return len(data.get("entries", []))
+    except Exception:
+        return 0
