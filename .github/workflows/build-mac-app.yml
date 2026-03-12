@@ -36,9 +36,34 @@ jobs:
           sed -i '' "s/'CFBundleVersion': '.*'/'CFBundleVersion': '${{ steps.version.outputs.VERSION }}'/" VoiceText.spec
           sed -i '' "s/'CFBundleShortVersionString': '.*'/'CFBundleShortVersionString': '${{ steps.version.outputs.VERSION }}'/" VoiceText.spec
 
-      - name: Build app with PyInstaller
+      - name: Import code signing certificate
         env:
-          CODESIGN_IDENTITY: '-'  # Ad-hoc signing in CI
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+        run: |
+          CERT_FILE=$(mktemp /tmp/cert.XXXXXX.p12)
+          KEYCHAIN_FILE=$(mktemp /tmp/keychain.XXXXXX.keychain-db)
+          KEYCHAIN_PWD=$(openssl rand -base64 32)
+
+          echo "$MACOS_CERTIFICATE" | base64 --decode > "$CERT_FILE"
+
+          security create-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN_FILE"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_FILE"
+          security unlock-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN_FILE"
+
+          security import "$CERT_FILE" -P "$MACOS_CERTIFICATE_PWD" \
+            -A -t cert -f pkcs12 -k "$KEYCHAIN_FILE"
+          security set-key-partition-list -S apple-tool:,apple: \
+            -k "$KEYCHAIN_PWD" "$KEYCHAIN_FILE"
+
+          security list-keychains -d user -s "$KEYCHAIN_FILE" login.keychain-db
+
+          IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN_FILE" | head -1 | sed 's/.*"\(.*\)"/\1/')
+          echo "CODESIGN_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
+
+          rm -f "$CERT_FILE"
+
+      - name: Build app with PyInstaller
         run: |
           uv run pyinstaller VoiceText.spec --clean --noconfirm
 
