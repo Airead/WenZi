@@ -18,6 +18,10 @@ local.*/
 # Build info (auto-generated)
 src/voicetext/_build_info.py
 
+# Test coverage
+.coverage
+htmlcov/
+
 # Environment
 .env
 
