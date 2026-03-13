@@ -36,5 +36,3 @@ logs/
 build/
 dist/
 
-# uv
-uv.lock
