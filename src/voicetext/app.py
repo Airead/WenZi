@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import logging
 import logging.handlers
 import os
@@ -52,6 +53,18 @@ from .transcriber import create_transcriber
 
 
 logger = logging.getLogger(__name__)
+
+
+@dataclasses.dataclass
+class EnhanceCacheEntry:
+    """Cached result of an AI enhancement run."""
+
+    display_text: str
+    usage: dict | None
+    system_prompt: str
+    thinking_text: str
+    final_text: str | None
+
 
 LOG_DIR = Path.home() / "Library" / "Logs" / "VoiceText"
 LOG_FILE = LOG_DIR / "voicetext.log"
@@ -157,6 +170,7 @@ class VoiceTextApp(rumps.App):
         self._busy = False
         self._preview_panel = ResultPreviewPanel()
         self._enhance_cancel_event: threading.Event | None = None
+        self._enhance_cache: dict[tuple, EnhanceCacheEntry] = {}
         self._conversation_history = ConversationHistory()
         self._usage_stats = UsageStats()
 
@@ -1044,6 +1058,7 @@ class VoiceTextApp(rumps.App):
             logger.error("Failed to record usage stats: %s", e)
 
         self._current_preview_asr_text = asr_text or ""
+        self._enhance_cache.clear()
 
         result_event = threading.Event()
         result_holder = {"text": None, "confirmed": False, "enhanced_text": None}
@@ -1225,6 +1240,7 @@ class VoiceTextApp(rumps.App):
                     logger.warning("Transcription returned empty text")
 
                 self._current_preview_asr_text = stt_text
+                self._enhance_cache.clear()
 
                 # Build ASR info
                 parts = []
@@ -1389,6 +1405,7 @@ class VoiceTextApp(rumps.App):
             logger.error("Failed to record clipboard enhance: %s", e)
 
         self._current_preview_asr_text = clipboard_text
+        self._enhance_cache.clear()
 
         result_event = threading.Event()
         result_holder = {"text": None, "confirmed": False, "enhanced_text": None}
@@ -1532,6 +1549,15 @@ class VoiceTextApp(rumps.App):
                 logger.error("Failed to record clipboard cancel: %s", e)
             logger.info("Clipboard enhance cancelled by user")
 
+    def _enhance_cache_key(self) -> tuple:
+        """Build cache key from current enhance settings."""
+        return (
+            self._enhance_mode,
+            self._enhancer.provider_name if self._enhancer else "",
+            self._enhancer.model_name if self._enhancer else "",
+            self._enhancer.thinking if self._enhancer else False,
+        )
+
     def _run_enhance_in_background(
         self, asr_text: str, request_id: int, result_holder: dict | None = None,
     ) -> None:
@@ -1655,6 +1681,15 @@ class VoiceTextApp(rumps.App):
             self._preview_panel.set_enhance_complete(
                 request_id=request_id, usage=usage,
                 system_prompt=system_prompt,
+            )
+            display_text = "".join(collected)
+            cache_key = self._enhance_cache_key()
+            self._enhance_cache[cache_key] = EnhanceCacheEntry(
+                display_text=display_text,
+                usage=usage,
+                system_prompt=system_prompt,
+                thinking_text=self._preview_panel._thinking_text,
+                final_text=None,
             )
         else:
             # All retries failed — update label, don't touch Final Result
@@ -1786,6 +1821,23 @@ class VoiceTextApp(rumps.App):
                 system_prompt=system_prompt,
                 final_text=enhanced,
             )
+            display_text = (
+                str(self._preview_panel._enhance_text_view.string())
+                if self._preview_panel._enhance_text_view else ""
+            )
+            cache_key = (
+                original_mode_id,
+                self._enhancer.provider_name,
+                self._enhancer.model_name,
+                self._enhancer.thinking,
+            )
+            self._enhance_cache[cache_key] = EnhanceCacheEntry(
+                display_text=display_text,
+                usage=total_usage if total_usage["total_tokens"] > 0 else None,
+                system_prompt=system_prompt,
+                thinking_text=self._preview_panel._thinking_text,
+                final_text=enhanced,
+            )
         finally:
             # Restore enhancer mode to the original chain mode id
             self._enhancer.mode = original_mode_id
@@ -1820,12 +1872,23 @@ class VoiceTextApp(rumps.App):
         if mode_id == MODE_OFF:
             AppHelper.callAfter(self._preview_panel.set_enhance_off)
         else:
-            AppHelper.callAfter(self._preview_panel.set_enhance_loading)
-            self._preview_panel.enhance_request_id += 1
-            asr_text = getattr(self, "_current_preview_asr_text", "")
-            self._run_enhance_in_background(
-                asr_text, self._preview_panel.enhance_request_id
-            )
+            cache_key = self._enhance_cache_key()
+            cached = self._enhance_cache.get(cache_key)
+            if cached is not None:
+                self._preview_panel.replay_cached_result(
+                    display_text=cached.display_text,
+                    usage=cached.usage,
+                    system_prompt=cached.system_prompt,
+                    thinking_text=cached.thinking_text,
+                    final_text=cached.final_text,
+                )
+            else:
+                AppHelper.callAfter(self._preview_panel.set_enhance_loading)
+                self._preview_panel.enhance_request_id += 1
+                asr_text = getattr(self, "_current_preview_asr_text", "")
+                self._run_enhance_in_background(
+                    asr_text, self._preview_panel.enhance_request_id
+                )
 
     def _on_preview_stt_change(self, index: int) -> None:
         """Handle STT model popup change from the preview panel."""
@@ -1925,6 +1988,7 @@ class VoiceTextApp(rumps.App):
                         new_text, asr_info=new_asr_info, request_id=request_id,
                     )
                     self._current_preview_asr_text = new_text
+                    self._enhance_cache.clear()
 
                     # Re-run enhance if mode is not Off
                     if self._enhance_mode != MODE_OFF and self._enhancer:
@@ -1984,12 +2048,23 @@ class VoiceTextApp(rumps.App):
 
         # Re-run enhance if mode is not Off
         if self._enhance_mode != MODE_OFF:
-            self._preview_panel.set_enhance_loading()
-            self._preview_panel.enhance_request_id += 1
-            asr_text = getattr(self, "_current_preview_asr_text", "")
-            self._run_enhance_in_background(
-                asr_text, self._preview_panel.enhance_request_id
-            )
+            cache_key = self._enhance_cache_key()
+            cached = self._enhance_cache.get(cache_key)
+            if cached is not None:
+                self._preview_panel.replay_cached_result(
+                    display_text=cached.display_text,
+                    usage=cached.usage,
+                    system_prompt=cached.system_prompt,
+                    thinking_text=cached.thinking_text,
+                    final_text=cached.final_text,
+                )
+            else:
+                self._preview_panel.set_enhance_loading()
+                self._preview_panel.enhance_request_id += 1
+                asr_text = getattr(self, "_current_preview_asr_text", "")
+                self._run_enhance_in_background(
+                    asr_text, self._preview_panel.enhance_request_id
+                )
 
     def _on_preview_punc_toggle(self, enabled: bool) -> None:
         """Handle Punc checkbox toggle from the preview panel."""
@@ -2017,6 +2092,7 @@ class VoiceTextApp(rumps.App):
                         new_text, asr_info=new_asr_info, request_id=request_id,
                     )
                     self._current_preview_asr_text = new_text
+                    self._enhance_cache.clear()
 
                     # Re-run enhance if mode is not Off
                     if self._enhance_mode != MODE_OFF and self._enhancer:
@@ -2255,12 +2331,23 @@ Output only the processed text without any explanation."""
 
         # Re-trigger enhancement if currently active
         if self._enhance_mode != MODE_OFF:
-            AppHelper.callAfter(self._preview_panel.set_enhance_loading)
-            self._preview_panel.enhance_request_id += 1
-            asr_text = getattr(self, "_current_preview_asr_text", "")
-            self._run_enhance_in_background(
-                asr_text, self._preview_panel.enhance_request_id
-            )
+            cache_key = self._enhance_cache_key()
+            cached = self._enhance_cache.get(cache_key)
+            if cached is not None:
+                self._preview_panel.replay_cached_result(
+                    display_text=cached.display_text,
+                    usage=cached.usage,
+                    system_prompt=cached.system_prompt,
+                    thinking_text=cached.thinking_text,
+                    final_text=cached.final_text,
+                )
+            else:
+                AppHelper.callAfter(self._preview_panel.set_enhance_loading)
+                self._preview_panel.enhance_request_id += 1
+                asr_text = getattr(self, "_current_preview_asr_text", "")
+                self._run_enhance_in_background(
+                    asr_text, self._preview_panel.enhance_request_id
+                )
 
     def _update_vocab_title(self) -> None:
         """Update the Vocabulary menu item title with the current entry count."""

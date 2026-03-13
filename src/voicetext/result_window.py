@@ -480,6 +480,44 @@ class ResultPreviewPanel:
 
         AppHelper.callAfter(_update)
 
+    def replay_cached_result(
+        self, display_text: str, usage: dict | None,
+        system_prompt: str, thinking_text: str,
+        final_text: str | None,
+    ) -> None:
+        """Instantly display a cached enhancement result (no streaming)."""
+        if self._enhance_text_view is None:
+            return
+
+        from PyObjCTools import AppHelper
+
+        def _update():
+            if self._enhance_text_view is None:
+                return
+            self._stop_loading_timer()
+            self._enhance_text_view.setString_(display_text)
+            self._system_prompt = system_prompt
+            if self._prompt_button is not None:
+                self._prompt_button.setEnabled_(bool(system_prompt))
+            self._thinking_text = thinking_text
+            if self._thinking_button is not None:
+                has_thinking = bool(thinking_text)
+                self._thinking_button.setEnabled_(has_thinking)
+                self._thinking_button.setAlphaValue_(1.0 if has_thinking else 0.3)
+            if self._enhance_label is not None:
+                suffix = "[cached]"
+                if usage and usage.get("total_tokens"):
+                    total = usage["total_tokens"]
+                    prompt = usage.get("prompt_tokens", 0)
+                    completion = usage.get("completion_tokens", 0)
+                    suffix = f"Tokens: {total:,} (\u2191{prompt:,} \u2193{completion:,}) [cached]"
+                self._enhance_label.setStringValue_(self._enhance_label_text(suffix))
+            if not self._user_edited and self._final_text_field is not None:
+                text = final_text if final_text is not None else display_text
+                self._final_text_field.setStringValue_(text)
+
+        AppHelper.callAfter(_update)
+
     def set_enhance_label(self, suffix: str, request_id: int = 0) -> None:
         """Update only the enhancement label text."""
         from PyObjCTools import AppHelper
@@ -1379,6 +1417,8 @@ class ResultPreviewPanel:
         if not self._available_modes or selected_index >= len(self._available_modes):
             return
         mode_id = self._available_modes[selected_index][0]
+        if mode_id == self._current_mode:
+            return
         self._current_mode = mode_id
         if self._on_mode_change is not None:
             self._on_mode_change(mode_id)
