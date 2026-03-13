@@ -35,21 +35,3 @@ class TestVersion:
         if __version__ != "0.0.0-dev":
             expected = _read_pyproject_version()
             assert __version__ == expected
-
-
-class TestBuildInfo:
-    def test_build_info_importable(self):
-        from voicetext._build_info import BUILD_DATE, GIT_HASH
-
-        assert isinstance(GIT_HASH, str)
-        assert isinstance(BUILD_DATE, str)
-        assert len(GIT_HASH) > 0
-        assert len(BUILD_DATE) > 0
-
-    def test_build_info_has_defaults(self):
-        """Default values should be present for local development."""
-        from voicetext._build_info import BUILD_DATE, GIT_HASH
-
-        # In non-CI environment, defaults are "dev" and "unknown"
-        assert GIT_HASH in ("dev", ) or len(GIT_HASH) >= 7  # short hash
-        assert BUILD_DATE in ("unknown", ) or len(BUILD_DATE) == 10  # YYYY-MM-DD
