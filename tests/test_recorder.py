@@ -1,6 +1,7 @@
 """Tests for the recorder module."""
 
 import io
+import threading
 from unittest.mock import patch, MagicMock
 
 import numpy as np
@@ -134,3 +135,25 @@ class TestRecorder:
         r._callback(frame_data, 320, None, None)  # Should be dropped
 
         assert r._queue.qsize() == 1
+
+    @patch("voicetext.recorder.sd.RawInputStream")
+    def test_stop_returns_data_when_stream_close_hangs(self, mock_stream_cls):
+        """stop() should return audio data even if stream.stop() hangs."""
+        mock_stream = MagicMock()
+        # Make stream.stop() block forever (simulating a hung PortAudio callback)
+        hang_event = threading.Event()
+        mock_stream.stop.side_effect = lambda: hang_event.wait()
+        mock_stream_cls.return_value = mock_stream
+
+        r = Recorder(sample_rate=16000, block_ms=20)
+        r.start()
+
+        frame = np.full(320, 500, dtype=np.int16)
+        r._queue.put(frame)
+
+        wav_data = r.stop()
+        # Should succeed despite the hung stream.stop()
+        assert wav_data is not None
+        assert r.is_recording is False
+        # Unblock the background thread to avoid leaking it
+        hang_event.set()

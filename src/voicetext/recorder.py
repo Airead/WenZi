@@ -98,10 +98,30 @@ class Recorder:
                 return None
 
             self._recording = False
-            if self._stream:
-                self._stream.stop()
-                self._stream.close()
-                self._stream = None
+            stream = self._stream
+            self._stream = None
+
+        # Stop/close stream outside the lock with a timeout so a hung
+        # PortAudio callback cannot block the caller (e.g. the Quartz
+        # event-tap thread) forever.
+        if stream is not None:
+            done = threading.Event()
+
+            def _close_stream() -> None:
+                try:
+                    stream.stop()
+                    stream.close()
+                except Exception as e:
+                    logger.warning("Error closing audio stream: %s", e)
+                finally:
+                    done.set()
+
+            threading.Thread(target=_close_stream, daemon=True).start()
+            if not done.wait(timeout=2.0):
+                logger.error(
+                    "Audio stream stop/close timed out after 2s, "
+                    "continuing without waiting"
+                )
 
         # Collect all buffered frames
         frames = []
