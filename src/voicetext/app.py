@@ -3675,6 +3675,10 @@ models:
                 for key, item in self._llm_model_menu_items.items():
                     item.state = 1 if key == current_key else 0
 
+            # Reload enhancement mode definitions from disk
+            self._enhancer.reload_modes()
+            self._rebuild_enhance_mode_menu()
+
         # Feedback settings
         fb_cfg = new_config.get("feedback", {})
         self._sound_manager.enabled = fb_cfg.get("sound_enabled", True)
