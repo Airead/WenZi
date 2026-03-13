@@ -680,6 +680,118 @@ class TestResultPreviewPanelModeSwitch:
             "AI (zai / glm-5)  Off"
         )
 
+    def test_set_enhance_loading_starts_timer(self):
+        from voicetext.result_window import ResultPreviewPanel
+
+        panel = ResultPreviewPanel()
+        panel._enhance_label = MagicMock()
+        panel._enhance_text_view = MagicMock()
+
+        mock_timer = MagicMock()
+        mock_ns_timer = MagicMock()
+        mock_ns_timer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_.return_value = mock_timer
+
+        with patch("PyObjCTools.AppHelper") as mock_helper:
+            mock_helper.callAfter.side_effect = lambda fn: fn()
+            import sys
+            sys.modules["Foundation"].NSTimer = mock_ns_timer
+            panel.set_enhance_loading()
+
+        assert panel._loading_timer is mock_timer
+        assert panel._loading_seconds == 0
+        mock_ns_timer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_.assert_called_once_with(
+            1.0, panel, b"tickLoadingTimer:", None, True,
+        )
+
+    def test_tick_loading_timer_increments_seconds(self):
+        from voicetext.result_window import ResultPreviewPanel
+
+        panel = ResultPreviewPanel()
+        panel._enhance_label = MagicMock()
+        panel._loading_seconds = 0
+
+        panel.tickLoadingTimer_(None)
+        assert panel._loading_seconds == 1
+        panel._enhance_label.setStringValue_.assert_called_with(
+            "AI  \u23f3 Processing... 1s"
+        )
+
+        panel.tickLoadingTimer_(None)
+        assert panel._loading_seconds == 2
+        panel._enhance_label.setStringValue_.assert_called_with(
+            "AI  \u23f3 Processing... 2s"
+        )
+
+    def test_append_enhance_text_stops_loading_timer(self):
+        from voicetext.result_window import ResultPreviewPanel
+
+        panel = ResultPreviewPanel()
+        panel._enhance_text_view = MagicMock()
+        panel._enhance_label = MagicMock()
+        panel._enhance_request_id = 1
+        mock_timer = MagicMock()
+        panel._loading_timer = mock_timer
+
+        with patch("PyObjCTools.AppHelper") as mock_helper:
+            mock_helper.callAfter.side_effect = lambda fn: fn()
+            panel.append_enhance_text("chunk", request_id=1, completion_tokens=1)
+
+        mock_timer.invalidate.assert_called_once()
+        assert panel._loading_timer is None
+
+    def test_append_thinking_text_stops_loading_timer(self):
+        from voicetext.result_window import ResultPreviewPanel
+
+        panel = ResultPreviewPanel()
+        panel._enhance_text_view = MagicMock()
+        panel._enhance_label = MagicMock()
+        panel._enhance_request_id = 1
+        mock_timer = MagicMock()
+        panel._loading_timer = mock_timer
+
+        with patch("PyObjCTools.AppHelper") as mock_helper:
+            mock_helper.callAfter.side_effect = lambda fn: fn()
+            panel.append_thinking_text("think", request_id=1, thinking_tokens=1)
+
+        mock_timer.invalidate.assert_called_once()
+        assert panel._loading_timer is None
+
+    def test_set_enhance_off_stops_loading_timer(self):
+        from voicetext.result_window import ResultPreviewPanel
+
+        panel = ResultPreviewPanel()
+        panel._enhance_label = MagicMock()
+        panel._enhance_text_view = MagicMock()
+        panel._final_text_field = MagicMock()
+        panel._asr_text = "test"
+        mock_timer = MagicMock()
+        panel._loading_timer = mock_timer
+
+        with patch("PyObjCTools.AppHelper") as mock_helper:
+            mock_helper.callAfter.side_effect = lambda fn: fn()
+            panel.set_enhance_off()
+
+        mock_timer.invalidate.assert_called_once()
+        assert panel._loading_timer is None
+
+    def test_set_enhance_complete_stops_loading_timer(self):
+        from voicetext.result_window import ResultPreviewPanel
+
+        panel = ResultPreviewPanel()
+        panel._enhance_text_view = MagicMock()
+        panel._enhance_label = MagicMock()
+        panel._final_text_field = MagicMock()
+        panel._enhance_request_id = 1
+        mock_timer = MagicMock()
+        panel._loading_timer = mock_timer
+
+        with patch("PyObjCTools.AppHelper") as mock_helper:
+            mock_helper.callAfter.side_effect = lambda fn: fn()
+            panel.set_enhance_complete(request_id=1)
+
+        mock_timer.invalidate.assert_called_once()
+        assert panel._loading_timer is None
+
     def test_set_enhance_result_ignores_stale_request_id(self):
         from voicetext.result_window import ResultPreviewPanel
 

@@ -134,6 +134,8 @@ class ResultPreviewPanel:
         self._thinking_text: str = ""
         self._thinking_button = None
         self._confirm_btn = None
+        self._loading_timer = None
+        self._loading_seconds: int = 0
         self._flags_monitor = None
         self._cmd_held = False
         self._google_translate_button = None
@@ -281,6 +283,7 @@ class ResultPreviewPanel:
             # Discard stale results
             if request_id != 0 and request_id != self._enhance_request_id:
                 return
+            self._stop_loading_timer()
             self._enhance_text_view.setString_(text)
             # Store system prompt and enable button
             if system_prompt:
@@ -323,6 +326,8 @@ class ResultPreviewPanel:
                 return
             if request_id != 0 and request_id != self._enhance_request_id:
                 return
+            # Stop loading timer on first thinking chunk
+            self._stop_loading_timer()
             storage = self._enhance_text_view.textStorage()
             from AppKit import (
                 NSAttributedString,
@@ -393,6 +398,8 @@ class ResultPreviewPanel:
                 return
             if request_id != 0 and request_id != self._enhance_request_id:
                 return
+            # Stop loading timer on first chunk
+            self._stop_loading_timer()
             # Append chunk to existing text
             storage = self._enhance_text_view.textStorage()
             from AppKit import (
@@ -448,6 +455,7 @@ class ResultPreviewPanel:
                 return
             if request_id != 0 and request_id != self._enhance_request_id:
                 return
+            self._stop_loading_timer()
             if system_prompt:
                 self._system_prompt = system_prompt
                 if self._prompt_button is not None:
@@ -485,6 +493,20 @@ class ResultPreviewPanel:
 
         AppHelper.callAfter(_update)
 
+    def _stop_loading_timer(self) -> None:
+        """Invalidate the loading elapsed-time timer if running."""
+        if self._loading_timer is not None:
+            self._loading_timer.invalidate()
+            self._loading_timer = None
+
+    def tickLoadingTimer_(self, timer) -> None:
+        """NSTimer callback: increment seconds counter and update label."""
+        self._loading_seconds += 1
+        if self._enhance_label is not None:
+            self._enhance_label.setStringValue_(
+                self._enhance_label_text(f"\u23f3 Processing... {self._loading_seconds}s")
+            )
+
     def set_enhance_loading(self) -> None:
         """Show loading state in the enhancement section."""
         from PyObjCTools import AppHelper
@@ -500,6 +522,13 @@ class ResultPreviewPanel:
             if self._thinking_button is not None:
                 self._thinking_button.setEnabled_(False)
                 self._thinking_button.setAlphaValue_(0.3)
+            # Start elapsed-time timer
+            self._stop_loading_timer()
+            self._loading_seconds = 0
+            from Foundation import NSTimer
+            self._loading_timer = NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
+                1.0, self, b"tickLoadingTimer:", None, True,
+            )
 
         AppHelper.callAfter(_update)
 
@@ -519,6 +548,7 @@ class ResultPreviewPanel:
         from PyObjCTools import AppHelper
 
         def _update():
+            self._stop_loading_timer()
             if self._enhance_label is not None:
                 self._enhance_label.setStringValue_(self._enhance_label_text("Off"))
             if self._enhance_text_view is not None:
