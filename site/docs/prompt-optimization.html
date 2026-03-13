@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Prompt Optimization Workflow — VoiceText</title>
+  <link rel="icon" type="image/png" href="../images/icon.png">
+  <link rel="stylesheet" href="../css/style.css">
+  <style>
+    .doc-container { max-width: 800px; margin: 0 auto; padding: 80px 24px 60px; }
+    .doc-container h2 { font-size: 1.6rem; margin-top: 48px; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid var(--card-border); }
+    .doc-container h3 { font-size: 1.2rem; margin-top: 32px; margin-bottom: 12px; }
+    .doc-container p { margin-bottom: 16px; color: var(--text-secondary); }
+    .doc-container ul, .doc-container ol { margin-bottom: 16px; padding-left: 24px; color: var(--text-secondary); }
+    .doc-container li { margin-bottom: 8px; }
+    .doc-container blockquote { border-left: 3px solid var(--purple); padding: 12px 16px; margin: 16px 0; background: var(--bg-alt); border-radius: 0 8px 8px 0; color: var(--text-secondary); }
+    .doc-container code { background: var(--code-bg); padding: 2px 6px; border-radius: 4px; font-size: 0.88rem; }
+    .doc-container pre.code-block { margin-bottom: 16px; }
+    .doc-container .compare-table { margin-bottom: 24px; }
+    .doc-container strong { color: var(--text); }
+    .toc { background: var(--bg-alt); border-radius: 12px; padding: 24px 28px; margin-bottom: 40px; }
+    .toc h2 { margin-top: 0 !important; border-bottom: none !important; }
+    .toc ul { list-style: none; padding-left: 0; }
+    .toc li { margin-bottom: 6px; }
+    .toc a { color: var(--purple); }
+    .doc-nav-card { display: block; background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 20px 24px; margin-top: 48px; transition: box-shadow 0.2s; text-decoration: none; }
+    .doc-nav-card:hover { box-shadow: 0 2px 12px rgba(0,0,0,0.08); text-decoration: none; }
+    .doc-nav-card h3 { color: var(--text); margin-bottom: 4px; }
+    .doc-nav-card p { color: var(--text-secondary); margin: 0; font-size: 0.95rem; }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="site-header">
+    <nav class="nav container">
+      <a href="../" class="nav-brand">
+        <img src="../images/icon.png" alt="VoiceText icon">
+        VoiceText
+      </a>
+      <ul class="nav-links">
+        <li><a href="../">&larr; Back</a></li>
+        <li><a href="../zh/docs/prompt-optimization.html" class="lang-switch">中文</a></li>
+        <li><a href="https://github.com/Airead/VoiceText" target="_blank">GitHub</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <!-- Content -->
+  <article class="doc-container">
+    <h1>Prompt Optimization Workflow</h1>
+    <p>A practical guide for advanced users who want to systematically improve AI enhancement quality using the Preview panel's built-in tools.</p>
+
+    <!-- Table of Contents -->
+    <div class="toc">
+      <h2>Table of Contents</h2>
+      <ul>
+        <li><a href="#prerequisites">Prerequisites</a></li>
+        <li><a href="#preview-panel">The Preview Panel at a Glance</a></li>
+        <li><a href="#core-tools">Core Tools for Prompt Optimization</a></li>
+        <li><a href="#step-by-step">Step-by-Step Optimization Workflow</a></li>
+        <li><a href="#practical-examples">Practical Examples</a></li>
+        <li><a href="#quick-reference">Quick Reference</a></li>
+        <li><a href="#tips">Tips</a></li>
+      </ul>
+    </div>
+
+    <!-- Prerequisites -->
+    <section id="prerequisites">
+      <h2>Prerequisites</h2>
+      <ul>
+        <li>Preview mode enabled (Settings &rarr; General &rarr; Preview)</li>
+        <li>At least one LLM provider configured (Settings &rarr; LLM)</li>
+        <li>An enhancement mode selected (Settings &rarr; AI)</li>
+      </ul>
+    </section>
+
+    <!-- The Preview Panel at a Glance -->
+    <section id="preview-panel">
+      <h2>The Preview Panel at a Glance</h2>
+<pre class="code-block">&#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;
+&#9474;  ASR   [FunASR &#9662;]  10.6s    &#9744; Punc   Play &#9654;  Save  &#9474;  &larr; Raw speech recognition
+&#9474;  &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;    &#9474;
+&#9474;  &#9474; &#26681;&#25454;&#30446;&#21069;&#31243;&#24207;&#30340;preview&#30028;&#38754;&#20320;&#33021;&#24819;&#21040;&#29992;&#25143;...       &#9474;    &#9474;
+&#9474;  &#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;    &#9474;
+&#9474;                                                     &#9474;
+&#9474;  [ Off ] [&#32416;&#38169;&#28070;&#33394;] [&#32763;&#35793;&#20026;&#33521;&#25991;] [&#28070;&#33394;+&#32763;&#35793;EN] [...]  &#9474;  &larr; Mode switcher (&amp;#8984;1&ndash;&amp;#8984;9)
+&#9474;                                                     &#9474;
+&#9474;  AI  [provider/model &#9662;]  Tokens: 897 (&uarr;878 &darr;19)    &#9474;
+&#9474;                                &#9744; thinking  &#129504; Prompt&#9474;  &larr; Enhancement controls
+&#9474;  &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;    &#9474;
+&#9474;  &#9474; AI enhanced result (read-only)               &#9474;    &#9474;
+&#9474;  &#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;    &#9474;
+&#9474;                                                     &#9474;
+&#9474;  Final Result (editable)                  Translate &#8599;&#9474;
+&#9474;  &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;    &#9474;
+&#9474;  &#9474; Your final text &mdash; edit here before confirm   &#9474;    &#9474;
+&#9474;  &#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;    &#9474;
+&#9474;                                                     &#9474;
+&#9474;  [History]                      [Cancel]  [Copy &#8984;&#9166;] &#9474;
+&#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;</pre>
+    </section>
+
+    <!-- Core Tools for Prompt Optimization -->
+    <section id="core-tools">
+      <h2>Core Tools for Prompt Optimization</h2>
+
+      <h3 id="tool-play">1. Play &#9654; &mdash; Verify What You Actually Said</h3>
+      <p>Before blaming ASR or AI, play back the recording. This tells you which layer the problem is in:</p>
+      <div class="table-wrapper">
+        <table class="compare-table">
+          <thead>
+            <tr>
+              <th>What you hear</th>
+              <th>Diagnosis</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>You misspoke or were unclear</td>
+              <td>Source problem</td>
+              <td>Re-record with clearer speech</td>
+            </tr>
+            <tr>
+              <td>Speech was fine, ASR text is wrong</td>
+              <td>ASR problem</td>
+              <td>Switch ASR engine, enable Punc, or try a different model</td>
+            </tr>
+            <tr>
+              <td>ASR text is correct, AI output is wrong</td>
+              <td>Prompt problem</td>
+              <td>Inspect and iterate on the prompt (see below)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 id="tool-prompt">2. Prompt Button &mdash; See the Actual System Prompt</h3>
+      <p>Click <strong>Prompt &#9432;</strong> after enhancement completes to see the exact system prompt sent to the LLM. This is the single most important tool for optimization &mdash; you cannot improve what you cannot see.</p>
+      <p>What to look for:</p>
+      <ul>
+        <li>Is the instruction clear and specific enough?</li>
+        <li>Does it mention that input comes from ASR (which may contain errors)?</li>
+        <li>Does it have an output-only rule to prevent commentary?</li>
+        <li>Are there edge cases the prompt doesn't cover?</li>
+      </ul>
+
+      <h3 id="tool-mode-switcher">3. Mode Switcher (&amp;#8984;1&ndash;&amp;#8984;9) &mdash; Compare Modes Instantly</h3>
+      <p>Press <code>&amp;#8984;1</code> through <code>&amp;#8984;9</code> to switch modes without re-recording. Results are cached &mdash; switching back shows the previous result instantly (marked <code>[cached]</code>).</p>
+      <p>Use this to:</p>
+      <ul>
+        <li>Compare how different prompts handle the same input</li>
+        <li>A/B test a new mode against existing ones</li>
+        <li>Find which mode handles specific content types best</li>
+      </ul>
+
+      <h3 id="tool-model-dropdown">4. LLM Model Dropdown &mdash; Compare Models</h3>
+      <p>Switch models from the AI dropdown to see how the same prompt performs across different LLMs. Each (mode, model, thinking) combination is cached independently.</p>
+
+      <h3 id="tool-thinking">5. Thinking Mode &mdash; Observe AI Reasoning</h3>
+      <p>Enable the thinking checkbox, then click the <strong>&#129504;</strong> (brain) button after enhancement to read the AI's reasoning process. This reveals:</p>
+      <ul>
+        <li>Why the AI made specific word choices</li>
+        <li>Where the AI is confused or uncertain</li>
+        <li>Whether the AI understood your intent correctly</li>
+      </ul>
+      <p>This is invaluable for diagnosing prompt issues &mdash; if the AI's reasoning is wrong, the prompt needs clarification.</p>
+
+      <h3 id="tool-final-result">6. Final Result &mdash; Correct and Train</h3>
+      <p>Edit the Final Result to fix any remaining issues before confirming. Each edit is recorded with a <code>user_corrected</code> flag, which feeds into the vocabulary system over time.</p>
+    </section>
+
+    <!-- Step-by-Step Optimization Workflow -->
+    <section id="step-by-step">
+      <h2>Step-by-Step Optimization Workflow</h2>
+
+      <h3>Phase 1: Identify the Problem</h3>
+      <ol>
+        <li><strong>Record</strong> a representative sentence.</li>
+        <li><strong>Play &#9654;</strong> the recording to confirm you said what you meant.</li>
+        <li><strong>Read the ASR text</strong> &mdash; is the transcription accurate?</li>
+        <li><strong>Read the AI result</strong> &mdash; did the enhancement improve or damage the text?</li>
+        <li><strong>Click Prompt</strong> &mdash; read the system prompt that produced this result.</li>
+      </ol>
+
+      <h3>Phase 2: Diagnose</h3>
+      <p>Use the controls to narrow down the issue:</p>
+      <div class="table-wrapper">
+        <table class="compare-table">
+          <thead>
+            <tr>
+              <th>Symptom</th>
+              <th>Diagnostic step</th>
+              <th>Likely cause</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>AI adds unwanted commentary</td>
+              <td>Check Prompt &mdash; missing output-only rule</td>
+              <td>Prompt needs "Output only... without explanation"</td>
+            </tr>
+            <tr>
+              <td>AI over-corrects correct text</td>
+              <td>Check Prompt &mdash; too aggressive instruction</td>
+              <td>Prompt needs "Preserve original text when correct"</td>
+            </tr>
+            <tr>
+              <td>AI misunderstands domain terms</td>
+              <td>Enable thinking, read &#129504;</td>
+              <td>Prompt needs domain context or examples</td>
+            </tr>
+            <tr>
+              <td>Good with one model, bad with another</td>
+              <td>Switch models via dropdown</td>
+              <td>Prompt too model-dependent; add more explicit rules</td>
+            </tr>
+            <tr>
+              <td>Works for short input, fails for long</td>
+              <td>Test both via re-recording</td>
+              <td>Prompt needs length-aware handling</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Phase 3: Edit the Mode</h3>
+      <ol>
+        <li>Open <code>~/.config/VoiceText/enhance_modes/&lt;mode_id&gt;.md</code> in a text editor.<br>Or use Settings &rarr; AI &rarr; select mode &rarr; edit.</li>
+        <li>Make targeted changes based on your diagnosis.</li>
+        <li>Restart the app (or reload config) to load the updated prompt.</li>
+        <li>Re-record the same sentence and compare results.</li>
+      </ol>
+
+      <h3>Phase 4: Validate</h3>
+      <ol>
+        <li><strong>&amp;#8984;1&ndash;&amp;#8984;9</strong> to switch between the updated mode and other modes &mdash; is the updated one better?</li>
+        <li><strong>Switch LLM models</strong> &mdash; does the improvement hold across models?</li>
+        <li><strong>Test edge cases</strong> &mdash; try short input, long input, mixed languages, noisy speech.</li>
+        <li><strong>Enable thinking</strong> &mdash; does the AI's reasoning now match your intent?</li>
+      </ol>
+
+      <h3>Phase 5: Refine Over Time</h3>
+      <ul>
+        <li><strong>Correct Final Results</strong> consistently &mdash; the vocabulary system learns from your edits.</li>
+        <li><strong>Review History</strong> (click History button) &mdash; look for patterns in what the AI gets wrong.</li>
+        <li><strong>Build vocabulary</strong> (Settings &rarr; AI &rarr; Build Vocabulary) &mdash; domain terms accumulate automatically.</li>
+      </ul>
+    </section>
+
+    <!-- Practical Examples -->
+    <section id="practical-examples">
+      <h2>Practical Examples</h2>
+
+      <h3>Example 1: AI Adds Explanation After Translation</h3>
+      <p><strong>Problem:</strong> The "&#32763;&#35793;&#20026;&#33521;&#25991;" mode outputs "Translation: ..." with a prefix.</p>
+      <p><strong>Diagnosis:</strong> Click Prompt &rarr; the prompt says "translate to English" but doesn't explicitly forbid commentary.</p>
+      <p><strong>Fix:</strong> Add to the prompt:</p>
+<pre class="code-block">Output only the translated text.
+Do not add any prefix, label, or explanation.</pre>
+
+      <h3>Example 2: AI Corrects a Name Incorrectly</h3>
+      <p><strong>Problem:</strong> You say "&#25214;&#33805;&#33805;&#30830;&#35748;&#19968;&#19979;" but AI changes it to "&#25214;&#24179;&#24179;&#30830;&#35748;&#19968;&#19979;".</p>
+      <p><strong>Diagnosis:</strong> Enable thinking &rarr; the AI treats "&#33805;&#33805;" as an ASR error for "&#24179;&#24179;" because it lacks context.</p>
+      <p><strong>Fix options:</strong></p>
+      <ul>
+        <li>Edit Final Result to "&#33805;&#33805;" &rarr; the correction is logged and builds vocabulary over time</li>
+        <li>Enable Conversation History (Settings &rarr; AI) so the AI sees prior confirmed uses of "&#33805;&#33805;"</li>
+        <li>Manually build vocabulary after accumulating corrections</li>
+      </ul>
+
+      <h3>Example 3: Mode Works on One Model But Not Another</h3>
+      <p><strong>Problem:</strong> "&#21629;&#20196;&#34892;&#22823;&#31070;" produces clean shell commands on GPT-4 but adds markdown fences on a local model.</p>
+      <p><strong>Diagnosis:</strong> Switch models via dropdown, compare outputs. Click Prompt to check.</p>
+      <p><strong>Fix:</strong> Make the prompt more explicit:</p>
+<pre class="code-block">Output only the raw command.
+Do not wrap in markdown code blocks or backticks.
+Do not add any explanation.</pre>
+    </section>
+
+    <!-- Quick Reference -->
+    <section id="quick-reference">
+      <h2>Quick Reference</h2>
+      <div class="table-wrapper">
+        <table class="compare-table">
+          <thead>
+            <tr>
+              <th>Shortcut / Button</th>
+              <th>Purpose in optimization</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Play &#9654;</strong></td>
+              <td>Verify source audio &mdash; is the problem in your speech?</td>
+            </tr>
+            <tr>
+              <td><strong>Punc</strong></td>
+              <td>Toggle punctuation &mdash; does it improve ASR accuracy?</td>
+            </tr>
+            <tr>
+              <td><strong>&amp;#8984;1&ndash;&amp;#8984;9</strong></td>
+              <td>A/B test modes on the same audio</td>
+            </tr>
+            <tr>
+              <td><strong>AI dropdown</strong></td>
+              <td>A/B test models with the same prompt</td>
+            </tr>
+            <tr>
+              <td><strong>Prompt &#9432;</strong></td>
+              <td>Read the actual prompt sent to the LLM</td>
+            </tr>
+            <tr>
+              <td><strong>&#9744; Thinking</strong></td>
+              <td>Enable AI reasoning trace</td>
+            </tr>
+            <tr>
+              <td><strong>&#129504;</strong></td>
+              <td>Read the AI's reasoning &mdash; diagnose misunderstandings</td>
+            </tr>
+            <tr>
+              <td><strong>Final Result</strong></td>
+              <td>Correct errors &mdash; trains vocabulary over time</td>
+            </tr>
+            <tr>
+              <td><strong>Translate &#8599;</strong></td>
+              <td>Cross-check with Google Translate</td>
+            </tr>
+            <tr>
+              <td><strong>History</strong></td>
+              <td>Review patterns in past corrections</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Tips -->
+    <section id="tips">
+      <h2>Tips</h2>
+      <ul>
+        <li><strong>One change at a time.</strong> When editing a prompt, change one thing, then test. Multiple changes make it hard to know what helped.</li>
+        <li><strong>Save good test cases.</strong> Use <strong>Save</strong> to export recordings that expose prompt issues. Replay them after editing the prompt to verify the fix.</li>
+        <li><strong>Use numbered rules.</strong> LLMs follow structured prompts with numbered rules more consistently than paragraph instructions.</li>
+        <li><strong>Always mention ASR context.</strong> Include "The user's input comes from ASR and may contain recognition errors" in your prompts &mdash; it significantly improves error tolerance.</li>
+        <li><strong>Check token counts.</strong> The Tokens display (&uarr;prompt &darr;completion) helps you judge prompt efficiency. A prompt with high &uarr; and low &darr; may be too verbose.</li>
+      </ul>
+    </section>
+
+    <!-- Navigation card -->
+    <a href="user-guide.html" class="doc-nav-card">
+      <h3>User Guide &rarr;</h3>
+      <p>New to VoiceText? Start with the comprehensive user guide covering setup, daily usage, and all features.</p>
+    </a>
+
+  </article>
+
+</body>
+</html>

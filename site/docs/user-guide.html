@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>User Guide - VoiceText</title>
+  <link rel="icon" href="../images/icon.png" type="image/png">
+  <link rel="stylesheet" href="../css/style.css">
+  <style>
+    .doc-container { max-width: 800px; margin: 0 auto; padding: 80px 24px 60px; }
+    .doc-container h2 { font-size: 1.6rem; margin-top: 48px; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid var(--card-border); }
+    .doc-container h3 { font-size: 1.2rem; margin-top: 32px; margin-bottom: 12px; }
+    .doc-container p { margin-bottom: 16px; color: var(--text-secondary); }
+    .doc-container ul, .doc-container ol { margin-bottom: 16px; padding-left: 24px; color: var(--text-secondary); }
+    .doc-container li { margin-bottom: 8px; }
+    .doc-container blockquote { border-left: 3px solid var(--purple); padding: 12px 16px; margin: 16px 0; background: var(--bg-alt); border-radius: 0 8px 8px 0; color: var(--text-secondary); }
+    .doc-container code { background: var(--code-bg); padding: 2px 6px; border-radius: 4px; font-size: 0.88rem; }
+    .doc-container pre.code-block { margin-bottom: 16px; }
+    .doc-container .compare-table { margin-bottom: 24px; }
+    .doc-container strong { color: var(--text); }
+    .toc { background: var(--bg-alt); border-radius: 12px; padding: 24px 28px; margin-bottom: 40px; }
+    .toc h2 { margin-top: 0 !important; border-bottom: none !important; }
+    .toc ul { list-style: none; padding-left: 0; }
+    .toc li { margin-bottom: 6px; }
+    .toc a { color: var(--purple); }
+    .doc-nav-card { display: block; background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 20px 24px; margin-top: 48px; transition: box-shadow 0.2s; text-decoration: none; }
+    .doc-nav-card:hover { box-shadow: 0 2px 12px rgba(0,0,0,0.08); text-decoration: none; }
+    .doc-nav-card h3 { color: var(--text); margin-bottom: 4px; }
+    .doc-nav-card p { color: var(--text-secondary); margin: 0; font-size: 0.95rem; }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="site-header">
+    <nav class="nav container">
+      <a href="../" class="nav-brand">
+        <img src="../images/icon.png" alt="VoiceText" width="32" height="32">
+        VoiceText
+      </a>
+      <ul class="nav-links">
+        <li><a href="../">&larr; Back</a></li>
+        <li><a href="https://github.com/Airead/VoiceText" target="_blank" rel="noopener">GitHub</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <!-- Main content -->
+  <article class="doc-container">
+    <h1 style="font-size: 2.2rem; font-weight: 800; margin-bottom: 8px;">VoiceText User Guide</h1>
+    <p style="font-size: 1.1rem; margin-bottom: 32px;">A progressive guide from first launch to advanced usage. Follow the levels in order &mdash; each builds on the previous one.</p>
+
+    <!-- Table of Contents -->
+    <div class="toc">
+      <h2>Table of Contents</h2>
+      <ul>
+        <li><a href="#level-1-getting-started">Level 1: Getting Started</a> &mdash; Install, launch, and transcribe your first sentence</li>
+        <li><a href="#level-2-daily-use-basics">Level 2: Daily Use Basics</a> &mdash; Preview mode, hotkeys, and output control</li>
+        <li><a href="#level-3-choosing-the-right-asr-backend">Level 3: Choosing the Right ASR Backend</a> &mdash; Pick the best speech engine for your language and hardware</li>
+        <li><a href="#level-4-ai-enhancement">Level 4: AI Enhancement</a> &mdash; Let an LLM proofread, translate, or reformat your text</li>
+        <li><a href="#level-5-preview-power-features">Level 5: Preview Power Features</a> &mdash; Edit, switch modes, cache, and translate inside the preview panel</li>
+        <li><a href="#level-6-direct-mode-streaming">Level 6: Direct Mode &amp; Streaming</a> &mdash; Type results instantly with real-time AI overlay</li>
+        <li><a href="#level-7-clipboard-enhancement">Level 7: Clipboard Enhancement</a> &mdash; AI-enhance any selected text in any app</li>
+        <li><a href="#level-8-custom-enhancement-modes">Level 8: Custom Enhancement Modes</a> &mdash; Create your own modes and chain pipelines</li>
+        <li><a href="#level-9-multi-provider-setup">Level 9: Multi-Provider Setup</a> &mdash; Configure multiple ASR and LLM providers</li>
+        <li><a href="#level-10-vocabulary-conversation-history">Level 10: Vocabulary &amp; Conversation History</a> &mdash; Teach VoiceText your personal terms and keep topic context</li>
+        <li><a href="#level-11-fine-tuning-troubleshooting">Level 11: Fine-Tuning &amp; Troubleshooting</a> &mdash; Advanced config, logging, and common issues</li>
+      </ul>
+    </div>
+
+    <!-- Level 1 -->
+    <section id="level-1-getting-started">
+      <h2>Level 1: Getting Started</h2>
+      <p><strong>Goal:</strong> Install VoiceText and transcribe your first sentence.</p>
+
+      <h3>Install</h3>
+
+      <p><strong>Option A &mdash; Download Release (easiest):</strong></p>
+      <ol>
+        <li>Download <code>VoiceText.app</code> from the <a href="https://github.com/Airead/VoiceText/releases" target="_blank" rel="noopener">Releases</a> page.</li>
+        <li>Drag it to <code>/Applications</code>.</li>
+        <li>Double-click to launch.</li>
+      </ol>
+      <blockquote>
+        <strong>First launch:</strong> macOS blocks unsigned apps. Go to <strong>System Settings &rarr; Privacy &amp; Security</strong>, find the VoiceText blocked message, and click <strong>Open Anyway</strong>.
+      </blockquote>
+
+      <p><strong>Option B &mdash; Build from Source:</strong></p>
+      <pre class="code-block">git clone https://github.com/Airead/VoiceText
+cd VoiceText
+uv sync
+./scripts/build.sh        # builds VoiceText.app in dist/</pre>
+
+      <p><strong>Option C &mdash; Run from Source (for developers):</strong></p>
+      <pre class="code-block">git clone https://github.com/Airead/VoiceText
+cd VoiceText
+uv sync
+uv run python -m voicetext</pre>
+
+      <h3>Grant Permissions</h3>
+      <p>On first launch, macOS will ask for:</p>
+      <table class="compare-table">
+        <thead>
+          <tr><th>Permission</th><th>Why</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>Microphone</strong></td><td>Record your voice</td></tr>
+          <tr><td><strong>Accessibility</strong></td><td>Type text into other apps</td></tr>
+          <tr><td><strong>Speech Recognition</strong></td><td>Only needed for Apple Speech backend</td></tr>
+        </tbody>
+      </table>
+      <p>Grant all requested permissions in <strong>System Settings &rarr; Privacy &amp; Security</strong>.</p>
+
+      <h3>First Launch: Model Download</h3>
+      <p><strong>Important:</strong> On first launch, VoiceText needs to download the default FunASR speech recognition model (~500 MB). During download:</p>
+      <ul>
+        <li>The menubar icon changes to a <strong>download icon</strong> with a percentage like <code>DL 45%</code></li>
+        <li><strong>Please wait for the download to complete</strong> before trying to transcribe &mdash; this may take a few minutes depending on your network speed</li>
+        <li>Click menubar &rarr; <strong>View Logs...</strong> to open the built-in log viewer and monitor download progress in real time</li>
+        <li>Once loading finishes, the icon changes back to a <strong>microphone icon</strong> and the status shows "Ready"</li>
+      </ul>
+      <blockquote>
+        <strong>Tip:</strong> If the download fails or is interrupted, delete <code>~/.cache/modelscope/</code> and restart VoiceText to retry.
+      </blockquote>
+
+      <h3>Your First Transcription</h3>
+      <ol>
+        <li>Look for the <strong>microphone icon</strong> in the menubar &mdash; that means VoiceText is ready.</li>
+        <li>Open any text input (Notes, browser, editor, terminal&hellip;).</li>
+        <li><strong>Hold</strong> the <code>fn</code> key and speak.</li>
+        <li><strong>Release</strong> <code>fn</code> &mdash; the transcribed text appears.</li>
+      </ol>
+      <p>That's it! You've completed the basic workflow.</p>
+
+      <h3>Understanding the Menubar Icon</h3>
+      <p>The menubar icon changes to reflect the current status:</p>
+      <table class="compare-table">
+        <thead>
+          <tr><th>Icon</th><th>Status</th><th>Meaning</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>mic.fill</td><td>Ready</td><td>Idle, ready to record</td></tr>
+          <tr><td>waveform</td><td>Recording...</td><td>Capturing audio</td></tr>
+          <tr><td>text.bubble</td><td>Transcribing...</td><td>Processing speech to text</td></tr>
+          <tr><td>sparkles</td><td>Enhancing...</td><td>AI enhancement in progress</td></tr>
+          <tr><td>eye</td><td>Preview...</td><td>Preview panel is open</td></tr>
+          <tr><td>arrow.down.circle + DL X%</td><td>Downloading...</td><td>Model download in progress</td></tr>
+          <tr><td>cpu</td><td>Loading...</td><td>Loading model into memory</td></tr>
+          <tr><td>triangle</td><td>Error</td><td>Something went wrong</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Level 2 -->
+    <section id="level-2-daily-use-basics">
+      <h2>Level 2: Daily Use Basics</h2>
+      <p><strong>Goal:</strong> Understand the two output modes and basic menubar controls.</p>
+
+      <h3>Preview Mode vs Direct Mode</h3>
+      <p>VoiceText has two ways to deliver results:</p>
+      <table class="compare-table">
+        <thead>
+          <tr><th>Mode</th><th>Behavior</th><th>When to use</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>Preview</strong> (default)</td><td>Shows a floating panel &mdash; review and edit before confirming</td><td>When accuracy matters, or you want to check before typing</td></tr>
+          <tr><td><strong>Direct</strong></td><td>Types text immediately into the active app</td><td>When speed matters and you trust the transcription</td></tr>
+        </tbody>
+      </table>
+      <p>Toggle via: menubar &rarr; <strong>Settings...</strong> &rarr; General tab &rarr; <strong>Preview</strong> checkbox.</p>
+
+      <h3>Preview Panel Basics</h3>
+      <p>When Preview is on, after recording you'll see a floating panel:</p>
+      <ul>
+        <li><strong>Confirm</strong> (<code>Enter</code>) &mdash; types the text and closes the panel</li>
+        <li><strong>Copy to clipboard</strong> (<code>&#8984;+Enter</code>) &mdash; copies the text to clipboard instead of typing</li>
+        <li><strong>Cancel</strong> (<code>Esc</code>) &mdash; discards the text</li>
+        <li><strong>Edit</strong> &mdash; click the text area to modify before confirming</li>
+      </ul>
+
+      <h3>Menubar Overview</h3>
+      <p>Click the <strong>microphone icon</strong> in the menubar to see the menu:</p>
+      <pre class="code-block">&#127908;
+&#9500;&#9472;&#9472; Ready                    (status indicator)
+&#9500;&#9472;&#9472; &#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;
+&#9500;&#9472;&#9472; Enhance Clipboard        AI-enhance selected text (Ctrl+Cmd+V)
+&#9500;&#9472;&#9472; Browse History...        Search and browse past transcriptions
+&#9500;&#9472;&#9472; Settings...              Open the settings panel (4 tabs)
+&#9500;&#9472;&#9472; &#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;
+&#9500;&#9472;&#9472; View Logs...             Open log viewer
+&#9500;&#9472;&#9472; Usage Stats              View usage statistics
+&#9500;&#9472;&#9472; About VoiceText          Version info
+&#9492;&#9472;&#9472; Quit</pre>
+      <p>All model selection, AI enhancement configuration, and hotkey management are done through the <strong>Settings</strong> panel &mdash; not the menubar menu directly.</p>
+
+      <h3>Recording Feedback</h3>
+      <p>While holding <code>fn</code>, a floating indicator with audio level bars shows you're recording. A sound plays on start and stop (configurable in Settings &rarr; General).</p>
+    </section>
+
+    <!-- Level 3 -->
+    <section id="level-3-choosing-the-right-asr-backend">
+      <h2>Level 3: Choosing the Right ASR Backend</h2>
+      <p><strong>Goal:</strong> Pick the best speech engine for your needs.</p>
+
+      <h3>Backend Comparison</h3>
+      <table class="compare-table">
+        <thead>
+          <tr><th>Backend</th><th>Language</th><th>Speed</th><th>Accuracy</th><th>Download Size</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>FunASR</strong> (default)</td><td>Chinese</td><td>Fast</td><td>High (Chinese)</td><td>~500 MB</td></tr>
+          <tr><td><strong>MLX-Whisper</strong></td><td>99 languages</td><td>Medium</td><td>High</td><td>75 MB &ndash; 1.6 GB</td></tr>
+          <tr><td><strong>Apple Speech</strong></td><td>Multiple</td><td>Fast</td><td>Good</td><td>None (built-in)</td></tr>
+          <tr><td><strong>Whisper API</strong></td><td>Multiple</td><td>Depends on network</td><td>High</td><td>None (cloud)</td></tr>
+        </tbody>
+      </table>
+
+      <h3>How to Switch</h3>
+      <p>Open <strong>Settings...</strong> &rarr; <strong>STT</strong> tab. You'll see:</p>
+      <ul>
+        <li><strong>Local</strong> section: Radio buttons for all available local ASR presets (FunASR, MLX-Whisper variants, Apple Speech)</li>
+        <li><strong>Remote</strong> section: Cloud-based ASR providers you've configured</li>
+      </ul>
+      <p>Click a radio button to switch. The model will start loading (or downloading if not yet cached).</p>
+      <blockquote>
+        <strong>First download reminder:</strong> When switching to a new MLX-Whisper model for the first time, the model needs to download. Watch the menubar icon for <code>DL X%</code> progress. Model sizes range from ~75 MB (tiny) to ~1.6 GB (large-v3-turbo).
+      </blockquote>
+
+      <h3>Recommendations</h3>
+      <ul>
+        <li><strong>Chinese only</strong> &rarr; FunASR (best accuracy, fully offline)</li>
+        <li><strong>English or multilingual</strong> &rarr; MLX-Whisper small or large-v3-turbo</li>
+        <li><strong>Quick test, no download</strong> &rarr; Apple Speech</li>
+        <li><strong>Best accuracy, don't mind latency</strong> &rarr; Whisper API via Groq (free tier available)</li>
+      </ul>
+    </section>
+
+    <!-- Level 4 -->
+    <section id="level-4-ai-enhancement">
+      <h2>Level 4: AI Enhancement</h2>
+      <p><strong>Goal:</strong> Use an LLM to proofread, translate, or reformat transcribed text.</p>
+      <p>AI enhancement is <strong>optional</strong> &mdash; by default it's off. When enabled, your transcribed text is sent to an LLM for post-processing before output.</p>
+
+      <h3>Step 1: Set Up an LLM Provider</h3>
+      <p>You need an LLM backend. Two easy options:</p>
+
+      <p><strong>Option A &mdash; Local with Ollama (free, private):</strong></p>
+      <ol>
+        <li>Install <a href="https://ollama.ai" target="_blank" rel="noopener">Ollama</a> and run <code>ollama pull qwen2.5:7b</code></li>
+        <li>That's it &mdash; VoiceText's default config points to Ollama</li>
+      </ol>
+
+      <p><strong>Option B &mdash; Cloud API (e.g., DeepSeek, OpenAI):</strong></p>
+      <ol>
+        <li>Open <strong>Settings...</strong> &rarr; <strong>LLM</strong> tab &rarr; <strong>Add Provider...</strong></li>
+        <li>Fill in provider details:
+          <pre class="code-block">name: deepseek
+base_url: https://api.deepseek.com/v1
+api_key: sk-your-key
+models:
+  deepseek-chat</pre>
+        </li>
+        <li>Click <strong>Verify</strong> &rarr; <strong>Save</strong></li>
+      </ol>
+
+      <h3>Step 2: Select an Enhancement Mode</h3>
+      <p>Open <strong>Settings...</strong> &rarr; <strong>AI</strong> tab. Select a mode:</p>
+      <table class="compare-table">
+        <thead>
+          <tr><th>Mode</th><th>What it does</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>Off</strong></td><td>No enhancement (raw transcription)</td></tr>
+          <tr><td><strong>&#32416;&#38169;&#28070;&#33394;</strong> (Proofread)</td><td>Fix typos, grammar, punctuation</td></tr>
+          <tr><td><strong>&#32763;&#35793;&#20026;&#33521;&#25991;</strong> (Translate EN)</td><td>Translate to English</td></tr>
+          <tr><td><strong>&#21629;&#20196;&#34892;&#22823;&#31070;</strong> (Commandline)</td><td>Convert speech to shell commands</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Step 3: Try It</h3>
+      <ol>
+        <li>Make sure an LLM provider is configured and a mode is selected.</li>
+        <li>Hold <code>fn</code>, say something, release.</li>
+        <li>The result now goes through the LLM before appearing.</li>
+      </ol>
+      <blockquote>
+        <strong>Tip:</strong> Start with "&#32416;&#38169;&#28070;&#33394;" (Proofread) &mdash; it's the most universally useful mode.
+      </blockquote>
+    </section>
+
+    <!-- Level 5 -->
+    <section id="level-5-preview-power-features">
+      <h2>Level 5: Preview Power Features</h2>
+      <p><strong>Goal:</strong> Master the preview panel's editing and switching capabilities.</p>
+      <p>With Preview mode on and AI enhancement active, the preview panel becomes a powerful editor.</p>
+
+      <h3>Quick Mode Switching</h3>
+      <p>Press <code>&#8984;1</code> through <code>&#8984;9</code> to instantly switch enhancement modes and re-process the same audio:</p>
+      <ul>
+        <li><code>&#8984;1</code> = first mode in list (e.g., Proofread)</li>
+        <li><code>&#8984;2</code> = second mode (e.g., Translate EN)</li>
+        <li><code>&#8984;3</code> = third mode (e.g., Commandline)</li>
+        <li>&hellip;and so on for custom modes</li>
+      </ul>
+
+      <h3>Result Caching</h3>
+      <p>When you switch modes in the preview panel, VoiceText <strong>caches</strong> completed results. Switching back to a previously used mode shows the cached result instantly (marked <code>[cached]</code>) &mdash; no API call needed.</p>
+      <p>The cache is cleared when new audio is recorded.</p>
+
+      <h3>Other Preview Features</h3>
+      <table class="compare-table">
+        <thead>
+          <tr><th>Feature</th><th>How</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>Edit text</strong></td><td>Click the text area and type</td></tr>
+          <tr><td><strong>Copy to clipboard</strong></td><td><code>&#8984;+Enter</code> &mdash; copies instead of typing into the active app</td></tr>
+          <tr><td><strong>Toggle punctuation</strong></td><td>Check/uncheck the <strong>Punc</strong> checkbox to re-transcribe with/without punctuation</td></tr>
+          <tr><td><strong>Switch STT model</strong></td><td>Use the STT dropdown in the panel</td></tr>
+          <tr><td><strong>Switch LLM model</strong></td><td>Use the LLM dropdown in the panel</td></tr>
+          <tr><td><strong>Play audio</strong></td><td>Click the play button to hear the recording</td></tr>
+          <tr><td><strong>Save audio</strong></td><td>Click save to export the recording as a file</td></tr>
+          <tr><td><strong>Google Translate</strong></td><td>Click the translate button to open Google Translate with current text</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Level 6 -->
+    <section id="level-6-direct-mode-streaming">
+      <h2>Level 6: Direct Mode &amp; Streaming</h2>
+      <p><strong>Goal:</strong> Use VoiceText for fast, hands-free input with real-time AI feedback.</p>
+
+      <h3>Enable Direct Mode</h3>
+      <p>Turn off Preview: <strong>Settings...</strong> &rarr; General tab &rarr; uncheck <strong>Preview</strong>.</p>
+      <p>Now when you release the hotkey, text is typed directly into the active app &mdash; no panel, no confirmation needed.</p>
+
+      <h3>Streaming Overlay</h3>
+      <p>With AI enhancement active in direct mode, a <strong>streaming overlay</strong> appears showing the LLM processing your text in real-time. You can see tokens appear as they're generated.</p>
+      <ul>
+        <li>Press <strong>Esc</strong> to cancel enhancement and discard the result</li>
+        <li>The overlay shows token count and processing status</li>
+        <li>Once complete, the final text is typed automatically</li>
+      </ul>
+
+      <h3>When to Use Direct Mode</h3>
+      <ul>
+        <li>Chat apps where speed matters</li>
+        <li>Terminal / command line input</li>
+        <li>Any workflow where you trust the AI output and don't need to review</li>
+      </ul>
+    </section>
+
+    <!-- Level 7 -->
+    <section id="level-7-clipboard-enhancement">
+      <h2>Level 7: Clipboard Enhancement</h2>
+      <p><strong>Goal:</strong> AI-enhance any text in any app, not just speech transcriptions.</p>
+
+      <h3>How It Works</h3>
+      <ol>
+        <li><strong>Select</strong> text in any application.</li>
+        <li>Press <code>Ctrl+Cmd+V</code> (default hotkey).</li>
+        <li>VoiceText copies the selection, sends it to the LLM with the current enhancement mode, and outputs the result.</li>
+      </ol>
+      <p>You can also trigger it from the menubar: click <strong>Enhance Clipboard</strong>.</p>
+
+      <h3>Use Cases</h3>
+      <ul>
+        <li>Select a rough draft &rarr; enhance with Proofread mode</li>
+        <li>Select Chinese text &rarr; translate to English</li>
+        <li>Select a task description &rarr; convert to shell command</li>
+      </ul>
+
+      <h3>Output Behavior</h3>
+      <ul>
+        <li><strong>Preview on:</strong> Result appears in the preview panel for review</li>
+        <li><strong>Preview off:</strong> Result replaces via clipboard</li>
+      </ul>
+
+      <h3>Customize the Hotkey</h3>
+      <p>Edit <code>~/.config/VoiceText/config.json</code>:</p>
+      <pre class="code-block">{
+  "clipboard_enhance": {
+    "hotkey": "ctrl+cmd+v"
+  }
+}</pre>
+      <p>The hotkey format is <code>modifier+modifier+key</code>. See <a href="#hotkey-configuration">Level 11</a> for format details and examples.</p>
+    </section>
+
+    <!-- Level 8 -->
+    <section id="level-8-custom-enhancement-modes">
+      <h2>Level 8: Custom Enhancement Modes</h2>
+      <p><strong>Goal:</strong> Create your own AI modes and chain pipelines.</p>
+
+      <h3>Create a Custom Mode</h3>
+      <p><strong>Via Settings (easy):</strong></p>
+      <ol>
+        <li>Open <strong>Settings...</strong> &rarr; <strong>AI</strong> tab &rarr; <strong>Add Mode...</strong></li>
+        <li>Edit the template, click <strong>Save</strong>, enter a mode ID.</li>
+      </ol>
+
+      <p><strong>Via file (flexible):</strong></p>
+      <p>Create a <code>.md</code> file in <code>~/.config/VoiceText/enhance_modes/</code>:</p>
+      <pre class="code-block">---
+label: Formal Email
+order: 60
+---
+You are a professional email writing assistant.
+Rewrite the user's input as a formal, polished email body.
+Use appropriate greetings and closings if context suggests an email.
+Maintain the original intent and key information.
+Output only the email text without any explanation.</pre>
+      <p>The filename (without <code>.md</code>) becomes the mode ID. Restart to load.</p>
+
+      <h3>Create a Chain Mode</h3>
+      <p>Chain modes run multiple steps sequentially:</p>
+      <pre class="code-block">---
+label: &#28070;&#33394;+&#32763;&#35793;EN
+order: 25
+steps: proofread, translate_en
+---
+First proofreads the text, then translates to English.
+(This body is documentation only &mdash; each step uses its own prompt.)</pre>
+
+      <h3>Tips for Good Prompts</h3>
+      <ul>
+        <li>Be specific about what to do AND what NOT to do</li>
+        <li>End with "Output only the processed text without any explanation"</li>
+        <li>Use <code>order</code> values with gaps (10, 20, 30&hellip;) so you can insert modes between them</li>
+      </ul>
+      <p>See <a href="https://github.com/Airead/VoiceText/blob/main/docs/enhance-mode-examples.md" target="_blank" rel="noopener">Enhancement Mode Examples</a> for ready-to-use templates covering email, meeting notes, translation, developer tools, and more.</p>
+    </section>
+
+    <!-- Level 9 -->
+    <section id="level-9-multi-provider-setup">
+      <h2>Level 9: Multi-Provider Setup</h2>
+      <p><strong>Goal:</strong> Configure multiple ASR and LLM providers and switch between them.</p>
+
+      <h3>Why Multiple Providers?</h3>
+      <ul>
+        <li>Use a fast local model (Ollama) for simple tasks, cloud API for complex ones</li>
+        <li>Have a backup when one provider is down</li>
+        <li>Compare results across different models</li>
+      </ul>
+
+      <h3>Add Providers via Settings</h3>
+      <p><strong>LLM providers:</strong> Settings &rarr; <strong>LLM</strong> tab &rarr; <strong>Add Provider...</strong></p>
+      <p><strong>ASR providers:</strong> Settings &rarr; <strong>STT</strong> tab &rarr; <strong>Add Provider...</strong></p>
+      <p>Both use the same dialog format:</p>
+      <pre class="code-block">name: provider-name
+base_url: https://api.example.com/v1
+api_key: your-key
+models:
+  model-1
+  model-2</pre>
+
+      <h3>Switch at Runtime</h3>
+      <p>In the <strong>Settings</strong> panel, all configured models appear as radio buttons. Click to switch &mdash; no restart needed.</p>
+
+      <h3>In Preview Panel</h3>
+      <p>You can also switch LLM and STT models directly from the preview panel's dropdowns, making it easy to compare results from different models on the same audio.</p>
+      <p>See <a href="https://github.com/Airead/VoiceText/blob/main/docs/provider-model-guide.md" target="_blank" rel="noopener">Provider &amp; Model Setup Guide</a> for detailed examples covering Ollama, OpenAI, DeepSeek, Groq, OpenRouter, Qwen, and more.</p>
+    </section>
+
+    <!-- Level 10 -->
+    <section id="level-10-vocabulary-conversation-history">
+      <h2>Level 10: Vocabulary &amp; Conversation History</h2>
+      <p><strong>Goal:</strong> Teach VoiceText your personal terms and maintain topic context across turns.</p>
+
+      <h3>Vocabulary Retrieval</h3>
+      <p><strong>Problem:</strong> ASR often misrecognizes proper nouns, technical terms, and names (e.g., "&#33805;&#33805;" &rarr; "&#24179;&#24179;").</p>
+      <p><strong>Solution:</strong> VoiceText builds a personal vocabulary from your correction history and uses it to improve future results.</p>
+
+      <h3>How to Build Vocabulary</h3>
+      <ol>
+        <li><strong>Use Preview mode with AI enhancement</strong> &mdash; edit the result when the AI gets a term wrong.</li>
+        <li>Each edit is logged to <code>~/.config/VoiceText/conversation_history.jsonl</code> with a <code>user_corrected</code> flag.</li>
+        <li><strong>Auto build</strong> (default): After every 10 corrections, vocabulary is rebuilt automatically in the background.</li>
+        <li><strong>Manual build:</strong> Settings &rarr; <strong>AI</strong> tab &rarr; <strong>Build Vocabulary...</strong></li>
+      </ol>
+
+      <h3>Enable Vocabulary</h3>
+      <p>Settings &rarr; <strong>AI</strong> tab &rarr; toggle <strong>Vocabulary (N)</strong>. The number shows how many entries are indexed.</p>
+      <p>When enabled, relevant vocabulary entries are retrieved via embedding similarity and injected into the LLM prompt, helping it correct domain-specific terms.</p>
+
+      <h3>Conversation History</h3>
+      <p><strong>Problem:</strong> Each transcription is independent &mdash; the LLM doesn't know what you just said.</p>
+      <p><strong>Solution:</strong> VoiceText injects recent confirmed outputs into the AI prompt, so the LLM understands the current topic.</p>
+
+      <h3>Enable</h3>
+      <p>Settings &rarr; <strong>AI</strong> tab &rarr; toggle <strong>Conversation History</strong>.</p>
+
+      <h3>How It Works</h3>
+      <ul>
+        <li>Only <strong>preview-confirmed</strong> records are used (ensuring quality)</li>
+        <li>Recent entries are formatted efficiently with arrow notation for corrections</li>
+        <li>The LLM uses this context to maintain consistency (e.g., always using the correct name spelling)</li>
+      </ul>
+
+      <h3>Browse History</h3>
+      <p>Menubar &rarr; <strong>Browse History...</strong> opens a searchable, filterable view of all past transcriptions. You can filter by mode, model, and whether corrections were made.</p>
+      <p>See <a href="https://github.com/Airead/VoiceText/blob/main/docs/vocabulary-embedding-retrieval.md" target="_blank" rel="noopener">Vocabulary Embedding Retrieval</a> and <a href="https://github.com/Airead/VoiceText/blob/main/docs/conversation-history-enhancement.md" target="_blank" rel="noopener">Conversation History Enhancement</a> for technical details.</p>
+    </section>
+
+    <!-- Level 11 -->
+    <section id="level-11-fine-tuning-troubleshooting">
+      <h2>Level 11: Fine-Tuning &amp; Troubleshooting</h2>
+      <p><strong>Goal:</strong> Optimize your setup and solve common problems.</p>
+
+      <h3>Settings Panel</h3>
+      <p>Menubar &rarr; <strong>Settings...</strong> opens a panel with 4 tabs:</p>
+      <table class="compare-table">
+        <thead>
+          <tr><th>Tab</th><th>What you can configure</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>General</strong></td><td>Recording hotkeys, sound feedback, visual indicator, preview toggle</td></tr>
+          <tr><td><strong>STT</strong></td><td>Local ASR model selection, remote ASR provider management</td></tr>
+          <tr><td><strong>LLM</strong></td><td>LLM provider and model selection, provider management</td></tr>
+          <tr><td><strong>AI</strong></td><td>Enhancement mode, thinking mode, vocabulary, conversation history, auto build</td></tr>
+        </tbody>
+      </table>
+      <p>At the bottom, toolbar buttons provide quick access to <strong>Show Config</strong>, <strong>Edit Config</strong>, and <strong>Reload Config</strong>.</p>
+
+      <h3 id="hotkey-configuration">Hotkey Configuration</h3>
+      <p>VoiceText supports flexible hotkey configuration. The recording hotkey is configured in the <strong>Settings</strong> panel (General tab), while the clipboard enhance hotkey is set in the config file.</p>
+
+      <h3>Hotkey Format</h3>
+      <p>Hotkeys use the format <code>modifier+modifier+key</code>, where:</p>
+      <ul>
+        <li><strong>Modifiers:</strong> <code>cmd</code> (or <code>command</code>), <code>ctrl</code>, <code>alt</code> (or <code>option</code>), <code>shift</code></li>
+        <li><strong>Regular keys:</strong> <code>a</code>&ndash;<code>z</code>, <code>0</code>&ndash;<code>9</code></li>
+        <li><strong>Special keys:</strong> <code>fn</code>, <code>f1</code>&ndash;<code>f12</code>, <code>esc</code>, <code>space</code></li>
+        <li><strong>Right-side modifiers:</strong> <code>cmd_r</code>, <code>ctrl_r</code>, <code>alt_r</code>, <code>shift_r</code></li>
+      </ul>
+
+      <h3>Examples</h3>
+      <table class="compare-table">
+        <thead>
+          <tr><th>Hotkey</th><th>Config value</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Fn key (hold to record)</td><td><code>"fn"</code></td><td>Default recording hotkey &mdash; single special key</td></tr>
+          <tr><td>F5 key</td><td><code>"f5"</code></td><td>Use a function key to record</td></tr>
+          <tr><td>Ctrl+Cmd+V</td><td><code>"ctrl+cmd+v"</code></td><td>Default clipboard enhance hotkey</td></tr>
+          <tr><td>Shift+Cmd+Space</td><td><code>"shift+cmd+space"</code></td><td>Alternative with Space key</td></tr>
+          <tr><td>Alt+D</td><td><code>"alt+d"</code></td><td>Option+D combination</td></tr>
+          <tr><td>Ctrl+Shift+R</td><td><code>"ctrl+shift+r"</code></td><td>Triple modifier example</td></tr>
+          <tr><td>Ctrl+Cmd+1</td><td><code>"ctrl+cmd+1"</code></td><td>Number key combination</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Config File Examples</h3>
+      <pre class="code-block">{
+  "hotkeys": {
+    "fn": true,
+    "f5": true
+  },
+  "clipboard_enhance": {
+    "hotkey": "shift+cmd+space"
+  }
+}</pre>
+      <p>Multiple recording hotkeys can be enabled simultaneously by adding entries to the <code>hotkeys</code> map with <code>true</code> values. Set to <code>false</code> to disable a hotkey without removing it.</p>
+
+      <h3>Configuration File</h3>
+      <p>Location: <code>~/.config/VoiceText/config.json</code></p>
+      <p>You only need to include fields you want to change &mdash; everything else uses defaults. After editing, click <strong>Reload Config</strong> in the Settings toolbar to apply without restarting.</p>
+      <p>See <a href="https://github.com/Airead/VoiceText/blob/main/docs/configuration.md" target="_blank" rel="noopener">Configuration Reference</a> for all options.</p>
+
+      <h3>Logging</h3>
+      <p>Logs are saved to <code>~/Library/Logs/VoiceText/voicetext.log</code> (5 MB rotation, 3 backups).</p>
+      <p><strong>View logs (recommended):</strong> Menubar &rarr; <strong>View Logs...</strong> opens the built-in log viewer &mdash; the easiest way to check logs, monitor model download/loading progress, and diagnose issues in real time.</p>
+      <p>Log files are also available on disk at the path above if you prefer an external editor.</p>
+
+      <h3>Usage Statistics</h3>
+      <p>Menubar &rarr; <strong>Usage Stats</strong> shows:</p>
+      <ul>
+        <li>Total and today's transcription count</li>
+        <li>Enhancement usage by mode</li>
+        <li>Stored data counts (conversations, vocabulary entries)</li>
+      </ul>
+
+      <h3>Common Issues</h3>
+
+      <h3>Text doesn't type into the app</h3>
+      <ul>
+        <li>Check <strong>Accessibility</strong> permission in System Settings</li>
+        <li>Try switching output method in config: <code>"output": {"method": "clipboard"}</code></li>
+      </ul>
+
+      <h3>Model download takes too long</h3>
+      <ul>
+        <li>The menubar shows <code>DL X%</code> during download &mdash; this is normal for first launch</li>
+        <li>FunASR: ~500 MB, MLX-Whisper large-v3-turbo: ~1.6 GB</li>
+        <li>Check the log viewer for detailed progress</li>
+        <li>If partially downloaded, delete the cache directory (<code>~/.cache/modelscope/</code> for FunASR, <code>~/.cache/huggingface/</code> for MLX-Whisper) and restart</li>
+      </ul>
+
+      <h3>LLM enhancement times out</h3>
+      <ul>
+        <li>Increase timeout: edit <code>config.json</code> &rarr; <code>ai_enhance.timeout</code> (default: 30s)</li>
+        <li>Check if your LLM provider is reachable</li>
+        <li>For Ollama, ensure it's running: <code>ollama serve</code></li>
+      </ul>
+
+      <h3>Preview panel doesn't appear</h3>
+      <ul>
+        <li>Make sure <strong>Preview</strong> is enabled in Settings &rarr; General</li>
+        <li>Try clicking the menubar icon to bring the app to focus</li>
+      </ul>
+
+      <h3>Notifications don't work during development</h3>
+      <ul>
+        <li>Expected when running via <code>uv run</code> without app bundling</li>
+        <li>Notifications work normally in the packaged <code>.app</code> version</li>
+      </ul>
+
+      <h3>Keyboard Shortcuts Summary</h3>
+      <table class="compare-table">
+        <thead>
+          <tr><th>Shortcut</th><th>Context</th><th>Action</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>fn</code> (hold/release)</td><td>Global</td><td>Record / stop and transcribe</td></tr>
+          <tr><td><code>Ctrl+Cmd+V</code></td><td>Global</td><td>Clipboard enhancement</td></tr>
+          <tr><td><code>Enter</code></td><td>Preview panel</td><td>Confirm and type text</td></tr>
+          <tr><td><code>&#8984;+Enter</code></td><td>Preview panel</td><td>Copy to clipboard</td></tr>
+          <tr><td><code>Esc</code></td><td>Preview panel / Streaming overlay</td><td>Cancel</td></tr>
+          <tr><td><code>&#8984;1</code> &ndash; <code>&#8984;9</code></td><td>Preview panel</td><td>Switch enhancement mode</td></tr>
+          <tr><td><code>&#8984;A/C/V/X</code></td><td>Preview panel</td><td>Standard edit shortcuts</td></tr>
+          <tr><td><code>&#8984;Z</code> / <code>&#8984;&#8679;Z</code></td><td>Preview panel</td><td>Undo / Redo</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- What's Next -->
+    <section id="whats-next">
+      <h2>What's Next?</h2>
+      <p>You now know everything VoiceText offers. Here are some ideas to get the most out of it:</p>
+      <ul>
+        <li><strong>Create modes for your workflow</strong> &mdash; meeting notes, code review comments, Slack messages</li>
+        <li><strong>Build chain modes</strong> &mdash; proofread &rarr; translate, or summarize &rarr; format</li>
+        <li><strong>Accumulate vocabulary</strong> &mdash; the more you correct, the smarter it gets</li>
+        <li><strong>Try different models</strong> &mdash; compare Groq's speed vs local Ollama's privacy vs OpenAI's accuracy</li>
+        <li><strong>Browse <a href="https://github.com/Airead/VoiceText/blob/main/docs/enhance-mode-examples.md" target="_blank" rel="noopener">Enhancement Mode Examples</a></strong> for inspiration</li>
+      </ul>
+      <p>For technical details on any feature, see the <a href="https://github.com/Airead/VoiceText/blob/main/README.md#documentation" target="_blank" rel="noopener">documentation index</a>.</p>
+    </section>
+
+    <!-- Navigation card -->
+    <a href="prompt-optimization.html" class="doc-nav-card">
+      <h3>Prompt Optimization &rarr;</h3>
+      <p>Learn how to write better enhancement prompts for more accurate and useful results.</p>
+    </a>
+
+  </article>
+
+</body>
+</html>

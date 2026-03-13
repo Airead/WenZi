@@ -84,6 +84,12 @@ section:nth-child(even) {
   background: var(--bg-alt);
 }
 
+/* Reset section styles inside doc pages */
+.doc-container section {
+  padding: 0;
+  background: none;
+}
+
 .section-title {
   font-size: 2rem;
   font-weight: 700;
@@ -561,6 +567,56 @@ pre.code-block {
   font-size: 0.88rem;
   line-height: 1.6;
   margin: 0;
+}
+
+/* ---------- Documentation cards ---------- */
+.docs-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+
+.doc-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+  padding: 24px;
+  text-decoration: none;
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+
+.doc-card:hover {
+  box-shadow: var(--shadow);
+  transform: translateY(-2px);
+  text-decoration: none;
+}
+
+.doc-card-icon {
+  font-size: 2rem;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.doc-card h3 {
+  font-size: 1.05rem;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+
+.doc-card p {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  margin: 0;
+  line-height: 1.5;
+}
+
+@media (max-width: 900px) {
+  .docs-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ---------- Footer ---------- */

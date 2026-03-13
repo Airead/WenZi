@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI 提示词优化工作流 — VoiceText</title>
+  <link rel="icon" type="image/png" href="../../images/icon.png">
+  <link rel="stylesheet" href="../../css/style.css">
+  <style>
+    .doc-container { max-width: 800px; margin: 0 auto; padding: 80px 24px 60px; }
+    .doc-container h2 { font-size: 1.6rem; margin-top: 48px; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid var(--card-border); }
+    .doc-container h3 { font-size: 1.2rem; margin-top: 32px; margin-bottom: 12px; }
+    .doc-container p { margin-bottom: 16px; color: var(--text-secondary); }
+    .doc-container ul, .doc-container ol { margin-bottom: 16px; padding-left: 24px; color: var(--text-secondary); }
+    .doc-container li { margin-bottom: 8px; }
+    .doc-container blockquote { border-left: 3px solid var(--purple); padding: 12px 16px; margin: 16px 0; background: var(--bg-alt); border-radius: 0 8px 8px 0; color: var(--text-secondary); }
+    .doc-container code { background: var(--code-bg); padding: 2px 6px; border-radius: 4px; font-size: 0.88rem; }
+    .doc-container pre.code-block { margin-bottom: 16px; }
+    .doc-container .compare-table { margin-bottom: 24px; }
+    .doc-container strong { color: var(--text); }
+    .toc { background: var(--bg-alt); border-radius: 12px; padding: 24px 28px; margin-bottom: 40px; }
+    .toc h2 { margin-top: 0 !important; border-bottom: none !important; }
+    .toc ul { list-style: none; padding-left: 0; }
+    .toc li { margin-bottom: 6px; }
+    .toc a { color: var(--purple); }
+    .doc-nav-card { display: block; background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 20px 24px; margin-top: 48px; transition: box-shadow 0.2s; text-decoration: none; }
+    .doc-nav-card:hover { box-shadow: 0 2px 12px rgba(0,0,0,0.08); text-decoration: none; }
+    .doc-nav-card h3 { color: var(--text); margin-bottom: 4px; }
+    .doc-nav-card p { color: var(--text-secondary); margin: 0; font-size: 0.95rem; }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="site-header">
+    <nav class="nav container">
+      <a href="../" class="nav-brand">
+        <img src="../../images/icon.png" alt="VoiceText 图标">
+        VoiceText
+      </a>
+      <ul class="nav-links">
+        <li><a href="../">&larr; 返回</a></li>
+        <li><a href="../../docs/prompt-optimization.html" class="lang-switch">English</a></li>
+        <li><a href="https://github.com/Airead/VoiceText" target="_blank">GitHub</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <!-- Content -->
+  <article class="doc-container">
+    <h1>AI 提示词优化工作流</h1>
+    <p>面向高级用户的实用指南：如何利用预览面板的内置工具，系统性地提升 AI 增强质量。</p>
+
+    <!-- Table of Contents -->
+    <div class="toc">
+      <h2>目录</h2>
+      <ul>
+        <li><a href="#prerequisites">前置条件</a></li>
+        <li><a href="#preview-panel">预览面板一览</a></li>
+        <li><a href="#core-tools">核心优化工具</a></li>
+        <li><a href="#step-by-step">分步优化流程</a></li>
+        <li><a href="#practical-examples">实战案例</a></li>
+        <li><a href="#quick-reference">快速参考</a></li>
+        <li><a href="#tips">优化技巧</a></li>
+      </ul>
+    </div>
+
+    <!-- Prerequisites -->
+    <section id="prerequisites">
+      <h2>前置条件</h2>
+      <ul>
+        <li>已开启预览模式（设置 &rarr; 通用 &rarr; Preview）</li>
+        <li>已配置至少一个 LLM 供应商（设置 &rarr; LLM）</li>
+        <li>已选择一个增强模式（设置 &rarr; AI）</li>
+      </ul>
+    </section>
+
+    <!-- The Preview Panel at a Glance -->
+    <section id="preview-panel">
+      <h2>预览面板一览</h2>
+<pre class="code-block">┌─────────────────────────────────────────────────────┐
+│  ASR   [FunASR ▾]  10.6s    ☐ Punc   Play ▶  Save  │  ← 语音识别原始结果
+│  ┌─────────────────────────────────────────────┐    │
+│  │ 根据目前程序的preview界面你能想到用户...       │    │
+│  └─────────────────────────────────────────────┘    │
+│                                                     │
+│  [ Off ] [纠错润色] [翻译为英文] [润色+翻译EN] [...]  │  ← 模式切换 (⌘1–⌘9)
+│                                                     │
+│  AI  [供应商/模型 ▾]  Tokens: 897 (↑878 ↓19)       │
+│                                ☐ thinking  🧠 Prompt│  ← 增强控制
+│  ┌─────────────────────────────────────────────┐    │
+│  │ AI 增强结果（只读）                           │    │
+│  └─────────────────────────────────────────────┘    │
+│                                                     │
+│  Final Result (可编辑)                    Translate ↗│
+│  ┌─────────────────────────────────────────────┐    │
+│  │ 最终文本 — 确认前可在此编辑                    │    │
+│  └─────────────────────────────────────────────┘    │
+│                                                     │
+│  [History]                      [Cancel]  [Copy ⌘↵] │
+└─────────────────────────────────────────────────────┘</pre>
+    </section>
+
+    <!-- Core Tools for Prompt Optimization -->
+    <section id="core-tools">
+      <h2>核心优化工具</h2>
+
+      <h3>1. Play ▶ — 确认你到底说了什么</h3>
+      <p>在归咎 ASR 或 AI 之前，先回放录音。这能帮你判断问题出在哪个层级：</p>
+      <div class="table-wrapper">
+        <table class="compare-table">
+          <thead>
+            <tr>
+              <th>听到的情况</th>
+              <th>问题诊断</th>
+              <th>应对措施</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>自己说错了或口齿不清</td>
+              <td>源头问题</td>
+              <td>重新录制，说清楚一些</td>
+            </tr>
+            <tr>
+              <td>说得没问题，但 ASR 文本有误</td>
+              <td>ASR 问题</td>
+              <td>切换 ASR 引擎、开启 Punc、或尝试其他模型</td>
+            </tr>
+            <tr>
+              <td>ASR 文本正确，但 AI 输出有误</td>
+              <td>提示词问题</td>
+              <td>检查并迭代优化提示词（见下文）</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>2. Prompt 按钮 — 查看实际发送的系统提示词</h3>
+      <p>增强完成后点击 <strong>Prompt ⓘ</strong>，查看发送给 LLM 的完整系统提示词。这是优化的<strong>最关键工具</strong> — 看不到提示词，就无法改进它。</p>
+      <p>重点关注：</p>
+      <ul>
+        <li>指令是否足够清晰和具体？</li>
+        <li>是否提到输入来自 ASR（可能包含识别错误）？</li>
+        <li>是否有"仅输出结果"的规则防止 AI 添加多余说明？</li>
+        <li>是否覆盖了边界情况？</li>
+      </ul>
+
+      <h3>3. 模式切换 (⌘1–⌘9) — 即时对比不同模式</h3>
+      <p>按 <code>⌘1</code> 到 <code>⌘9</code> 可以不重新录音直接切换模式。结果会被缓存 — 切回之前的模式会瞬间显示缓存结果（标记 <code>[cached]</code>）。</p>
+      <p>用途：</p>
+      <ul>
+        <li>对比不同提示词处理同一段语音的效果</li>
+        <li>对新模式和已有模式进行 A/B 测试</li>
+        <li>找出最适合特定内容类型的模式</li>
+      </ul>
+
+      <h3>4. LLM 模型下拉框 — 对比不同模型</h3>
+      <p>通过 AI 下拉框切换模型，查看同一提示词在不同 LLM 上的表现。每个（模式、模型、thinking）组合的缓存是独立的。</p>
+
+      <h3>5. Thinking 模式 — 观察 AI 推理过程</h3>
+      <p>勾选 thinking 复选框，增强完成后点击 <strong>🧠</strong>（大脑）按钮查看 AI 的推理过程。可以揭示：</p>
+      <ul>
+        <li>AI 为什么做出特定的用词选择</li>
+        <li>AI 在哪些地方感到困惑或不确定</li>
+        <li>AI 是否正确理解了你的意图</li>
+      </ul>
+      <p>这对诊断提示词问题极为重要 — 如果 AI 的推理逻辑就是错的，说明提示词需要进一步澄清。</p>
+
+      <h3>6. Final Result — 修正并训练</h3>
+      <p>在确认前编辑 Final Result 修正任何遗留问题。每次编辑都会被标记为 <code>user_corrected</code>，逐步积累到词库系统中。</p>
+    </section>
+
+    <!-- Step-by-Step Optimization Workflow -->
+    <section id="step-by-step">
+      <h2>分步优化流程</h2>
+
+      <h3>第一阶段：识别问题</h3>
+      <ol>
+        <li><strong>录制</strong>一句有代表性的语音。</li>
+        <li><strong>Play ▶</strong> 回放录音，确认你说的和你想的一致。</li>
+        <li><strong>检查 ASR 文本</strong> — 转写是否准确？</li>
+        <li><strong>检查 AI 结果</strong> — 增强改善了文本还是改坏了？</li>
+        <li><strong>点击 Prompt</strong> — 阅读产生此结果的系统提示词。</li>
+      </ol>
+
+      <h3>第二阶段：诊断</h3>
+      <p>利用面板控件缩小问题范围：</p>
+      <div class="table-wrapper">
+        <table class="compare-table">
+          <thead>
+            <tr>
+              <th>症状</th>
+              <th>诊断步骤</th>
+              <th>可能原因</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>AI 添加了多余的说明文字</td>
+              <td>检查 Prompt — 缺少"仅输出结果"规则</td>
+              <td>提示词需要加 "仅输出处理后的文本，不要添加说明"</td>
+            </tr>
+            <tr>
+              <td>AI 过度修正了本来正确的文本</td>
+              <td>检查 Prompt — 指令过于激进</td>
+              <td>提示词需要加 "正确的内容保持原样"</td>
+            </tr>
+            <tr>
+              <td>AI 误解专业术语</td>
+              <td>开启 thinking，查看 🧠</td>
+              <td>提示词需要补充领域上下文或示例</td>
+            </tr>
+            <tr>
+              <td>在某个模型上好用，换一个就不行</td>
+              <td>通过下拉框切换模型对比</td>
+              <td>提示词对特定模型依赖过强，需要更明确的规则</td>
+            </tr>
+            <tr>
+              <td>短文本好用，长文本出问题</td>
+              <td>分别用短句和长句测试</td>
+              <td>提示词需要考虑不同长度的输入</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>第三阶段：编辑模式</h3>
+      <ol>
+        <li>用文本编辑器打开 <code>~/.config/VoiceText/enhance_modes/&lt;mode_id&gt;.md</code>。<br>或使用 设置 &rarr; AI &rarr; 选择模式 &rarr; 编辑。</li>
+        <li>根据诊断结果做针对性修改。</li>
+        <li>重启应用（或重新加载配置）以加载更新后的提示词。</li>
+        <li>用同一句话重新录制，对比结果。</li>
+      </ol>
+
+      <h3>第四阶段：验证</h3>
+      <ol>
+        <li><strong>⌘1–⌘9</strong> 在更新后的模式和其他模式间切换 — 更新后的是否更好？</li>
+        <li><strong>切换 LLM 模型</strong> — 改进在不同模型上是否都有效？</li>
+        <li><strong>测试边界情况</strong> — 尝试短输入、长输入、混合语言、嘈杂语音。</li>
+        <li><strong>开启 thinking</strong> — AI 的推理过程是否符合你的预期？</li>
+      </ol>
+
+      <h3>第五阶段：持续改进</h3>
+      <ul>
+        <li><strong>坚持修正 Final Result</strong> — 词库系统会从你的编辑中学习。</li>
+        <li><strong>查看 History</strong>（点击 History 按钮）— 寻找 AI 反复出错的规律。</li>
+        <li><strong>构建词库</strong>（设置 &rarr; AI &rarr; Build Vocabulary）— 领域术语会自动积累。</li>
+      </ul>
+    </section>
+
+    <!-- Practical Examples -->
+    <section id="practical-examples">
+      <h2>实战案例</h2>
+
+      <h3>案例 1：AI 在翻译后附加了多余说明</h3>
+      <p><strong>问题：</strong>"翻译为英文"模式输出了 "Translation: ..." 带有前缀。</p>
+      <p><strong>诊断：</strong>点击 Prompt &rarr; 提示词只说了"翻译为英文"，但没有明确禁止附加说明。</p>
+      <p><strong>修复：</strong>在提示词中添加：</p>
+<pre class="code-block">仅输出翻译后的文本。
+不要添加任何前缀、标签或说明。</pre>
+
+      <h3>案例 2：AI 错误地纠正了人名</h3>
+      <p><strong>问题：</strong>你说"找萍萍确认一下"，但 AI 改成了"找平平确认一下"。</p>
+      <p><strong>诊断：</strong>开启 thinking &rarr; AI 因为缺少上下文，把"萍萍"当成了"平平"的 ASR 错误。</p>
+      <p><strong>解决方案：</strong></p>
+      <ul>
+        <li>在 Final Result 中改回"萍萍" &rarr; 纠正记录会积累并逐步构建词库</li>
+        <li>开启对话历史（设置 &rarr; AI），让 AI 看到之前确认过的"萍萍"用法</li>
+        <li>积累足够纠正后手动构建词库</li>
+      </ul>
+
+      <h3>案例 3：模式在某个模型上好用，换一个就不行</h3>
+      <p><strong>问题：</strong>"命令行大神"在 GPT-4 上输出干净的 shell 命令，但在本地模型上会加上 markdown 代码块。</p>
+      <p><strong>诊断：</strong>通过下拉框切换模型对比输出，点击 Prompt 检查提示词。</p>
+      <p><strong>修复：</strong>让提示词更加明确：</p>
+<pre class="code-block">仅输出原始命令。
+不要使用 markdown 代码块或反引号包裹。
+不要添加任何说明。</pre>
+    </section>
+
+    <!-- Quick Reference -->
+    <section id="quick-reference">
+      <h2>快速参考</h2>
+      <div class="table-wrapper">
+        <table class="compare-table">
+          <thead>
+            <tr>
+              <th>快捷键 / 按钮</th>
+              <th>在优化中的用途</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Play ▶</strong></td>
+              <td>验证源音频 — 问题是否出在你的语音？</td>
+            </tr>
+            <tr>
+              <td><strong>Punc</strong></td>
+              <td>切换标点恢复 — 是否能改善 ASR 准确度？</td>
+            </tr>
+            <tr>
+              <td><strong>⌘1–⌘9</strong></td>
+              <td>在同一段音频上 A/B 测试不同模式</td>
+            </tr>
+            <tr>
+              <td><strong>AI 下拉框</strong></td>
+              <td>用同一提示词 A/B 测试不同模型</td>
+            </tr>
+            <tr>
+              <td><strong>Prompt ⓘ</strong></td>
+              <td>查看实际发送给 LLM 的提示词</td>
+            </tr>
+            <tr>
+              <td><strong>☐ Thinking</strong></td>
+              <td>开启 AI 推理追踪</td>
+            </tr>
+            <tr>
+              <td><strong>🧠</strong></td>
+              <td>阅读 AI 推理过程 — 诊断理解偏差</td>
+            </tr>
+            <tr>
+              <td><strong>Final Result</strong></td>
+              <td>修正错误 — 逐步训练词库</td>
+            </tr>
+            <tr>
+              <td><strong>Translate ↗</strong></td>
+              <td>用 Google 翻译交叉验证</td>
+            </tr>
+            <tr>
+              <td><strong>History</strong></td>
+              <td>回顾历史纠正记录，寻找规律</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Tips -->
+    <section id="tips">
+      <h2>优化技巧</h2>
+      <ul>
+        <li><strong>每次只改一处。</strong>编辑提示词时，只修改一个地方然后测试。多处同时修改会导致无法判断哪个改动起了作用。</li>
+        <li><strong>保存好的测试用例。</strong>用 <strong>Save</strong> 导出能暴露提示词问题的录音。编辑提示词后重新播放验证修复效果。</li>
+        <li><strong>使用编号规则。</strong>LLM 对带编号规则的结构化提示词的遵循度，远高于段落式的自然语言描述。</li>
+        <li><strong>务必提及 ASR 上下文。</strong>在提示词中加入"用户输入来自 ASR，可能包含语音识别错误" — 这能显著提升纠错容错能力。</li>
+        <li><strong>关注 Token 计数。</strong>Tokens 显示（↑prompt ↓completion）帮你判断提示词效率。如果 ↑ 很高而 ↓ 很低，说明提示词可能过于冗长。</li>
+      </ul>
+    </section>
+
+    <!-- Navigation card -->
+    <a href="../../docs/user-guide.html" class="doc-nav-card">
+      <h3>用户指南 &rarr;</h3>
+      <p>刚接触 VoiceText？从完整的用户指南开始，涵盖安装、日常使用和所有功能。</p>
+    </a>
+
+  </article>
+
+</body>
+</html>
