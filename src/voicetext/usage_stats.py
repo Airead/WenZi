@@ -39,6 +39,7 @@ def _empty_token_usage() -> Dict[str, int]:
         "prompt_tokens": 0,
         "completion_tokens": 0,
         "total_tokens": 0,
+        "cache_read_tokens": 0,
     }
 
 
@@ -177,7 +178,7 @@ class UsageStats:
             return
 
         def _update(data: Dict[str, Any]) -> None:
-            for key in ("prompt_tokens", "completion_tokens", "total_tokens"):
+            for key in ("prompt_tokens", "completion_tokens", "total_tokens", "cache_read_tokens"):
                 val = usage.get(key, 0)
                 if val:
                     data["token_usage"][key] += val

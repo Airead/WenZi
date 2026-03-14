@@ -34,6 +34,7 @@ class TestInitialState:
         assert s["token_usage"]["prompt_tokens"] == 0
         assert s["token_usage"]["completion_tokens"] == 0
         assert s["token_usage"]["total_tokens"] == 0
+        assert s["token_usage"]["cache_read_tokens"] == 0
         assert s["first_recorded"] is None
 
 
@@ -104,6 +105,34 @@ class TestTokenUsage:
         stats.record_token_usage({})
         s = stats.get_stats()
         assert s["token_usage"]["total_tokens"] == 0
+
+    def test_record_cache_read_tokens(self, stats):
+        stats.record_token_usage({
+            "prompt_tokens": 100, "completion_tokens": 50,
+            "total_tokens": 150, "cache_read_tokens": 40,
+        })
+        stats.record_token_usage({
+            "prompt_tokens": 200, "completion_tokens": 80,
+            "total_tokens": 280, "cache_read_tokens": 60,
+        })
+        s = stats.get_stats()
+        assert s["token_usage"]["cache_read_tokens"] == 100
+
+    def test_record_cache_read_tokens_missing(self, stats):
+        """Providers that don't support cache return no cache_read_tokens key."""
+        stats.record_token_usage({
+            "prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150,
+        })
+        s = stats.get_stats()
+        assert s["token_usage"]["cache_read_tokens"] == 0
+
+    def test_record_cache_read_tokens_zero(self, stats):
+        stats.record_token_usage({
+            "prompt_tokens": 100, "completion_tokens": 50,
+            "total_tokens": 150, "cache_read_tokens": 0,
+        })
+        s = stats.get_stats()
+        assert s["token_usage"]["cache_read_tokens"] == 0
 
 
 class TestEnhanceModeTracking:

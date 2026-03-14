@@ -546,6 +546,8 @@ def _make_mock_client(content="enhanced text", usage=None):
         mock_response.usage.prompt_tokens = usage.get("prompt_tokens", 0)
         mock_response.usage.completion_tokens = usage.get("completion_tokens", 0)
         mock_response.usage.total_tokens = usage.get("total_tokens", 0)
+        mock_response.usage.prompt_tokens_details = None
+        mock_response.usage.prompt_cache_hit_tokens = None
     else:
         mock_response.usage = None
 
@@ -620,7 +622,7 @@ class TestTextEnhancerEnhance:
             enhancer.enhance("original text")
         )
         assert text == "enhanced text"
-        assert usage == {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}
+        assert usage == {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15, "cache_read_tokens": 0}
 
     def test_fallback_on_empty_llm_response(self):
         mock_client = _make_mock_client("")
@@ -1363,6 +1365,8 @@ def _make_mock_stream_client(chunks, usage=None):
             final.usage.prompt_tokens = usage.get("prompt_tokens", 0)
             final.usage.completion_tokens = usage.get("completion_tokens", 0)
             final.usage.total_tokens = usage.get("total_tokens", 0)
+            final.usage.prompt_tokens_details = None
+            final.usage.prompt_cache_hit_tokens = None
         else:
             final.usage = None
         final.choices = []
@@ -1429,7 +1433,7 @@ class TestTextEnhancerEnhanceStream:
         assert "".join(text_chunks) == "enhanced text"
         # Last result should have usage
         final = results[-1]
-        assert final[1] == {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}
+        assert final[1] == {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15, "cache_read_tokens": 0}
         # All chunks should have is_thinking=False (no reasoning_content in mock)
         assert all(r[2] is False for r in results)
 

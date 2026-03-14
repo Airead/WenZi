@@ -26,6 +26,25 @@ THINKING_BREVITY_HINT = (
 )
 
 
+def _extract_cache_read_tokens(usage: Any) -> int:
+    """Extract cached input tokens from a usage object.
+
+    Tries prompt_tokens_details.cached_tokens first (OpenAI standard),
+    then falls back to prompt_cache_hit_tokens (DeepSeek).
+    Returns 0 if the provider does not report cache info.
+    """
+    details = getattr(usage, "prompt_tokens_details", None)
+    if details is not None:
+        cached = getattr(details, "cached_tokens", None)
+        if cached:
+            return int(cached)
+    # DeepSeek fallback
+    hit = getattr(usage, "prompt_cache_hit_tokens", None)
+    if hit:
+        return int(hit)
+    return 0
+
+
 def _is_openai_reasoning_model(model_lower: str) -> bool:
     """Check if model is an OpenAI reasoning model (o1, o3, o4-mini, etc.)."""
     for prefix in ("o1", "o3", "o4-mini"):
@@ -503,6 +522,7 @@ class TextEnhancer:
                     "prompt_tokens": response.usage.prompt_tokens or 0,
                     "completion_tokens": response.usage.completion_tokens or 0,
                     "total_tokens": response.usage.total_tokens or 0,
+                    "cache_read_tokens": _extract_cache_read_tokens(response.usage),
                 }
 
             if enhanced and enhanced.strip():
@@ -620,6 +640,7 @@ class TextEnhancer:
                             "prompt_tokens": chunk.usage.prompt_tokens or 0,
                             "completion_tokens": chunk.usage.completion_tokens or 0,
                             "total_tokens": chunk.usage.total_tokens or 0,
+                            "cache_read_tokens": _extract_cache_read_tokens(chunk.usage),
                         }
                     if chunk.choices:
                         delta = chunk.choices[0].delta

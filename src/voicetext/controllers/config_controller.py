@@ -297,130 +297,13 @@ class ConfigController:
         )
 
     def on_show_usage_stats(self, _) -> None:
-        """Show usage statistics in a large dialog with today + cumulative stats."""
-        from AppKit import NSAlert, NSFont, NSStatusWindowLevel, NSTextField
-        from Foundation import NSMakeRect
+        """Show usage statistics charts panel."""
+        from voicetext.ui.stats_panel import StatsChartPanel
 
         app = self._app
-
-        try:
-            s = app._usage_stats.get_stats()
-            today = app._usage_stats.get_today_stats()
-        except Exception as e:
-            logger.error("Failed to get usage stats: %s", e)
-            topmost_alert("Error", f"Failed to load usage stats: {e}")
-            restore_accessory()
-            return
-
-        def _fmt_section(label: str, data: dict) -> list[str]:
-            t = data.get("totals", {})
-            tk = data.get("token_usage", {})
-            em = data.get("enhance_mode_usage", {})
-
-            lines = [f"--- {label} ---"]
-            lines.append(f"Transcriptions: {t.get('transcriptions', 0)}")
-            lines.append(
-                f"  Direct: {t.get('direct_mode', 0)}  |  "
-                f"Preview: {t.get('preview_mode', 0)}"
-            )
-            lines.append(
-                f"  Accept: {t.get('direct_accept', 0)}  |  "
-                f"Modified: {t.get('user_modification', 0)}  |  "
-                f"Cancel: {t.get('cancel', 0)}"
-            )
-
-            total_tk = tk.get("total_tokens", 0)
-            prompt_tk = tk.get("prompt_tokens", 0)
-            comp_tk = tk.get("completion_tokens", 0)
-            lines.append(
-                f"Tokens: {total_tk:,} total  "
-                f"(\u2191{prompt_tk:,}  \u2193{comp_tk:,})"
-            )
-
-            # Clipboard Enhance section
-            cb = t.get("clipboard_enhances", 0)
-            if cb:
-                lines.append(
-                    f"Clipboard Enhance: {cb}  "
-                    f"(Confirm: {t.get('clipboard_enhance_confirm', 0)}  |  "
-                    f"Cancel: {t.get('clipboard_enhance_cancel', 0)})"
-                )
-
-            # Output Method section
-            ot = t.get("output_type_text", 0)
-            oc = t.get("output_copy_clipboard", 0)
-            if ot or oc:
-                lines.append(
-                    f"Output: Type {ot}  |  Clipboard {oc}"
-                )
-
-            gt = t.get("google_translate_opens", 0)
-            if gt:
-                lines.append(f"Google Translate: {gt}")
-
-            sf = t.get("sound_feedback_plays", 0)
-            if sf:
-                lines.append(f"Sound Feedback: {sf}")
-
-            hb = t.get("history_browse_opens", 0)
-            he = t.get("history_edits", 0)
-            if hb or he:
-                lines.append(f"History: Browse {hb}  |  Edit {he}")
-
-            if em:
-                lines.append("Enhance modes:")
-                for mode, count in sorted(em.items()):
-                    lines.append(f"  {mode}: {count}")
-            return lines
-
-        parts = _fmt_section(f"Today ({today.get('date', '')})", today)
-        parts.append("")
-        parts += _fmt_section("All Time", s)
-
-        first = s.get("first_recorded")
-        if first:
-            parts.append(f"Since: {first[:10]}")
-
-        # Stored data stats
-        from voicetext.enhance.vocabulary import get_vocab_entry_count
-
-        conversation_count = app._conversation_history.count()
-        correction_count = app._conversation_history.correction_count()
-        vocab_count = get_vocab_entry_count()
-        parts.append("")
-        parts.append("--- Stored Data ---")
-        parts.append(f"Conversations: {conversation_count} records")
-        parts.append(f"Corrections:   {correction_count} records")
-        parts.append(f"Vocabulary:    {vocab_count} entries")
-
-        text = "\n".join(parts)
-
-        activate_for_dialog()
-
-        alert = NSAlert.alloc().init()
-        alert.setMessageText_("Usage Statistics")
-        alert.addButtonWithTitle_("OK")
-        alert.setAlertStyle_(0)
-
-        field_width = 480
-        text_field = NSTextField.alloc().initWithFrame_(NSMakeRect(0, 0, field_width, 0))
-        text_field.setStringValue_(text)
-        text_field.setEditable_(False)
-        text_field.setBezeled_(False)
-        text_field.setDrawsBackground_(False)
-        text_field.setSelectable_(True)
-        text_field.setFont_(NSFont.monospacedSystemFontOfSize_weight_(12.0, 0.0))
-        # Auto-size height to fit content
-        text_field.sizeToFit()
-        frame = text_field.frame()
-        text_field.setFrame_(NSMakeRect(0, 0, field_width, frame.size.height))
-        alert.setAccessoryView_(text_field)
-
-        alert.window().setLevel_(NSStatusWindowLevel)
-        alert.window().setFloatingPanel_(True)
-        alert.window().setHidesOnDeactivate_(False)
-        alert.runModal()
-        restore_accessory()
+        if not hasattr(app, "_stats_panel") or app._stats_panel is None:
+            app._stats_panel = StatsChartPanel()
+        app._stats_panel.show(app._usage_stats)
 
     def on_about(self, _) -> None:
         from voicetext import __version__

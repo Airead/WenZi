@@ -5,6 +5,7 @@ from .log_viewer_window import LogViewerPanel
 from .result_window import ResultPreviewPanel
 from .settings_window import SettingsPanel
 from .streaming_overlay import StreamingOverlayPanel
+from .stats_panel import StatsChartPanel
 from .translate_webview import TranslateWebViewPanel
 from .vocab_build_window import VocabBuildProgressPanel
 
@@ -13,6 +14,7 @@ __all__ = [
     "LogViewerPanel",
     "ResultPreviewPanel",
     "SettingsPanel",
+    "StatsChartPanel",
     "StreamingOverlayPanel",
     "TranslateWebViewPanel",
     "VocabBuildProgressPanel",
