@@ -74,7 +74,10 @@ class RecordingController:
         if streaming_active:
             # Streaming path: get final text from the streaming session
             self._streaming_active = False
-            self.stop_recording_indicator()
+            use_enhance = bool(app._enhancer and app._enhancer.is_active)
+            self.stop_recording_indicator(
+                animate=app._preview_enabled or use_enhance
+            )
 
             app._busy = True
 
@@ -84,8 +87,15 @@ class RecordingController:
                     self._hide_live_overlay()
                     if text and text.strip():
                         asr_text = text.strip()
-                        use_enhance = bool(app._enhancer and app._enhancer.is_active)
-                        self.do_transcribe_direct(asr_text, use_enhance)
+                        if app._preview_enabled:
+                            app._do_transcribe_with_preview(
+                                asr_text=asr_text,
+                                use_enhance=use_enhance,
+                                audio_duration=0.0,
+                                wav_data=wav_data,
+                            )
+                        else:
+                            self.do_transcribe_direct(asr_text, use_enhance)
                     else:
                         app._set_status("(empty)")
                         logger.warning("Streaming transcription returned empty text")

@@ -188,6 +188,22 @@ class TestStreamingIntegration:
         # Should fall back to batch mode
         assert ctrl._streaming_active is False
 
+    @patch("PyObjCTools.AppHelper")
+    def test_streaming_release_with_preview(self, mock_apphelper, ctrl, mock_app):
+        mock_apphelper.callAfter = lambda fn, *a, **kw: fn(*a, **kw)
+        mock_app._transcriber.supports_streaming = True
+        mock_app._transcriber.stop_streaming.return_value = "streaming result"
+        mock_app._sound_manager.enabled = False
+        mock_app._preview_enabled = True
+
+        ctrl.on_hotkey_press()
+        ctrl.on_hotkey_release()
+
+        # Should call preview path, not direct
+        mock_app._do_transcribe_with_preview.assert_called_once()
+        call_kwargs = mock_app._do_transcribe_with_preview.call_args
+        assert call_kwargs[1]["asr_text"] == "streaming result" or call_kwargs[0][0] == "streaming result"
+
     def test_init_streaming_state(self, ctrl):
         assert ctrl._streaming_active is False
         assert ctrl._live_overlay is None
