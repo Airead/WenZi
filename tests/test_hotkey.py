@@ -332,6 +332,147 @@ class TestMultiHotkeyRestartKey:
         assert result is False  # normal hotkey press should not swallow
 
 
+class TestMultiHotkeyCancelKey:
+    def test_cancel_callback_when_hotkey_held(self):
+        import time
+
+        on_press = MagicMock()
+        on_release = MagicMock()
+        on_cancel = MagicMock()
+        listener = MultiHotkeyListener(
+            ["fn"], on_press, on_release, on_cancel=on_cancel
+        )
+
+        # Hold hotkey
+        listener._handle_press("fn")
+        on_press.assert_called_once()
+
+        # Press cmd while hotkey is held — runs cancel in background thread
+        listener._handle_press("cmd")
+        # Wait for background thread to complete
+        for _ in range(50):
+            if on_cancel.called:
+                break
+            time.sleep(0.01)
+        on_cancel.assert_called_once()
+
+    def test_cancel_not_called_when_hotkey_not_held(self):
+        on_cancel = MagicMock()
+        listener = MultiHotkeyListener(
+            ["fn"], MagicMock(), MagicMock(), on_cancel=on_cancel
+        )
+
+        # Press cmd without holding hotkey
+        result = listener._handle_press("cmd")
+        on_cancel.assert_not_called()
+        assert result is False
+
+    def test_cancel_not_called_when_no_callback(self):
+        on_press = MagicMock()
+        listener = MultiHotkeyListener(["fn"], on_press, MagicMock())
+
+        listener._handle_press("fn")
+        result = listener._handle_press("cmd")
+        assert on_press.call_count == 1
+        assert result is False
+
+    def test_cancel_with_custom_key(self):
+        import time
+
+        on_cancel = MagicMock()
+        listener = MultiHotkeyListener(
+            ["fn"], MagicMock(), MagicMock(),
+            on_cancel=on_cancel, cancel_key="ctrl",
+        )
+
+        listener._handle_press("fn")
+        listener._handle_press("ctrl")
+        for _ in range(50):
+            if on_cancel.called:
+                break
+            time.sleep(0.01)
+        on_cancel.assert_called_once()
+
+    def test_cancel_does_not_swallow_event(self):
+        """Cancel key (modifier) should not be swallowed."""
+        on_cancel = MagicMock()
+        listener = MultiHotkeyListener(
+            ["fn"], MagicMock(), MagicMock(), on_cancel=on_cancel
+        )
+
+        listener._handle_press("fn")
+        result = listener._handle_press("cmd")
+        assert result is False  # modifier keys are not swallowed
+
+    def test_cancel_skips_release(self):
+        """After cancel, releasing the hotkey should not trigger on_release."""
+        on_release = MagicMock()
+        on_cancel = MagicMock()
+        listener = MultiHotkeyListener(
+            ["fn"], MagicMock(), on_release, on_cancel=on_cancel
+        )
+
+        listener._handle_press("fn")
+        listener._handle_press("cmd")
+        # Release Fn — should be skipped because cancel was requested
+        listener._handle_release("fn")
+        on_release.assert_not_called()
+
+    def test_cancel_flag_cleared_after_release(self):
+        """Cancel flag should be cleared after release, so next cycle works."""
+        import time
+
+        on_press = MagicMock()
+        on_release = MagicMock()
+        on_cancel = MagicMock()
+        listener = MultiHotkeyListener(
+            ["fn"], on_press, on_release, on_cancel=on_cancel
+        )
+
+        # First cycle: press, cancel, release
+        listener._handle_press("fn")
+        listener._handle_press("cmd")
+        listener._handle_release("fn")
+        on_release.assert_not_called()
+
+        # Wait for cancel thread
+        for _ in range(50):
+            if on_cancel.called:
+                break
+            time.sleep(0.01)
+
+        # Second cycle: normal press and release should work
+        listener._handle_press("fn")
+        listener._handle_release("fn")
+        on_release.assert_called_once()
+
+    def test_restart_and_cancel_coexist(self):
+        import time
+
+        on_restart = MagicMock()
+        on_cancel = MagicMock()
+        listener = MultiHotkeyListener(
+            ["fn"], MagicMock(), MagicMock(),
+            on_restart=on_restart, on_cancel=on_cancel,
+        )
+
+        listener._handle_press("fn")
+
+        # Space triggers restart
+        listener._handle_press("space")
+        on_restart.assert_called_once()
+        on_cancel.assert_not_called()
+
+        # Cmd triggers cancel (runs in background thread)
+        listener._handle_press("cmd")
+        for _ in range(50):
+            if on_cancel.called:
+                break
+            time.sleep(0.01)
+        on_cancel.assert_called_once()
+        assert on_restart.call_count == 1
+
+
 class TestHoldHotkeyThreadSafety:
     """Test that _held state is protected by a lock."""
 

@@ -103,6 +103,34 @@ class RecordingController:
             self.start_recording_indicator()
             app._recording_started.set()
 
+    def on_cancel_recording(self) -> None:
+        """Called when cancel key (cmd) is pressed during recording — discard and stop."""
+        app = self._app
+        if not app._recorder.is_recording:
+            return
+        logger.info("Cancel key pressed, cancelling recording")
+
+        # Stop streaming if active
+        if self._streaming_active:
+            app._recorder.clear_on_audio_chunk()
+            try:
+                app._transcriber.stop_streaming()
+            except Exception:
+                logger.exception("Failed to stop streaming during cancel")
+            self._streaming_active = False
+            self._hide_live_overlay()
+
+        # Stop current recording and discard audio
+        app._recorder.stop()
+
+        # Stop indicator
+        self.stop_recording_indicator()
+
+        # Reset state
+        app._recording_started.clear()
+        app._busy = False
+        app._set_status("VT")
+
     def on_hotkey_release(self) -> None:
         """Called when hotkey is released - stop recording and transcribe."""
         app = self._app

@@ -288,6 +288,48 @@ class TestOnRestartRecording:
         mock_app._usage_stats.record_sound_feedback.assert_called_once()
 
 
+class TestOnCancelRecording:
+    def test_not_recording_returns_early(self, ctrl, mock_app):
+        mock_app._recorder.is_recording = False
+        ctrl.on_cancel_recording()
+        mock_app._recorder.stop.assert_not_called()
+
+    @patch("PyObjCTools.AppHelper")
+    def test_cancel_stops_and_resets(self, mock_apphelper, ctrl, mock_app):
+        mock_apphelper.callAfter = lambda fn, *a, **kw: fn(*a, **kw)
+        mock_app._sound_manager.enabled = False
+
+        ctrl.on_cancel_recording()
+
+        mock_app._recorder.stop.assert_called_once()
+        mock_app._recording_indicator.hide.assert_called_once()
+        mock_app._set_status.assert_called_with("VT")
+        assert mock_app._busy is False
+
+    @patch("PyObjCTools.AppHelper")
+    def test_cancel_stops_streaming(self, mock_apphelper, ctrl, mock_app):
+        mock_apphelper.callAfter = lambda fn, *a, **kw: fn(*a, **kw)
+        mock_app._sound_manager.enabled = False
+        ctrl._streaming_active = True
+
+        ctrl.on_cancel_recording()
+
+        mock_app._recorder.clear_on_audio_chunk.assert_called_once()
+        mock_app._transcriber.stop_streaming.assert_called_once()
+        assert ctrl._streaming_active is False
+        assert mock_app._busy is False
+
+    @patch("PyObjCTools.AppHelper")
+    def test_cancel_clears_recording_started(self, mock_apphelper, ctrl, mock_app):
+        mock_apphelper.callAfter = lambda fn, *a, **kw: fn(*a, **kw)
+        mock_app._sound_manager.enabled = False
+        mock_app._recording_started.set()
+
+        ctrl.on_cancel_recording()
+
+        assert not mock_app._recording_started.is_set()
+
+
 class TestDoTranscribeDirect:
     @patch("voicetext.controllers.recording_controller.type_text")
     @patch("PyObjCTools.AppHelper")
