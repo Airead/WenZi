@@ -7,7 +7,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from voicetext.statusbar import (
-    InputWindow,
     Response,
     StatusBarApp,
     StatusMenuItem,

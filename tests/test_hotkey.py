@@ -3,7 +3,7 @@
 import threading
 
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from voicetext.hotkey import (
     _is_fn_key,
@@ -11,8 +11,6 @@ from voicetext.hotkey import (
     _parse_hotkey_for_quartz,
     _KEYCODE_MAP,
     _MOD_FLAGS,
-    _SPECIAL_VK,
-    _MOD_VK,
     _VK_TO_NAME,
     HoldHotkeyListener,
     TapHotkeyListener,

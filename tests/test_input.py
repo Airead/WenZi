@@ -2,7 +2,6 @@
 
 from unittest.mock import patch, MagicMock, call
 
-import pytest
 
 from voicetext.input import type_text
 

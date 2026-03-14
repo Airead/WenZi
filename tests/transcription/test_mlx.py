@@ -5,7 +5,7 @@ from __future__ import annotations
 import io
 import struct
 import wave
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
@@ -391,7 +391,7 @@ class TestTranscribe:
         mock_punc = MagicMock()
         t._punc_restorer = mock_punc
 
-        result = t.transcribe(_make_wav())
+        t.transcribe(_make_wav())
         # text.strip() is empty → punc skipped
         mock_punc.restore.assert_not_called()
 

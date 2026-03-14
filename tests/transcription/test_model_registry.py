@@ -2,12 +2,10 @@
 
 from pathlib import Path
 
-import pytest
 
 from voicetext.transcription.model_registry import (
     PRESET_BY_ID,
     PRESETS,
-    ModelPreset,
     get_model_cache_dir,
     is_backend_available,
     is_model_cached,

@@ -4,10 +4,8 @@ from __future__ import annotations
 
 import os
 
-import pytest
 
 from voicetext.enhance.mode_loader import (
-    ModeDefinition,
     _BUILTIN_MODES,
     ensure_default_modes,
     load_modes,

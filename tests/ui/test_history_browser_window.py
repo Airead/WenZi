@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -40,7 +40,8 @@ class TestHistoryBrowserPanel:
 
         panel = HistoryBrowserPanel()
         panel._filtered_records = [
-            {"timestamp": "2026-03-13T14:30:00+00:00", "asr_text": "hello", "enhance_mode": "proofread", "final_text": "hello world"},
+            {"timestamp": "2026-03-13T14:30:00+00:00", "asr_text": "hello",
+             "enhance_mode": "proofread", "final_text": "hello world"},
         ]
         col = MagicMock()
         col.identifier.return_value = "time"
@@ -52,7 +53,8 @@ class TestHistoryBrowserPanel:
 
         panel = HistoryBrowserPanel()
         panel._filtered_records = [
-            {"timestamp": "2026-03-13T14:30:00", "asr_text": "hello", "enhance_mode": "proofread", "final_text": "hello"},
+            {"timestamp": "2026-03-13T14:30:00", "asr_text": "hello",
+             "enhance_mode": "proofread", "final_text": "hello"},
         ]
         col = MagicMock()
         col.identifier.return_value = "mode"
@@ -158,7 +160,7 @@ class TestHistoryBrowserPanel:
         assert len(panel._filtered_records) == 0
 
     def test_combined_mode_and_model_filter(self):
-        from voicetext.ui.history_browser_window import HistoryBrowserPanel, _MODE_ALL, _MODEL_ALL
+        from voicetext.ui.history_browser_window import HistoryBrowserPanel
 
         panel = HistoryBrowserPanel()
         panel._all_records = [
@@ -185,7 +187,7 @@ class TestHistoryBrowserPanel:
              "user_corrected": True},
             {"timestamp": "t2", "enhance_mode": "proofread", "final_text": "b",
              "user_corrected": False},
-            {"timestamp": "t3", "enhance_mode": "proofread", "final_text": "c",
+            {"timestamp": "t3", "enhance_mode": "proofread",
              "enhanced_text": "x", "final_text": "y"},  # legacy inferred
         ]
 

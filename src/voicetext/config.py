@@ -160,11 +160,14 @@ def validate_config(config: Dict[str, Any]) -> Dict[str, Any]:
         ("feedback.visual_indicator", bool, None, DEFAULT_CONFIG["feedback"]["visual_indicator"]),
         ("output.method", str, lambda v: v in {"auto", "paste", "clipboard"}, DEFAULT_CONFIG["output"]["method"]),
         ("output.append_newline", bool, None, DEFAULT_CONFIG["output"]["append_newline"]),
-        ("asr.backend", str, lambda v: v in {"funasr", "mlx_whisper", "apple", "api"}, DEFAULT_CONFIG["asr"]["backend"]),
+        ("asr.backend", str, lambda v: v in {"funasr", "mlx_whisper", "apple", "api"},
+         DEFAULT_CONFIG["asr"]["backend"]),
         ("asr.language", str, lambda v: len(v) > 0, DEFAULT_CONFIG["asr"]["language"]),
-        ("logging.level", str, lambda v: v in {"DEBUG", "INFO", "WARNING", "ERROR"}, DEFAULT_CONFIG["logging"]["level"]),
+        ("logging.level", str, lambda v: v in {"DEBUG", "INFO", "WARNING", "ERROR"},
+         DEFAULT_CONFIG["logging"]["level"]),
         ("ai_enhance.timeout", (int, float), lambda v: v > 0, DEFAULT_CONFIG["ai_enhance"]["timeout"]),
-        ("ai_enhance.connection_timeout", (int, float), lambda v: v > 0, DEFAULT_CONFIG["ai_enhance"]["connection_timeout"]),
+        ("ai_enhance.connection_timeout", (int, float), lambda v: v > 0,
+         DEFAULT_CONFIG["ai_enhance"]["connection_timeout"]),
         ("ai_enhance.max_retries", int, lambda v: v >= 0, DEFAULT_CONFIG["ai_enhance"]["max_retries"]),
     ]
 

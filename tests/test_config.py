@@ -5,7 +5,6 @@ import os
 import stat
 import tempfile
 
-import pytest
 
 from voicetext.config import DEFAULT_CONFIG, load_config, save_config, validate_config, _merge_dict
 

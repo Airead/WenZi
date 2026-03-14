@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import os
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
-import pytest
 
 from voicetext.controllers.model_controller import (
     _get_dir_size,

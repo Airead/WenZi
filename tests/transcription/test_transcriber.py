@@ -165,7 +165,9 @@ class TestSkipPunc:
                 return text + "。"
         t._punc_restorer = MockPunc()
 
-        import io, wave, struct
+        import io
+        import wave
+        import struct
         buf = io.BytesIO()
         with wave.open(buf, "wb") as wf:
             wf.setnchannels(1)

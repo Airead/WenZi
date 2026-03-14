@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import logging.handlers
-import os
-import subprocess
 import sys
 import threading
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from ApplicationServices import AXIsProcessTrusted, AXIsProcessTrustedWithOptions
 from CoreFoundation import kCFBooleanTrue
@@ -22,23 +19,10 @@ from .enhance.conversation_history import ConversationHistory
 from .usage_stats import UsageStats
 from .enhance.enhancer import MODE_OFF, create_enhancer
 from .ui.history_browser_window import HistoryBrowserPanel
-from .ui.log_viewer_window import LogViewerPanel
 from .ui.result_window import ResultPreviewPanel
 from .ui.settings_window import SettingsPanel
 from .hotkey import MultiHotkeyListener, TapHotkeyListener, _is_fn_key
-from .input import (
-    copy_selection_to_clipboard,
-    get_clipboard_text,
-    has_clipboard_text,
-    set_clipboard_text,
-    type_text,
-)
 from .transcription.model_registry import (
-    PRESET_BY_ID,
-    PRESETS,
-    build_remote_asr_models,
-    is_backend_available,
-    is_model_cached,
     resolve_preset_from_config,
 )
 from .audio.recorder import Recorder
@@ -48,7 +32,6 @@ from .statusbar import (
     StatusBarApp,
     StatusMenuItem,
     quit_application,
-    send_notification,
 )
 from .ui.streaming_overlay import StreamingOverlayPanel
 from .controllers.menu_builder import MenuBuilder
@@ -62,9 +45,6 @@ from .transcription.base import create_transcriber
 from .ui_helpers import (
     activate_for_dialog,
     restore_accessory,
-    topmost_alert,
-    run_window,
-    run_multiline_window,
 )
 
 

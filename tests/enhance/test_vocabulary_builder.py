@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 import threading
-from unittest.mock import AsyncMock, MagicMock, call, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -605,7 +604,7 @@ class TestExtractBatchStreaming:
         batch = [{"asr_text": "test", "final_text": "test"}]
 
         pipe_parts = ["term|categ", "ory|variants|context\n", "Python|tech|派森|", "编程语言"]
-        full_text = "".join(pipe_parts)
+        "".join(pipe_parts)
 
         chunks = []
         for part in pipe_parts:
@@ -623,7 +622,8 @@ class TestExtractBatchStreaming:
         mock_client.chat.completions.create = mock_create
 
         collected_chunks = []
-        on_chunk = lambda c: collected_chunks.append(c)
+        def on_chunk(c):
+            return collected_chunks.append(c)
 
         with patch("openai.AsyncOpenAI", return_value=mock_client):
             entries, usage = asyncio.run(

@@ -1,11 +1,9 @@
 """Tests for the recorder module."""
 
-import io
 import threading
 from unittest.mock import patch, MagicMock
 
 import numpy as np
-import pytest
 
 from voicetext.audio.recorder import Recorder
 

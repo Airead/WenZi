@@ -5,9 +5,8 @@ from __future__ import annotations
 import io
 import struct
 import wave
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
-import pytest
 
 from voicetext.transcription.whisper_api import WhisperAPITranscriber
 

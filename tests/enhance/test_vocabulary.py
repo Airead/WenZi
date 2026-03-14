@@ -7,7 +7,6 @@ import os
 from unittest.mock import MagicMock, patch
 
 import numpy as np
-import pytest
 
 from voicetext.enhance.vocabulary import VocabularyEntry, VocabularyIndex, get_vocab_entry_count
 
@@ -125,7 +124,7 @@ class TestVocabularyIndexLoad:
         )
 
         # Create a cached npz
-        n_entries = len(entries)
+        len(entries)
         # Each entry has: term + variants + context = 3 vectors typically
         n_vectors = sum(1 + len(e.get("variants", [])) + (1 if e.get("context") else 0) for e in entries)
         vectors = np.random.randn(n_vectors, 384).astype(np.float32)

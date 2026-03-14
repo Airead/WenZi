@@ -1,8 +1,7 @@
 """Tests for the Apple Speech transcriber module."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
-import pytest
 
 from voicetext.transcription.base import BaseTranscriber
 from voicetext.transcription.apple import (

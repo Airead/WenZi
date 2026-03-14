@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -327,7 +327,7 @@ class TestHintHelpers:
         assert hint is not None
 
     def test_make_hint_sets_font_and_color(self):
-        from AppKit import NSColor, NSFont
+        from AppKit import NSColor
         from voicetext.ui.settings_window import SettingsPanel
 
         hint = SettingsPanel._make_hint("hello", 0, 0, 100)

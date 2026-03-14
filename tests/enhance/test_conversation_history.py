@@ -119,7 +119,7 @@ class TestConversationHistoryGetRecent:
         # Create empty file
         path = os.path.join(history_dir, "conversation_history.jsonl")
         os.makedirs(history_dir, exist_ok=True)
-        with open(path, "w") as f:
+        with open(path, "w"):
             pass
 
         results = history.get_recent()

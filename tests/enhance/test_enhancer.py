@@ -9,7 +9,6 @@ import pytest
 
 from voicetext.enhance.conversation_history import ConversationHistory
 from voicetext.enhance.enhancer import (
-    MODE_OFF,
     TextEnhancer,
     build_thinking_body,
     _is_deepseek_reasoning_model,
@@ -140,7 +139,7 @@ class TestTextEnhancerProviderModel:
     """Tests for multi-provider and model switching."""
 
     def test_provider_names(self):
-        with patch("voicetext.enhance.enhancer.TextEnhancer._init_providers") as mock_init:
+        with patch("voicetext.enhance.enhancer.TextEnhancer._init_providers"):
             enhancer = TextEnhancer(_make_multi_provider_config())
             # Simulate providers being initialized
             enhancer._providers = {

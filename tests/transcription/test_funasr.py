@@ -2,13 +2,10 @@
 
 from __future__ import annotations
 
-import gc
 import io
-import os
 import struct
-import threading
 import wave
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -46,18 +43,16 @@ class TestInitialize:
         """initialize() starts loader threads and marks _initialized=True."""
         t = FunASRTranscriber(use_vad=False, use_punc=False)
 
-        with patch.object(t, "_load_asr", return_value=True) as mock_asr, \
-             patch.object(t, "_warmup_librosa") as mock_warmup, \
+        with patch.object(t, "_load_asr", return_value=True), \
+             patch.object(t, "_warmup_librosa"), \
              patch("importlib.import_module"):
             # Simulate _load_asr storing True in results dict via threading
-            original_init = t.initialize
 
             # Patch threading.Thread to run synchronously
-            real_thread_class = threading.Thread
 
             def sync_thread(target, args, daemon):
                 name, func = args
-                result = func()
+                func()
                 # Write into the closure's results dict by running target
                 target(name, func)
                 return MagicMock(join=lambda timeout=None: None)
@@ -188,7 +183,7 @@ class TestTranscribe:
         with patch.object(t, "initialize") as mock_init:
             mock_init.side_effect = lambda: setattr(t, "_initialized", True) or \
                 setattr(t, "_asr_model", MagicMock(return_value=[{"text": "ok"}])) or None
-            result = t.transcribe(_make_wav())
+            t.transcribe(_make_wav())
         mock_init.assert_called_once()
 
     def test_transcribe_with_vad_no_speech(self):
@@ -276,11 +271,10 @@ class TestTranscribe:
         t._initialized = True
         t._asr_model = MagicMock(side_effect=RuntimeError("asr error"))
 
-        created_paths = []
-        original_named_temp = __import__("tempfile").NamedTemporaryFile
+        __import__("tempfile").NamedTemporaryFile
 
         with pytest.raises(RuntimeError, match="asr error"):
-            with patch("voicetext.transcription.funasr.os.unlink") as mock_unlink:
+            with patch("voicetext.transcription.funasr.os.unlink"):
                 t.transcribe(_make_wav())
             # unlink should still be called
             # (we verify via the finally block in source)

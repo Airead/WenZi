@@ -6,7 +6,7 @@ import logging
 import os
 import subprocess
 import threading
-from typing import TYPE_CHECKING, Optional, Tuple
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from voicetext.app import VoiceTextApp

@@ -295,8 +295,6 @@ class HistoryBrowserPanel:
         from AppKit import (
             NSBackingStoreBuffered,
             NSClosableWindowMask,
-            NSColor,
-            NSFont,
             NSPanel,
             NSResizableWindowMask,
             NSStatusWindowLevel,

@@ -2,7 +2,6 @@
 """Inject git hash and build date into _build_info.py before packaging."""
 
 import subprocess
-import sys
 from datetime import datetime, timezone
 from pathlib import Path
 

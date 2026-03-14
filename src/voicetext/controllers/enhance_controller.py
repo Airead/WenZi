@@ -6,7 +6,7 @@ import asyncio
 import dataclasses
 import logging
 import threading
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Optional
 
 from voicetext.lru_cache import LRUCache
 

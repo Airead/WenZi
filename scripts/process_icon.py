@@ -22,7 +22,7 @@ def remove_checkerboard_bg(img: Image.Image, threshold: int = 30) -> Image.Image
     # Strategy: find pixels that are "gray-ish" (low saturation, high lightness)
     # and make them transparent.
 
-    r, g, b, a = data[:, :, 0], data[:, :, 1], data[:, :, 2], data[:, :, 3]
+    r, g, b, _a = data[:, :, 0], data[:, :, 1], data[:, :, 2], data[:, :, 3]
 
     # Checkerboard pixels are near-white or near-light-gray with no color
     # They have very similar R, G, B values and are bright

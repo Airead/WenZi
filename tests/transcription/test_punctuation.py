@@ -1,6 +1,6 @@
 """Tests for the punctuation restoration module."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from voicetext.transcription.punctuation import PunctuationRestorer
 
