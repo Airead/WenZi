@@ -218,6 +218,7 @@ class StreamingOverlayPanel:
         self._nav_delegate: object = None
         self._esc_monitor: object = None
         self._cancel_event: Optional[threading.Event] = None
+        self._on_cancel: object = None
         self._loading_timer: object = None
         self._loading_seconds: int = 0
         self._llm_info: str = ""
@@ -266,8 +267,14 @@ class StreamingOverlayPanel:
         animate_from_frame: object = None,
         stt_info: str = "",
         llm_info: str = "",
+        on_cancel: object = None,
     ) -> None:
-        """Create and show the overlay panel. Must be called on main thread."""
+        """Create and show the overlay panel. Must be called on main thread.
+
+        Args:
+            on_cancel: Optional callback invoked immediately when ESC is
+                pressed, before the overlay closes. Runs on the main thread.
+        """
         try:
             from AppKit import NSColor, NSPanel, NSScreen, NSStatusWindowLevel
             from Foundation import NSMakeRect, NSURL
@@ -277,6 +284,7 @@ class StreamingOverlayPanel:
                 self._do_close()
 
             self._cancel_event = cancel_event
+            self._on_cancel = on_cancel
             self._loading_seconds = 0
             self._llm_info = llm_info
             self._page_loaded = False
@@ -391,6 +399,11 @@ class StreamingOverlayPanel:
                 if event.keyCode() == _ESC_KEY_CODE:
                     if self._cancel_event is not None:
                         self._cancel_event.set()
+                    if self._on_cancel is not None:
+                        try:
+                            self._on_cancel()
+                        except Exception:
+                            logger.error("on_cancel callback failed", exc_info=True)
                     self.close()
                     logger.info("Streaming cancelled via ESC key")
 
@@ -627,6 +640,7 @@ class StreamingOverlayPanel:
         self._stop_close_timer()
         self._remove_esc_monitor()
         self._cancel_event = None
+        self._on_cancel = None
         self._page_loaded = False
         self._pending_js.clear()
 

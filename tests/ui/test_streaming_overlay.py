@@ -120,6 +120,29 @@ class TestStreamingOverlayPanel:
         handler(mock_event)
         assert cancel_event.is_set()
 
+    def test_esc_handler_calls_on_cancel(self, _mock_appkit):
+        """ESC should invoke on_cancel callback before closing."""
+        mock_appkit_mod = _mock_appkit.appkit
+        panel = _make_panel()
+        on_cancel = MagicMock()
+
+        handler = None
+
+        def capture_handler(mask, h):
+            nonlocal handler
+            handler = h
+            return MagicMock()
+
+        mock_appkit_mod.NSEvent.addGlobalMonitorForEventsMatchingMask_handler_ = (
+            capture_handler
+        )
+
+        panel.show(asr_text="test", cancel_event=threading.Event(), on_cancel=on_cancel)
+        mock_event = MagicMock()
+        mock_event.keyCode.return_value = 53
+        handler(mock_event)
+        on_cancel.assert_called_once()
+
     def test_multiple_show_close_cycles(self, _mock_appkit):
         panel = _make_panel()
         for _ in range(3):

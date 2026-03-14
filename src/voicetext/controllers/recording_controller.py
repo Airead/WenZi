@@ -201,6 +201,10 @@ class RecordingController:
 
             from PyObjCTools import AppHelper
 
+            def _on_esc_cancel():
+                app._busy = False
+                app._set_status("VT")
+
             def _show_direct_overlay():
                 app._recording_indicator.hide()
                 app._streaming_overlay.show(
@@ -208,6 +212,7 @@ class RecordingController:
                     cancel_event=direct_cancel,
                     stt_info=stt_info,
                     llm_info=llm_info if use_enhance else "",
+                    on_cancel=_on_esc_cancel,
                 )
 
             AppHelper.callAfter(_show_direct_overlay)
@@ -216,18 +221,14 @@ class RecordingController:
             def _do_transcribe():
                 try:
                     if direct_cancel.is_set():
-                        AppHelper.callAfter(app._streaming_overlay.close)
-                        app._set_status("VT")
-                        logger.info("Transcription cancelled via ESC")
+                        logger.info("Transcription cancelled via ESC (before start)")
                         return
                     app._transcriber.skip_punc = bool(
                         app._enhancer and app._enhancer.is_active
                     )
                     text = app._transcriber.transcribe(wav_data)
                     if direct_cancel.is_set():
-                        AppHelper.callAfter(app._streaming_overlay.close)
-                        app._set_status("VT")
-                        logger.info("Transcription cancelled via ESC")
+                        logger.info("Transcription cancelled via ESC (after transcribe)")
                         return
                     if text and text.strip():
                         asr_text = text.strip()
@@ -247,7 +248,10 @@ class RecordingController:
                     AppHelper.callAfter(app._streaming_overlay.close)
                     app._set_status("Error")
                 finally:
-                    app._busy = False
+                    # Only reset _busy if not cancelled — on_cancel already
+                    # reset it, and a new recording may have started since.
+                    if not direct_cancel.is_set():
+                        app._busy = False
 
             threading.Thread(target=_do_transcribe, daemon=True).start()
 
