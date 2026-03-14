@@ -548,6 +548,78 @@ class TestAudioDuration:
         assert record["audio_duration"] == 5.7
 
 
+class TestRotation:
+    def test_no_rotation_below_threshold(self, history, history_dir):
+        """Should not rotate when record count is below _MAX_RECORDS."""
+        for i in range(10):
+            history.log(f"text{i}", None, f"text{i}", "off", False)
+
+        path = os.path.join(history_dir, "conversation_history.jsonl")
+        archive = os.path.join(history_dir, "conversation_history.1.jsonl")
+        with open(path, "r", encoding="utf-8") as f:
+            assert len(f.readlines()) == 10
+        assert not os.path.exists(archive)
+
+    def test_rotation_triggers_at_max(self, history, history_dir):
+        """Should archive old records when exceeding _MAX_RECORDS."""
+        # Use a small limit for testing
+        history._MAX_RECORDS = 5
+        history._ROTATE_SIZE_THRESHOLD = 0  # disable size pre-check
+
+        for i in range(8):
+            history.log(f"text{i}", None, f"text{i}", "off", False)
+
+        path = os.path.join(history_dir, "conversation_history.jsonl")
+        archive = os.path.join(history_dir, "conversation_history.1.jsonl")
+
+        with open(path, "r", encoding="utf-8") as f:
+            kept = f.readlines()
+        assert len(kept) == 5
+        # Should keep the most recent 5
+        assert json.loads(kept[0])["asr_text"] == "text3"
+        assert json.loads(kept[-1])["asr_text"] == "text7"
+
+        with open(archive, "r", encoding="utf-8") as f:
+            archived = f.readlines()
+        assert len(archived) == 3
+        assert json.loads(archived[0])["asr_text"] == "text0"
+
+    def test_rotation_appends_to_existing_archive(self, history, history_dir):
+        """Subsequent rotations should append to the archive file."""
+        history._MAX_RECORDS = 3
+        history._ROTATE_SIZE_THRESHOLD = 0
+
+        # First batch: 5 records → rotate, archive 2, keep 3
+        for i in range(5):
+            history.log(f"batch1_{i}", None, f"batch1_{i}", "off", False)
+
+        # Second batch: 2 more → total 5 again → rotate, archive 2 more
+        for i in range(2):
+            history.log(f"batch2_{i}", None, f"batch2_{i}", "off", False)
+
+        archive = os.path.join(history_dir, "conversation_history.1.jsonl")
+        with open(archive, "r", encoding="utf-8") as f:
+            archived = f.readlines()
+        # First rotation: 2 archived, second rotation: 2 more
+        assert len(archived) == 4
+
+    def test_rotation_skipped_by_size_threshold(self, history, history_dir):
+        """Should skip rotation when file size is below threshold."""
+        history._MAX_RECORDS = 3
+        # Keep default threshold high — small test files won't trigger
+        history._ROTATE_SIZE_THRESHOLD = 10 * 1024 * 1024
+
+        for i in range(5):
+            history.log(f"text{i}", None, f"text{i}", "off", False)
+
+        path = os.path.join(history_dir, "conversation_history.jsonl")
+        with open(path, "r", encoding="utf-8") as f:
+            assert len(f.readlines()) == 5  # no rotation happened
+        assert not os.path.exists(
+            os.path.join(history_dir, "conversation_history.1.jsonl")
+        )
+
+
 class TestCorrectionCount:
     def test_no_file(self, history):
         assert history.correction_count() == 0
