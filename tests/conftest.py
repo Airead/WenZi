@@ -70,7 +70,7 @@ def mock_panel_close_delegate(monkeypatch, module, attr_name="_PanelCloseDelegat
 
     Usage in per-file fixture:
         from tests.conftest import mock_panel_close_delegate
-        import voicetext.settings_window as _sw
+        import voicetext.ui.settings_window as _sw
         _sw._PanelCloseDelegate = None
         mock_panel_close_delegate(monkeypatch, _sw)
     """

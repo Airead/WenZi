@@ -15,16 +15,16 @@ from typing import Any, Dict, List, Optional, Tuple
 from ApplicationServices import AXIsProcessTrusted, AXIsProcessTrustedWithOptions
 from CoreFoundation import kCFBooleanTrue
 
-from .auto_vocab_builder import AutoVocabBuilder
+from .enhance.auto_vocab_builder import AutoVocabBuilder
 from .config import load_config, save_config
-from .enhance_controller import EnhanceController
-from .conversation_history import ConversationHistory
+from .controllers.enhance_controller import EnhanceController
+from .enhance.conversation_history import ConversationHistory
 from .usage_stats import UsageStats
-from .enhancer import MODE_OFF, create_enhancer
-from .history_browser_window import HistoryBrowserPanel
-from .log_viewer_window import LogViewerPanel
-from .result_window import ResultPreviewPanel
-from .settings_window import SettingsPanel
+from .enhance.enhancer import MODE_OFF, create_enhancer
+from .ui.history_browser_window import HistoryBrowserPanel
+from .ui.log_viewer_window import LogViewerPanel
+from .ui.result_window import ResultPreviewPanel
+from .ui.settings_window import SettingsPanel
 from .hotkey import MultiHotkeyListener, TapHotkeyListener, _is_fn_key
 from .input import (
     copy_selection_to_clipboard,
@@ -33,7 +33,7 @@ from .input import (
     set_clipboard_text,
     type_text,
 )
-from .model_registry import (
+from .transcription.model_registry import (
     PRESET_BY_ID,
     PRESETS,
     build_remote_asr_models,
@@ -41,24 +41,24 @@ from .model_registry import (
     is_model_cached,
     resolve_preset_from_config,
 )
-from .recorder import Recorder
-from .recording_indicator import RecordingIndicatorPanel
-from .sound_manager import SoundManager
+from .audio.recorder import Recorder
+from .audio.recording_indicator import RecordingIndicatorPanel
+from .audio.sound_manager import SoundManager
 from .statusbar import (
     StatusBarApp,
     StatusMenuItem,
     quit_application,
     send_notification,
 )
-from .streaming_overlay import StreamingOverlayPanel
-from .menu_builder import MenuBuilder
-from .model_controller import ModelController, migrate_asr_config
-from .preview_controller import PreviewController
-from .recording_controller import RecordingController
-from .settings_controller import SettingsController
-from .config_controller import ConfigController
-from .enhance_mode_controller import EnhanceModeController
-from .transcriber import create_transcriber
+from .ui.streaming_overlay import StreamingOverlayPanel
+from .controllers.menu_builder import MenuBuilder
+from .controllers.model_controller import ModelController, migrate_asr_config
+from .controllers.preview_controller import PreviewController
+from .controllers.recording_controller import RecordingController
+from .controllers.settings_controller import SettingsController
+from .controllers.config_controller import ConfigController
+from .controllers.enhance_mode_controller import EnhanceModeController
+from .transcription.base import create_transcriber
 from .ui_helpers import (
     activate_for_dialog,
     restore_accessory,

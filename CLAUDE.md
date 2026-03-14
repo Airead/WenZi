@@ -1,5 +1,25 @@
 # VoiceText - Claude Code Instructions
 
+## Project Structure
+
+Source code is organized into subpackages by responsibility:
+
+```
+src/voicetext/
+├── app.py, config.py, statusbar.py, ...   # Root-level core modules
+├── audio/           # Recording, sound feedback, recording indicator
+├── transcription/   # ASR backends (FunASR, MLX Whisper, Apple Speech, Whisper API)
+├── enhance/         # AI text enhancement, vocabulary, conversation history
+├── ui/              # UI panels and windows (result, settings, log viewer, etc.)
+└── controllers/     # Business logic controllers
+```
+
+Tests mirror this structure under `tests/`.
+
+When adding new modules, place them in the appropriate subpackage. Subpackage `__init__.py` files re-export public APIs — update them when adding new public classes/functions.
+
+Cross-package imports from controllers/ui should use absolute paths (`from voicetext.config import ...`), not relative imports to parent package.
+
 ## UI Dialogs
 
 This is a macOS statusbar (accessory) app built with pure PyObjC (via `statusbar.py`). Standard modal dialogs will not appear on screen because the app has no foreground presence.
@@ -57,7 +77,7 @@ def _get_meta(self, btn) -> Dict:
     return self._btn_meta.get(id(btn), {})
 ```
 
-See `settings_window.py` for the reference implementation.
+See `ui/settings_window.py` for the reference implementation.
 
 ## Dark Mode Support
 
@@ -78,7 +98,7 @@ All UI must support macOS dark mode. Follow these rules when writing UI code:
       return NSColor.colorWithName_dynamicProvider_("custom", provider)
   ```
 - **Avoid deprecated `colorWithCalibratedRed_green_blue_alpha_`** — use `colorWithSRGBRed_green_blue_alpha_` or system semantic colors.
-- See `result_window.py` for a good reference implementation of dark mode support.
+- See `ui/result_window.py` for a good reference implementation of dark mode support.
 
 ## Usage Statistics
 
