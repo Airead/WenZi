@@ -473,9 +473,9 @@ class MultiHotkeyListener:
         on_press: Callable[[], None],
         on_release: Callable[[], None],
         on_restart: Optional[Callable[[], None]] = None,
-        restart_key: str = "space",
+        restart_key: str = "cmd",
         on_cancel: Optional[Callable[[], None]] = None,
-        cancel_key: str = "cmd",
+        cancel_key: str = "space",
     ) -> None:
         self._on_press = on_press
         self._on_release = on_release
@@ -668,6 +668,7 @@ class MultiHotkeyListener:
                 threading.Thread(
                     target=self._run_cancel, daemon=True
                 ).start()
+                return True  # swallow the cancel key event
         except Exception:
             logger.warning("_handle_press exception", exc_info=True)
         return False
