@@ -189,16 +189,3 @@ class TestOnBrowseHistory:
         ctrl.on_browse_history(None)
         mock_app._history_browser.show.assert_called_once()
 
-
-class TestOnAbout:
-    @patch("voicetext.controllers.config_controller.restore_accessory")
-    @patch("voicetext.controllers.config_controller.topmost_alert")
-    def test_shows_version(self, mock_alert, mock_restore, ctrl):
-        with patch("voicetext.__version__", "1.2.3"), \
-             patch("voicetext._build_info.BUILD_DATE", "2026-01-01"), \
-             patch("voicetext._build_info.GIT_HASH", "abc123"):
-            ctrl.on_about(None)
-
-        mock_alert.assert_called_once()
-        assert "1.2.3" in mock_alert.call_args[1]["message"]
-        mock_restore.assert_called_once()

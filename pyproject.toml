@@ -36,6 +36,9 @@ packages = ["src/voicetext"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+filterwarnings = [
+    "ignore::DeprecationWarning:importlib._bootstrap",
+]
 
 [tool.uv]
 override-dependencies = ["numpy==1.26.4"]
