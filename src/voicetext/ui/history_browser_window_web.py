@@ -119,13 +119,6 @@ body {
     transition: all 0.15s; position: relative;
     -webkit-user-select: none; user-select: none;
 }
-.tag-pill .tip {
-    display: none; position: absolute; bottom: calc(100% + 4px); left: 50%;
-    transform: translateX(-50%); padding: 3px 8px; border-radius: 4px;
-    background: var(--text); color: var(--bg); font-size: 11px; font-weight: 400;
-    white-space: nowrap; z-index: 100; pointer-events: none;
-}
-.tag-pill:hover .tip { display: block; }
 /* Dimmed: color from --c custom property set via JS */
 .tag-pill {
     --c: var(--secondary);
@@ -177,7 +170,7 @@ body {
     padding: 5px 8px; font-size: 12px;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.col-time { width: 140px; flex-shrink: 0; color: var(--secondary); }
+.col-time { width: 166px; flex-shrink: 0; color: var(--secondary); font-family: "SF Mono", Menlo, monospace; }
 .col-mode { width: 80px; flex-shrink: 0; }
 .col-content { flex: 1; min-width: 0; }
 .col-tags {
@@ -196,13 +189,6 @@ body {
     color: var(--mc);
     background: color-mix(in srgb, var(--mc) 18%, transparent);
 }
-.mini-tag .tip {
-    display: none; position: absolute; bottom: calc(100% + 4px); left: 50%;
-    transform: translateX(-50%); padding: 4px 8px; border-radius: 4px;
-    background: var(--text); color: var(--bg); font-size: 11px; font-weight: 400;
-    white-space: nowrap; z-index: 100; pointer-events: none;
-}
-.mini-tag:hover .tip { display: block; }
 .mini-tag.mini-corr { width: 34px; }
 .mini-tag-placeholder {
     display: inline-block; width: 34px; height: 14px; flex-shrink: 0;
@@ -246,6 +232,15 @@ body {
 .btn-row {
     display: flex; justify-content: flex-end; gap: 8px;
     margin-top: 8px; flex-shrink: 0;
+}
+
+/* Global tooltip */
+#tooltip {
+    display: none; position: fixed; padding: 4px 10px; border-radius: 5px;
+    background: var(--card-bg); color: var(--text);
+    border: 1px solid var(--border);
+    font-size: 11px; white-space: nowrap; z-index: 9999;
+    pointer-events: none; box-shadow: 0 2px 8px rgba(0,0,0,0.15);
 }
 </style>
 </head>
@@ -300,7 +295,10 @@ body {
     <button class="btn" id="close-btn">Close</button>
 </div>
 
+<div id="tooltip"></div>
+
 <script>
+const tooltipEl = document.getElementById('tooltip');
 const tableBody = document.getElementById('table-body');
 const detail = document.getElementById('detail');
 const searchEl = document.getElementById('search');
@@ -482,8 +480,8 @@ function setTagOptions(tags) {
         pill.setAttribute('data-name', t.name);
         pill.style.setProperty('--c', tagBgColor(t.name, t.group));
         const short = abbr(t.name);
-        pill.innerHTML = esc(short + ':' + t.count)
-            + (short !== t.name ? `<span class="tip">${esc(t.name)}</span>` : '');
+        pill.textContent = short + ':' + t.count;
+        if (short !== t.name) pill.setAttribute('data-tip', t.name);
         pill.addEventListener('click', () => onTagClick(t.name));
         tagRow.appendChild(pill);
     });
@@ -557,10 +555,30 @@ function abbr(name) {
     return name.substring(0, 4) + '\u2026' + name.slice(-4);
 }
 function miniTag(label, group, tooltip, extraCls) {
-    const tip = tooltip ? `<span class="tip">${esc(tooltip)}</span>` : '';
+    const t = tooltip ? ` data-tip="${esc(tooltip)}"` : '';
     const cls = 'mini-tag' + (extraCls ? ' ' + extraCls : '');
-    return `<span class="${cls}" style="--mc:${tagBgColor(group, group)}">${esc(label)}${tip}</span>`;
+    return `<span class="${cls}"${t} style="--mc:${tagBgColor(group, group)}">${esc(label)}</span>`;
 }
+
+/* --- Global tooltip on [data-tip] elements --- */
+document.addEventListener('mouseover', (e) => {
+    const el = e.target.closest('[data-tip]');
+    if (!el) { tooltipEl.style.display = 'none'; return; }
+    tooltipEl.textContent = el.getAttribute('data-tip');
+    tooltipEl.style.display = 'block';
+    const r = el.getBoundingClientRect();
+    let x = r.left + r.width / 2 - tooltipEl.offsetWidth / 2;
+    let y = r.top - tooltipEl.offsetHeight - 6;
+    if (y < 4) y = r.bottom + 6;
+    if (x < 4) x = 4;
+    if (x + tooltipEl.offsetWidth > window.innerWidth - 4)
+        x = window.innerWidth - tooltipEl.offsetWidth - 4;
+    tooltipEl.style.left = x + 'px';
+    tooltipEl.style.top = y + 'px';
+});
+document.addEventListener('mouseout', (e) => {
+    if (e.target.closest('[data-tip]')) tooltipEl.style.display = 'none';
+});
 </script>
 </body>
 </html>"""
