@@ -18,7 +18,6 @@ from .controllers.enhance_controller import EnhanceController
 from .enhance.conversation_history import ConversationHistory
 from .usage_stats import UsageStats
 from .enhance.enhancer import MODE_OFF, create_enhancer
-from .ui.history_browser_window import HistoryBrowserPanel
 from .ui.result_window import ResultPreviewPanel as NativeResultPreviewPanel
 from .ui.result_window_web import ResultPreviewPanel as WebResultPreviewPanel
 from .ui.settings_window import SettingsPanel
@@ -371,7 +370,7 @@ class VoiceTextApp(StatusBarApp):
         self._about_item = StatusMenuItem("About VoiceText", callback=self._on_about)
 
         # History browser (lazy-created)
-        self._history_browser: Optional[HistoryBrowserPanel] = None
+        self._history_browser = None
 
         # Settings panel
         self._settings_panel = SettingsPanel()

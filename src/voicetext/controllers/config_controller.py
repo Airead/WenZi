@@ -281,10 +281,13 @@ class ConfigController:
 
     def on_browse_history(self, _=None) -> None:
         """Open the conversation history browser panel."""
-        from voicetext.ui.history_browser_window import HistoryBrowserPanel
-
         app = self._app
         if app._history_browser is None:
+            preview_type = app._config["output"].get("preview_type", "web")
+            if preview_type == "web":
+                from voicetext.ui.history_browser_window_web import HistoryBrowserPanel
+            else:
+                from voicetext.ui.history_browser_window import HistoryBrowserPanel
             app._history_browser = HistoryBrowserPanel()
 
         def _on_history_save(timestamp: str, new_final_text: str) -> None:

@@ -175,7 +175,7 @@ class TestOnReloadConfig:
 
 class TestOnBrowseHistory:
     def test_creates_browser_and_shows(self, ctrl, mock_app):
-        with patch("voicetext.ui.history_browser_window.HistoryBrowserPanel") as mock_cls:
+        with patch("voicetext.ui.history_browser_window_web.HistoryBrowserPanel") as mock_cls:
             mock_panel = MagicMock()
             mock_cls.return_value = mock_panel
 
