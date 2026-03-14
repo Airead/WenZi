@@ -401,6 +401,55 @@ class TestJsMessages:
         assert panel._filtered_records[0]["final_text"] == "old"
         on_save.assert_not_called()
 
+    def test_delete(self):
+        from voicetext.ui.history_browser_window_web import HistoryBrowserPanel
+
+        panel = _build_panel(HistoryBrowserPanel())
+        history = MagicMock()
+        history.delete_record.return_value = True
+        panel._conversation_history = history
+        panel._time_range = "all"
+        rec = {"timestamp": "t1", "enhance_mode": "off", "final_text": "old"}
+        panel._all_records = [rec]
+        panel._filtered_records = [rec]
+        panel._selected_index = 0
+
+        panel._handle_js_message({"type": "delete", "timestamp": "t1"})
+
+        history.delete_record.assert_called_once_with("t1")
+        assert len(panel._filtered_records) == 0
+        assert len(panel._all_records) == 0
+        assert panel._selected_index == -1
+
+    def test_delete_no_selection(self):
+        from voicetext.ui.history_browser_window_web import HistoryBrowserPanel
+
+        panel = _build_panel(HistoryBrowserPanel())
+        history = MagicMock()
+        panel._conversation_history = history
+        panel._selected_index = -1
+
+        panel._handle_js_message({"type": "delete", "timestamp": "t1"})
+
+        history.delete_record.assert_not_called()
+
+    def test_delete_failed(self):
+        from voicetext.ui.history_browser_window_web import HistoryBrowserPanel
+
+        panel = _build_panel(HistoryBrowserPanel())
+        history = MagicMock()
+        history.delete_record.return_value = False
+        panel._conversation_history = history
+        panel._time_range = "all"
+        rec = {"timestamp": "t1", "enhance_mode": "off", "final_text": "old"}
+        panel._all_records = [rec]
+        panel._filtered_records = [rec]
+        panel._selected_index = 0
+
+        panel._handle_js_message({"type": "delete", "timestamp": "t1"})
+
+        assert len(panel._filtered_records) == 1
+
     def test_close_message(self):
         from voicetext.ui.history_browser_window_web import HistoryBrowserPanel
 

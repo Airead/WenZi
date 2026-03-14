@@ -270,6 +270,55 @@ class ConversationHistory:
         os.replace(tmp_path, self._history_path)
         return True
 
+    def delete_record(self, timestamp: str) -> bool:
+        """Delete a record identified by timestamp.
+
+        Uses atomic file replacement via a temporary file + os.replace().
+
+        Args:
+            timestamp: The ISO timestamp identifying the record.
+
+        Returns:
+            True if record was found and deleted, False otherwise.
+        """
+        if not os.path.exists(self._history_path):
+            return False
+
+        try:
+            with open(self._history_path, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+        except Exception as e:
+            logger.warning("Failed to read conversation history: %s", e)
+            return False
+
+        found = False
+        new_lines: List[str] = []
+        for line in lines:
+            stripped = line.strip()
+            if not stripped:
+                new_lines.append(line)
+                continue
+            try:
+                record = json.loads(stripped)
+            except json.JSONDecodeError:
+                new_lines.append(line)
+                continue
+
+            if record.get("timestamp") == timestamp and not found:
+                found = True
+                # Skip this line (delete)
+            else:
+                new_lines.append(line)
+
+        if not found:
+            return False
+
+        tmp_path = self._history_path + ".tmp"
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            f.writelines(new_lines)
+        os.replace(tmp_path, self._history_path)
+        return True
+
     def search(self, query: str, limit: int = 100) -> List[Dict[str, Any]]:
         """Search records by case-insensitive substring match on text fields.
 

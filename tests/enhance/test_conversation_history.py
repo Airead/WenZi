@@ -380,6 +380,51 @@ class TestConversationHistoryUpdateFinalText:
         assert r2["final_text"] == "Modified"
 
 
+class TestConversationHistoryDeleteRecord:
+    def test_delete_record(self, history, history_dir):
+        history.log("hello", "Hello.", "Hello.", "proofread", True)
+
+        path = os.path.join(history_dir, "conversation_history.jsonl")
+        with open(path, "r", encoding="utf-8") as f:
+            record = json.loads(f.readline())
+        ts = record["timestamp"]
+
+        result = history.delete_record(ts)
+        assert result is True
+
+        # File should be empty (no records)
+        with open(path, "r", encoding="utf-8") as f:
+            lines = [ln for ln in f.readlines() if ln.strip()]
+        assert len(lines) == 0
+
+    def test_delete_record_not_found(self, history):
+        history.log("hello", "Hello.", "Hello.", "proofread", True)
+        result = history.delete_record("nonexistent-timestamp")
+        assert result is False
+
+    def test_delete_record_no_file(self, history):
+        result = history.delete_record("any-timestamp")
+        assert result is False
+
+    def test_delete_preserves_other_records(self, history, history_dir):
+        history.log("first", "First", "First", "proofread", True)
+        history.log("second", "Second", "Second", "proofread", True)
+        history.log("third", "Third", "Third", "proofread", True)
+
+        path = os.path.join(history_dir, "conversation_history.jsonl")
+        with open(path, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+        ts2 = json.loads(lines[1])["timestamp"]
+
+        history.delete_record(ts2)
+
+        with open(path, "r", encoding="utf-8") as f:
+            remaining = [json.loads(ln) for ln in f.readlines() if ln.strip()]
+        assert len(remaining) == 2
+        assert remaining[0]["asr_text"] == "first"
+        assert remaining[1]["asr_text"] == "third"
+
+
 class TestConversationHistorySearch:
     def test_search_basic(self, history):
         history.log("hello world", None, "hello world", "off", True)

@@ -26,7 +26,7 @@ _HTML_TEMPLATE = r"""<!DOCTYPE html>
 :root {
     --bg: #ffffff; --text: #1d1d1f; --card-bg: #f5f5f7;
     --border: #d2d2d7; --secondary: #86868b; --accent: #007aff;
-    --text-bg: #ffffff; --row-hover: #e8f0fe;
+    --text-bg: #ffffff; --row-hover: #e8f0fe; --row-selected: #3a76c4;
     --btn-bg: #e5e5ea; --btn-hover: #d1d1d6;
     --btn-primary-bg: #007aff; --btn-primary-text: #ffffff;
     --focus-ring: rgba(0, 122, 255, 0.4);
@@ -40,7 +40,7 @@ _HTML_TEMPLATE = r"""<!DOCTYPE html>
     :root {
         --bg: #1d1d1f; --text: #c8c8cc; --card-bg: #2c2c2e;
         --border: #48484a; --secondary: #98989d; --accent: #0a84ff;
-        --text-bg: #1c1c1e; --row-hover: #2c3a50;
+        --text-bg: #1c1c1e; --row-hover: #2c3a50; --row-selected: #2e5080;
         --btn-bg: #3a3a3c; --btn-hover: #48484a;
         --btn-primary-bg: #0a84ff; --btn-primary-text: #ffffff;
         --focus-ring: rgba(10, 132, 255, 0.4);
@@ -90,6 +90,8 @@ body {
 .btn:hover { background: var(--btn-hover); }
 .btn-primary { background: var(--btn-primary-bg); color: var(--btn-primary-text); }
 .btn-primary:hover { opacity: 0.9; }
+.btn-danger { background: #c44; color: #fff; }
+.btn-danger:hover { background: #b33; }
 .btn:disabled { opacity: 0.4; cursor: default; }
 
 /* Tag filter row */
@@ -162,9 +164,9 @@ body {
 .row:last-child { border-bottom: none; }
 .row:nth-child(even) { background: var(--alt-row); }
 .row:hover { background: var(--row-hover); }
-.row.selected { background: var(--accent); color: #fff; }
+.row.selected { background: var(--row-selected); color: #fff; }
 .row.selected .col { color: #fff; }
-.row.selected .col-time { color: rgba(255,255,255,0.8); }
+.row.selected .col-time { color: rgba(255,255,255,0.7); }
 .row.selected .mini-tag { opacity: 0.9; }
 .col {
     padding: 5px 8px; font-size: 12px;
@@ -215,13 +217,13 @@ body {
 }
 .final-input {
     width: 100%; height: 32px; padding: 0 10px;
-    border: 2px solid var(--accent); border-radius: 6px;
+    border: 1px solid var(--row-selected); border-radius: 6px;
     background: var(--text-bg); color: var(--text);
     font-family: "SF Mono", Menlo, monospace; font-size: 12px;
     outline: none;
     -webkit-user-select: text; user-select: text;
 }
-.final-input:focus { box-shadow: 0 0 0 3px var(--focus-ring); }
+.final-input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--focus-ring); }
 .final-input:disabled { opacity: 0.5; border-color: var(--border); }
 .detail-info {
     display: flex; align-items: center; gap: 16px;
@@ -291,6 +293,8 @@ body {
 </div>
 
 <div class="btn-row">
+    <button class="btn btn-danger" id="delete-btn" disabled>Delete</button>
+    <span style="flex:1"></span>
     <button class="btn btn-primary" id="save-btn" disabled>Save</button>
     <button class="btn" id="close-btn">Close</button>
 </div>
@@ -313,6 +317,7 @@ const enhancedText = document.getElementById('enhanced-text');
 const finalInput = document.getElementById('final-input');
 const modeInfo = document.getElementById('mode-info');
 const timeInfo = document.getElementById('time-info');
+const deleteBtn = document.getElementById('delete-btn');
 const saveBtn = document.getElementById('save-btn');
 const closeBtn = document.getElementById('close-btn');
 
@@ -393,6 +398,11 @@ finalInput.addEventListener('input', () => {
 });
 
 /* --- Buttons --- */
+deleteBtn.addEventListener('click', () => {
+    if (selectedIndex < 0 || selectedIndex >= currentRecords.length) return;
+    const rec = currentRecords[selectedIndex];
+    post({type:'delete', timestamp: rec.timestamp || ''});
+});
 saveBtn.addEventListener('click', () => {
     if (selectedIndex < 0 || selectedIndex >= currentRecords.length) return;
     const rec = currentRecords[selectedIndex];
@@ -416,7 +426,8 @@ function setRecords(records, totalCount) {
     currentRecords = records;
     selectedIndex = -1;
     detail.style.display = 'none';
-    finalInput.disabled = true; finalInput.value = ''; saveBtn.disabled = true;
+    finalInput.disabled = true; finalInput.value = '';
+    saveBtn.disabled = true; deleteBtn.disabled = true;
 
     /* Stats */
     if (totalCount !== records.length) {
@@ -512,11 +523,13 @@ function showDetail(record) {
     if (record.edited_at) label += `  (edited: ${fmtTs(record.edited_at)})`;
     timeInfo.textContent = label;
     saveBtn.disabled = true;
+    deleteBtn.disabled = false;
 }
 
 function clearDetail() {
     detail.style.display = 'none';
-    finalInput.value = ''; finalInput.disabled = true; saveBtn.disabled = true;
+    finalInput.value = ''; finalInput.disabled = true;
+    saveBtn.disabled = true; deleteBtn.disabled = true;
     selectedIndex = -1;
     document.querySelectorAll('.row.selected').forEach(r => r.classList.remove('selected'));
 }
@@ -892,6 +905,9 @@ class HistoryBrowserPanel:
         elif msg_type == "save":
             self._on_save_clicked(body.get("timestamp", ""), body.get("text", ""))
 
+        elif msg_type == "delete":
+            self._on_delete_clicked(body.get("timestamp", ""))
+
         elif msg_type == "close":
             self.close()
 
@@ -908,6 +924,25 @@ class HistoryBrowserPanel:
             self._eval_js(f"markSaved({self._selected_index})")
             if self._on_save:
                 self._on_save(timestamp, new_text)
+
+    def _on_delete_clicked(self, timestamp: str) -> None:
+        """Delete a record from conversation history."""
+        if not timestamp or self._conversation_history is None:
+            return
+        if self._selected_index < 0 or self._selected_index >= len(self._filtered_records):
+            return
+
+        ok = self._conversation_history.delete_record(timestamp)
+        if ok:
+            # Remove from both lists
+            deleted = self._filtered_records[self._selected_index]
+            self._filtered_records.pop(self._selected_index)
+            if deleted in self._all_records:
+                self._all_records.remove(deleted)
+            self._selected_index = -1
+            self._push_tag_options()
+            self._push_records()
+            self._eval_js("clearDetail()")
 
     # ------------------------------------------------------------------
     # WKWebView JS bridge
