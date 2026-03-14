@@ -16,7 +16,7 @@ def mock_app():
     app._config = {
         "hotkeys": {"fn": True, "ctrl": False},
         "feedback": {"sound_enabled": True, "visual_indicator": True},
-        "output": {"method": "type", "append_newline": False, "preview": True},
+        "output": {"method": "type", "append_newline": False, "preview": True, "preview_type": "web"},
         "asr": {
             "backend": "funasr",
             "preset": "funasr-zh",
@@ -49,6 +49,8 @@ def mock_app():
     app._recording_indicator.enabled = True
     app._visual_indicator_item = MagicMock()
     app._preview_enabled = True
+    app._preview_type = "web"
+    app._preview_panel = MagicMock()
     app._preview_item = MagicMock()
     app._current_preset_id = "funasr-zh"
     app._current_remote_asr = None
@@ -131,6 +133,32 @@ class TestPreviewToggle:
         assert mock_app._preview_item.state == 0
         assert mock_app._config["output"]["preview"] is False
         mock_save.assert_called_once()
+
+
+class TestPreviewTypeToggle:
+    @patch("voicetext.controllers.settings_controller.save_config")
+    def test_toggle_to_native(self, mock_save, ctrl, mock_app):
+        ctrl.preview_type_toggle(False)
+
+        assert mock_app._preview_type == "native"
+        assert mock_app._config["output"]["preview_type"] == "native"
+        mock_save.assert_called_once()
+
+    @patch("voicetext.controllers.settings_controller.save_config")
+    def test_toggle_to_web(self, mock_save, ctrl, mock_app):
+        mock_app._preview_type = "native"
+        ctrl.preview_type_toggle(True)
+
+        assert mock_app._preview_type == "web"
+        assert mock_app._config["output"]["preview_type"] == "web"
+        mock_save.assert_called_once()
+
+    @patch("voicetext.controllers.settings_controller.save_config")
+    def test_same_type_noop(self, mock_save, ctrl, mock_app):
+        mock_app._preview_type = "web"
+        ctrl.preview_type_toggle(True)
+
+        mock_save.assert_not_called()
 
 
 class TestSttSelect:
@@ -312,6 +340,7 @@ class TestOnOpenSettings:
 
         assert "on_hotkey_toggle" in callbacks
         assert "on_sound_toggle" in callbacks
+        assert "on_preview_type_toggle" in callbacks
         assert "on_stt_select" in callbacks
         assert "on_llm_select" in callbacks
         assert "on_thinking_toggle" in callbacks

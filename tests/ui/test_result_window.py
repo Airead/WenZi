@@ -1,11 +1,25 @@
-"""Tests for the result preview panel."""
+"""Tests for the native AppKit result preview panel."""
 
 from __future__ import annotations
 
 import threading
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+from tests.ui._shared_result_window_tests import (
+    SharedConfirmCancelTests,
+    SharedEnhanceLabelTests,
+    SharedModeSwitchTests,
+    SharedModelChangeTests,
+    SharedPropertyTests,
+    SharedReplayCachedTests,
+    SharedShowTests,
+    SharedStreamingTests,
+    SharedThreadingTests,
+    SharedToggleTests,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -24,6 +38,111 @@ def _setup_panel_with_final_field(panel):
     panel._panel = MagicMock()
     panel._final_text_field = MagicMock()
     return panel
+
+
+# ---------------------------------------------------------------------------
+# Shared test fixture for native panel
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def panel_factory():
+    """Factory that returns a ready-to-test native ResultPreviewPanel."""
+
+    def _factory():
+        from voicetext.ui.result_window import ResultPreviewPanel
+
+        panel = _setup_panel_with_final_field(ResultPreviewPanel())
+        # Provide mocked views so methods don't early-return
+        panel._enhance_text_view = MagicMock()
+        panel._enhance_label = MagicMock()
+        panel._asr_text_view = MagicMock()
+
+        def trigger_confirm(text, user_edited=False, enhance_text="", copy=False):
+            panel._final_text_field.stringValue.return_value = text
+            if user_edited:
+                panel._on_user_edit()
+            if enhance_text:
+                panel._enhance_text_view = MagicMock()
+                panel._enhance_text_view.string.return_value = enhance_text
+            panel._cmd_held = copy
+            panel.confirmClicked_(None)
+
+        def trigger_cancel():
+            panel.cancelClicked_(None)
+
+        def trigger_mode_change(index):
+            panel._on_segment_changed(index)
+
+        def trigger_stt_change(index):
+            panel._on_stt_popup_changed(index)
+
+        def trigger_llm_change(index):
+            panel._on_llm_popup_changed(index)
+
+        def trigger_punc_toggle(enabled):
+            panel._on_punc_toggled(enabled)
+
+        def trigger_thinking_toggle(enabled):
+            panel._on_thinking_toggled(enabled)
+
+        return SimpleNamespace(
+            panel=panel,
+            trigger_confirm=trigger_confirm,
+            trigger_cancel=trigger_cancel,
+            trigger_mode_change=trigger_mode_change,
+            trigger_stt_change=trigger_stt_change,
+            trigger_llm_change=trigger_llm_change,
+            trigger_punc_toggle=trigger_punc_toggle,
+            trigger_thinking_toggle=trigger_thinking_toggle,
+        )
+
+    return _factory
+
+
+# ---------------------------------------------------------------------------
+# Shared behavioral tests (run against native panel)
+# ---------------------------------------------------------------------------
+
+
+class TestNativeShow(SharedShowTests):
+    pass
+
+
+class TestNativeConfirmCancel(SharedConfirmCancelTests):
+    pass
+
+
+class TestNativeModeSwitch(SharedModeSwitchTests):
+    pass
+
+
+class TestNativeModelChange(SharedModelChangeTests):
+    pass
+
+
+class TestNativeToggle(SharedToggleTests):
+    pass
+
+
+class TestNativeStreaming(SharedStreamingTests):
+    pass
+
+
+class TestNativeProperty(SharedPropertyTests):
+    pass
+
+
+class TestNativeThreading(SharedThreadingTests):
+    pass
+
+
+class TestNativeEnhanceLabel(SharedEnhanceLabelTests):
+    pass
+
+
+class TestNativeReplayCached(SharedReplayCachedTests):
+    pass
 
 
 class TestResultPreviewPanelCallbacks:

@@ -25,6 +25,7 @@ def _make_state():
         "sound_enabled": True,
         "visual_indicator": True,
         "preview": True,
+        "preview_type": "web",
         "current_preset_id": "funasr-paraformer",
         "current_remote_asr": None,
         "stt_presets": [
@@ -53,7 +54,8 @@ def _make_callbacks():
     """Create a dict of mock callbacks."""
     names = [
         "on_hotkey_toggle", "on_record_hotkey", "on_sound_toggle",
-        "on_visual_toggle", "on_preview_toggle", "on_stt_select",
+        "on_visual_toggle", "on_preview_toggle", "on_preview_type_toggle",
+        "on_stt_select",
         "on_stt_remote_select", "on_stt_add_provider", "on_stt_remove_provider",
         "on_llm_select", "on_llm_add_provider", "on_llm_remove_provider",
         "on_enhance_mode_select", "on_enhance_add_mode", "on_enhance_mode_edit",
@@ -176,6 +178,15 @@ class TestSettingsCallbacks:
         panel.previewCheckChanged_(sender)
 
         cbs["on_preview_toggle"].assert_called_once_with(True)
+
+    def test_web_preview_check_calls_callback(self):
+        panel, cbs = self._make_panel()
+
+        sender = MagicMock()
+        sender.state.return_value = 0
+        panel.webPreviewCheckChanged_(sender)
+
+        cbs["on_preview_type_toggle"].assert_called_once_with(False)
 
     def test_thinking_check_calls_callback(self):
         panel, cbs = self._make_panel()

@@ -82,6 +82,7 @@ class SettingsController:
             "sound_enabled": app._sound_manager.enabled,
             "visual_indicator": app._recording_indicator.enabled,
             "preview": app._preview_enabled,
+            "preview_type": app._preview_type,
             "current_preset_id": app._current_preset_id,
             "current_remote_asr": app._current_remote_asr,
             "stt_presets": stt_presets,
@@ -105,6 +106,7 @@ class SettingsController:
             "on_sound_toggle": self.sound_toggle,
             "on_visual_toggle": self.visual_toggle,
             "on_preview_toggle": self.preview_toggle,
+            "on_preview_type_toggle": self.preview_type_toggle,
             "on_stt_select": self.stt_select,
             "on_stt_remote_select": self.stt_remote_select,
             "on_stt_add_provider": lambda: app._model_controller.on_asr_add_provider(None),
@@ -176,6 +178,24 @@ class SettingsController:
         app._config["output"]["preview"] = enabled
         save_config(app._config, app._config_path)
         logger.info("Preview set to: %s (from settings)", enabled)
+
+    def preview_type_toggle(self, use_web: bool) -> None:
+        """Handle preview type toggle from Settings panel."""
+        from voicetext.ui.result_window import ResultPreviewPanel as NativePanel
+        from voicetext.ui.result_window_web import ResultPreviewPanel as WebPanel
+
+        app = self._app
+        new_type = "web" if use_web else "native"
+        if new_type == app._preview_type:
+            return
+
+        app._preview_type = new_type
+        app._preview_panel = WebPanel() if use_web else NativePanel()
+        app._enhance_controller._preview_panel = app._preview_panel
+
+        app._config["output"]["preview_type"] = new_type
+        save_config(app._config, app._config_path)
+        logger.info("Preview type set to: %s (from settings)", new_type)
 
     def stt_select(self, preset_id: str) -> None:
         """Handle STT model selection from Settings panel."""

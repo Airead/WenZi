@@ -36,8 +36,11 @@ class PreviewController:
 
     _CLIPBOARD_MAX_CHARS = 2000
 
+    _ENHANCE_DEBOUNCE_SECONDS = 0.3
+
     def __init__(self, app: VoiceTextApp) -> None:
         self._app = app
+        self._enhance_debounce_timer: threading.Timer | None = None
 
     # ------------------------------------------------------------------
     # Preview with transcription (hotkey → record → preview)
@@ -80,6 +83,8 @@ class PreviewController:
             result_holder["user_corrected"] = correction_info is not None
             if correction_info is not None:
                 app._auto_vocab_builder.on_correction_logged()
+            # Stop any in-flight streaming enhancement to save tokens
+            app._enhance_controller.cancel()
             try:
                 app._usage_stats.record_confirm(modified=correction_info is not None)
             except Exception as e:
@@ -427,6 +432,8 @@ class PreviewController:
             result_holder["user_corrected"] = correction_info is not None
             if correction_info is not None:
                 app._auto_vocab_builder.on_correction_logged()
+            # Stop any in-flight streaming enhancement to save tokens
+            app._enhance_controller.cancel()
             result_event.set()
 
         def on_cancel() -> None:
@@ -559,20 +566,28 @@ class PreviewController:
     # ------------------------------------------------------------------
 
     def on_preview_mode_change(self, mode_id: str) -> None:
-        """Handle mode switch from the preview panel's segmented control."""
+        """Handle mode switch from the preview panel's segmented control.
+
+        Uses debounce for enhancement requests: rapid mode switches only
+        trigger one API call for the final mode, avoiding wasted HTTP
+        requests and tokens.
+        """
         from PyObjCTools import AppHelper
 
         app = self._app
 
-        # Update enhance mode
+        # Cancel pending debounce timer
+        if self._enhance_debounce_timer is not None:
+            self._enhance_debounce_timer.cancel()
+            self._enhance_debounce_timer = None
+
+        # Update enhance mode immediately (UI state, config, menu)
         app._enhance_mode = mode_id
         app._enhance_controller.enhance_mode = mode_id
 
-        # Sync menu bar checkmarks
         for m, item in app._enhance_menu_items.items():
             item.state = 1 if m == mode_id else 0
 
-        # Update enhancer state
         if app._enhancer:
             if mode_id == MODE_OFF:
                 app._enhancer._enabled = False
@@ -580,33 +595,50 @@ class PreviewController:
                 app._enhancer._enabled = True
                 app._enhancer.mode = mode_id
 
-        # Persist to config
         app._config.setdefault("ai_enhance", {})
         app._config["ai_enhance"]["enabled"] = mode_id != MODE_OFF
         app._config["ai_enhance"]["mode"] = mode_id
         save_config(app._config, app._config_path)
         logger.info("AI enhance mode set to (from preview): %s", mode_id)
 
-        # Update panel UI
+        # Cancel in-flight enhancement immediately
+        app._enhance_controller.cancel()
+        app._preview_panel.enhance_request_id += 1
+
         if mode_id == MODE_OFF:
             AppHelper.callAfter(app._preview_panel.set_enhance_off)
-        else:
-            cached = app._enhance_controller.get_cached()
-            if cached is not None:
-                app._preview_panel.replay_cached_result(
-                    display_text=cached.display_text,
-                    usage=cached.usage,
-                    system_prompt=cached.system_prompt,
-                    thinking_text=cached.thinking_text,
-                    final_text=cached.final_text,
-                )
-            else:
-                AppHelper.callAfter(app._preview_panel.set_enhance_loading)
-                app._preview_panel.enhance_request_id += 1
-                asr_text = getattr(app, "_current_preview_asr_text", "")
-                app._enhance_controller.run(
-                    asr_text, app._preview_panel.enhance_request_id
-                )
+            return
+
+        # Show loading state immediately as visual feedback
+        cached = app._enhance_controller.get_cached()
+        if cached is not None:
+            app._preview_panel.replay_cached_result(
+                display_text=cached.display_text,
+                usage=cached.usage,
+                system_prompt=cached.system_prompt,
+                thinking_text=cached.thinking_text,
+                final_text=cached.final_text,
+            )
+            return
+
+        AppHelper.callAfter(app._preview_panel.set_enhance_loading)
+
+        # Debounce: delay the actual API call
+        request_id = app._preview_panel.enhance_request_id
+
+        def _fire_enhance():
+            self._enhance_debounce_timer = None
+            # Guard against stale timer firing after another mode switch
+            if app._preview_panel.enhance_request_id != request_id:
+                return
+            asr_text = getattr(app, "_current_preview_asr_text", "")
+            app._enhance_controller.run(asr_text, request_id)
+
+        self._enhance_debounce_timer = threading.Timer(
+            self._ENHANCE_DEBOUNCE_SECONDS, _fire_enhance,
+        )
+        self._enhance_debounce_timer.daemon = True
+        self._enhance_debounce_timer.start()
 
     def on_preview_stt_change(self, index: int) -> None:
         """Handle STT model popup change from the preview panel."""
@@ -857,6 +889,10 @@ class PreviewController:
 
         # Re-trigger enhancement if currently active
         if app._enhance_mode != MODE_OFF:
+            # Always cancel in-flight stream and invalidate stale chunks
+            app._enhance_controller.cancel()
+            app._preview_panel.enhance_request_id += 1
+
             cached = app._enhance_controller.get_cached()
             if cached is not None:
                 app._preview_panel.replay_cached_result(
@@ -868,7 +904,6 @@ class PreviewController:
                 )
             else:
                 AppHelper.callAfter(app._preview_panel.set_enhance_loading)
-                app._preview_panel.enhance_request_id += 1
                 asr_text = getattr(app, "_current_preview_asr_text", "")
                 app._enhance_controller.run(
                     asr_text, app._preview_panel.enhance_request_id

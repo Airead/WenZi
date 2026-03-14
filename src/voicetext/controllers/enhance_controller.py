@@ -12,7 +12,7 @@ from voicetext.lru_cache import LRUCache
 
 if TYPE_CHECKING:
     from voicetext.enhance.enhancer import TextEnhancer
-    from voicetext.ui.result_window import ResultPreviewPanel
+    from voicetext.ui.result_window_web import ResultPreviewPanel
     from voicetext.usage_stats import UsageStats
 
 logger = logging.getLogger(__name__)

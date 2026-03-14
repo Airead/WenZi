@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Pre-push hook: run the same CI checks locally before pushing.
+# Install: git config core.hooksPath .githooks
+
+set -euo pipefail
+
+echo "==> Running pre-push checks..."
+
+echo ""
+echo "--- Lint (ruff) ---"
+uv run ruff check
+
+echo ""
+echo "--- Tests (pytest) ---"
+uv run pytest tests/ -v --cov=voicetext
+
+echo ""
+echo "==> All checks passed. Pushing..."
