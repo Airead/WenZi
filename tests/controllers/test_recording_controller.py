@@ -190,6 +190,8 @@ class TestStreamingIntegration:
 
     @patch("PyObjCTools.AppHelper")
     def test_streaming_release_with_preview(self, mock_apphelper, ctrl, mock_app):
+        import time
+
         mock_apphelper.callAfter = lambda fn, *a, **kw: fn(*a, **kw)
         mock_app._transcriber.supports_streaming = True
         mock_app._transcriber.stop_streaming.return_value = "streaming result"
@@ -199,10 +201,15 @@ class TestStreamingIntegration:
         ctrl.on_hotkey_press()
         ctrl.on_hotkey_release()
 
-        # Should call preview path, not direct
+        # _do_streaming_stop runs in a background thread, wait for it
+        for _ in range(50):
+            if mock_app._do_transcribe_with_preview.called:
+                break
+            time.sleep(0.02)
+
         mock_app._do_transcribe_with_preview.assert_called_once()
-        call_kwargs = mock_app._do_transcribe_with_preview.call_args
-        assert call_kwargs[1]["asr_text"] == "streaming result" or call_kwargs[0][0] == "streaming result"
+        call_kwargs = mock_app._do_transcribe_with_preview.call_args[1]
+        assert call_kwargs["asr_text"] == "streaming result"
 
     def test_init_streaming_state(self, ctrl):
         assert ctrl._streaming_active is False

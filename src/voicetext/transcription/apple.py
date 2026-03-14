@@ -235,6 +235,12 @@ class AppleSpeechTranscriber(BaseTranscriber):
             if result is not None:
                 text = result.bestTranscription().formattedString()
                 is_final = result.isFinal()
+                logger.debug(
+                    "Streaming result: text=%r (len=%d), best=%r (len=%d), final=%s",
+                    text[:50] if text else "", len(text) if text else 0,
+                    self._stream_best_text[:50], len(self._stream_best_text),
+                    is_final,
+                )
                 # Keep the best (longest) partial text seen so far.
                 # Apple Speech may send shorter/empty partials during
                 # silence, which would erase the displayed text.

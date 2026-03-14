@@ -182,24 +182,29 @@ class RecordingController:
             # Show live overlay on main thread
             AppHelper.callAfter(self._show_live_overlay)
             logger.info("Streaming transcription started")
-        except Exception as e:
-            logger.warning("Failed to start streaming, will use batch mode: %s", e)
+        except Exception:
+            logger.exception("Failed to start streaming, will use batch mode")
             self._streaming_active = False
 
     def _show_live_overlay(self) -> None:
         """Show the live transcription overlay (must be called on main thread)."""
-        app = self._app
-        if hasattr(app, "_live_overlay") and app._live_overlay is not None:
-            self._live_overlay = app._live_overlay
-        else:
-            from voicetext.ui.live_transcription_overlay import LiveTranscriptionOverlay
-            self._live_overlay = LiveTranscriptionOverlay()
-        self._live_overlay.show()
+        try:
+            app = self._app
+            if hasattr(app, "_live_overlay") and app._live_overlay is not None:
+                self._live_overlay = app._live_overlay
+            else:
+                from voicetext.ui.live_transcription_overlay import LiveTranscriptionOverlay
+                self._live_overlay = LiveTranscriptionOverlay()
+            self._live_overlay.show()
+            logger.info("Live transcription overlay shown")
+        except Exception:
+            logger.exception("Failed to show live overlay")
 
     def _update_live_overlay(self, text: str) -> None:
         """Update the live transcription overlay text (main thread)."""
         if self._live_overlay is not None:
             self._live_overlay.update_text(text)
+            logger.debug("Live overlay updated: %s", text[:50] if text else "(empty)")
 
     def _hide_live_overlay(self) -> None:
         """Hide and close the live transcription overlay."""
