@@ -119,7 +119,9 @@ uv run ruff check              # Lint
 uv run pytest tests/ -v --cov=voicetext  # Tests with coverage
 ```
 
-Only create the PR after both pass. This mirrors the CI pipeline in `.github/workflows/test.yml`.
+**All tests must pass before creating the PR.** GitHub Actions branch protection requires CI to be green before merging. If there are pre-existing test failures unrelated to your changes, fix them first or coordinate with the team — do not create a PR with known failures.
+
+This mirrors the CI pipeline in `.github/workflows/test.yml`.
 
 ## Release Process
 
