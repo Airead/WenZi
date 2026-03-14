@@ -1,7 +1,11 @@
-"""Floating overlay panel for Direct mode streaming AI enhancement output."""
+"""Floating overlay panel for Direct mode streaming AI enhancement output.
+
+Uses WKWebView for rendering with automatic dark mode support via CSS.
+"""
 
 from __future__ import annotations
 
+import json
 import logging
 import threading
 from typing import Optional
@@ -13,11 +17,6 @@ _PANEL_WIDTH = 400
 _PANEL_HEIGHT = 200
 
 # Layout constants
-_PADDING = 12
-_LABEL_HEIGHT = 18
-_ASR_TEXT_HEIGHT = 40
-_SEPARATOR_HEIGHT = 1
-_STATUS_LABEL_HEIGHT = 18
 _CORNER_RADIUS = 10
 _SCREEN_MARGIN = 20
 
@@ -29,160 +28,222 @@ _CLOSE_DELAY = 1.0
 _HOVER_RECHECK_INTERVAL = 0.5
 _FADE_OUT_DURATION = 0.3
 
+# ---------------------------------------------------------------------------
+# HTML template
+# ---------------------------------------------------------------------------
 
-def _is_dark_mode() -> bool:
-    """Detect whether the system is currently in dark mode."""
-    try:
-        from AppKit import NSApp
-        name = str(NSApp.effectiveAppearance().name())
-        return "Dark" in name
-    except Exception:
-        return False
+_HTML_TEMPLATE = r"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+:root {
+    --bg: rgba(245, 245, 245, 0.92);
+    --text: #1d1d1f;
+    --secondary: #6e6e73;
+    --border: rgba(0, 0, 0, 0.12);
+    --thinking: #86868b;
+}
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg: rgba(38, 38, 38, 0.92);
+        --text: #f0f0f0;
+        --secondary: #a0a0a5;
+        --border: rgba(255, 255, 255, 0.15);
+        --thinking: #8e8e93;
+    }
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+    height: 100%;
+    background: transparent;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+    font-size: 13px;
+    color: var(--text);
+    -webkit-user-select: none; user-select: none;
+}
+body {
+    background: var(--bg);
+    border-radius: __RADIUS__px;
+    overflow: hidden;
+    display: flex; flex-direction: column;
+    padding: 10px 12px;
+}
+#asr-section { flex-shrink: 0; margin-bottom: 6px; }
+#asr-title {
+    font-weight: 600; font-size: 11px; color: var(--secondary);
+    margin-bottom: 2px;
+}
+#asr-text {
+    font-size: 12px; color: var(--secondary);
+    line-height: 1.3;
+    max-height: 2.6em; overflow: hidden;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+#asr-text:empty::after {
+    content: "Transcribing...";
+    animation: pulse 1.5s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100%{opacity:.4} 50%{opacity:1} }
+.separator {
+    height: 1px; background: var(--border);
+    margin: 4px 0; flex-shrink: 0;
+}
+#status {
+    font-weight: 600; font-size: 11px;
+    margin-bottom: 4px; flex-shrink: 0;
+}
+#stream-area {
+    flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden;
+    font-size: 13px; line-height: 1.4;
+    scrollbar-width: thin;
+}
+#stream-area::-webkit-scrollbar { width: 4px; }
+#stream-area::-webkit-scrollbar-thumb {
+    background: var(--secondary); border-radius: 2px; opacity: 0.5;
+}
+.thinking { color: var(--thinking); font-style: italic; }
+</style>
+</head>
+<body>
+<div id="asr-section">
+  <div id="asr-title"></div>
+  <div id="asr-text"></div>
+</div>
+<div class="separator"></div>
+<div id="status"></div>
+<div id="stream-area"></div>
+<script>
+const C = __CONFIG__;
+document.getElementById('asr-title').textContent = C.asrTitle;
+document.getElementById('asr-text').textContent = C.asrText;
+document.getElementById('status').textContent = C.statusText;
+
+function setAsrText(t) { document.getElementById('asr-text').textContent = t; }
+function setStatus(t) { document.getElementById('status').textContent = t; }
+
+function appendText(chunk, tokens) {
+    const el = document.getElementById('stream-area');
+    // If there was thinking content, clear it for real content
+    if (el._hasThinking) { el.innerHTML = ''; el._hasThinking = false; }
+    el.appendChild(document.createTextNode(chunk));
+    el.scrollTop = el.scrollHeight;
+    if (tokens > 0) setStatus(C.aiBase + '  Tokens: \u2193' + tokens.toLocaleString());
+}
+
+function appendThinkingText(chunk, tokens) {
+    const el = document.getElementById('stream-area');
+    el._hasThinking = true;
+    const span = document.createElement('span');
+    span.className = 'thinking';
+    span.textContent = chunk;
+    el.appendChild(span);
+    el.scrollTop = el.scrollHeight;
+    if (tokens > 0) setStatus(C.aiBase + '  \u25b6 Thinking: ' + tokens.toLocaleString());
+}
+
+function clearText() {
+    const el = document.getElementById('stream-area');
+    el.innerHTML = '';
+    el._hasThinking = false;
+}
+
+function setComplete(usage) {
+    if (usage && usage.total_tokens) {
+        setStatus(C.aiBase + '  Tokens: ' + usage.total_tokens.toLocaleString()
+            + ' (\u2191' + (usage.prompt_tokens||0).toLocaleString()
+            + ' \u2193' + (usage.completion_tokens||0).toLocaleString() + ')');
+    } else {
+        setStatus(C.aiBase);
+    }
+}
+</script>
+</body>
+</html>"""
+
+# ---------------------------------------------------------------------------
+# WKNavigationDelegate (lazy-created)
+# ---------------------------------------------------------------------------
+_OverlayNavDelegate = None
 
 
-# Module-level NSView subclass for drawRect_-based background
-try:
-    from AppKit import NSBezierPath as _BP
-    from AppKit import NSColor as _NC
-    from AppKit import NSView as _NV
+def _get_nav_delegate_class():
+    global _OverlayNavDelegate
+    if _OverlayNavDelegate is None:
+        import objc
+        from Foundation import NSObject
 
-    class _StreamingBgView(_NV):
-        def isOpaque(self):
-            return False
+        import WebKit  # noqa: F401
 
-        def drawRect_(self, rect):
-            def _provider(appearance):
-                name = appearance.bestMatchFromAppearancesWithNames_(
-                    ["NSAppearanceNameAqua", "NSAppearanceNameDarkAqua"]
-                )
-                if name and "Dark" in str(name):
-                    return _NC.colorWithSRGBRed_green_blue_alpha_(0.15, 0.15, 0.15, 0.85)
-                return _NC.colorWithSRGBRed_green_blue_alpha_(0.95, 0.95, 0.95, 0.85)
+        WKNavigationDelegate = objc.protocolNamed("WKNavigationDelegate")
 
-            _NC.colorWithName_dynamicProvider_(None, _provider).setFill()
-            _BP.bezierPathWithRoundedRect_xRadius_yRadius_(
-                rect, _CORNER_RADIUS, _CORNER_RADIUS
-            ).fill()
+        class StreamingOverlayNavDelegate(
+            NSObject, protocols=[WKNavigationDelegate]
+        ):
+            _panel_ref = None
 
-        def refresh_(self, timer):
-            self.setNeedsDisplay_(True)
+            def webView_didFinishNavigation_(self, webview, navigation):
+                if self._panel_ref is not None:
+                    self._panel_ref._on_page_loaded()
 
-except Exception:
-    _StreamingBgView = None
-
-
+        _OverlayNavDelegate = StreamingOverlayNavDelegate
+    return _OverlayNavDelegate
 
 
 class StreamingOverlayPanel:
     """Non-interactive floating overlay that displays streaming AI enhancement.
 
     Shows ASR original text at top, streaming enhanced text below.
+    Uses WKWebView for rendering with automatic dark mode support.
     Does not steal focus or accept mouse events.
     """
 
     def __init__(self) -> None:
         self._panel: object = None
-        self._asr_label: object = None
-        self._asr_title: object = None
-        self._status_label: object = None
-        self._text_view: object = None
-        self._scroll_view: object = None
-        self._content_view: object = None
-        self._separator: object = None
+        self._webview: object = None
+        self._nav_delegate: object = None
         self._esc_monitor: object = None
-        self._appearance_observer: object = None
         self._cancel_event: Optional[threading.Event] = None
         self._loading_timer: object = None
         self._loading_seconds: int = 0
         self._llm_info: str = ""
         self._close_timer: object = None
+        self._page_loaded: bool = False
+        self._pending_js: list[str] = []
 
-    @staticmethod
-    def _text_color(dark: bool):
-        from AppKit import NSColor
-        if dark:
-            return NSColor.colorWithSRGBRed_green_blue_alpha_(0.95, 0.95, 0.95, 1.0)
-        return NSColor.colorWithSRGBRed_green_blue_alpha_(0.1, 0.1, 0.1, 1.0)
+    # ------------------------------------------------------------------
+    # JavaScript bridge
+    # ------------------------------------------------------------------
 
-    @staticmethod
-    def _secondary_text_color(dark: bool):
-        from AppKit import NSColor
-        if dark:
-            return NSColor.colorWithSRGBRed_green_blue_alpha_(0.7, 0.7, 0.7, 1.0)
-        return NSColor.colorWithSRGBRed_green_blue_alpha_(0.3, 0.3, 0.3, 1.0)
+    def _eval_js(self, js_code: str) -> None:
+        """Evaluate JS in the webview. Queues if page not loaded yet."""
+        if not self._page_loaded:
+            self._pending_js.append(js_code)
+            return
+        if self._webview is not None:
+            self._webview.evaluateJavaScript_completionHandler_(js_code, None)
 
-    @staticmethod
-    def _separator_color(dark: bool):
-        from AppKit import NSColor
-        if dark:
-            return NSColor.colorWithSRGBRed_green_blue_alpha_(0.7, 0.7, 0.7, 0.5)
-        return NSColor.colorWithSRGBRed_green_blue_alpha_(0.3, 0.3, 0.3, 0.5)
+    def _on_page_loaded(self) -> None:
+        """Called by navigation delegate when HTML finishes loading."""
+        pending = self._pending_js[:]
+        self._pending_js.clear()
+        self._page_loaded = True
+        if pending and self._webview is not None:
+            combined = ";".join(pending)
+            self._webview.evaluateJavaScript_completionHandler_(combined, None)
 
-    def _apply_colors(self) -> None:
-        """Detect current appearance and apply text/separator colors."""
-        dark = _is_dark_mode()
+    # ------------------------------------------------------------------
+    # Show / position
+    # ------------------------------------------------------------------
 
-        if self._separator is not None:
-            layer = self._separator.layer()
-            if layer:
-                layer.setBackgroundColor_(self._separator_color(dark).CGColor())
-
-        secondary = self._secondary_text_color(dark)
-        if self._asr_title is not None:
-            self._asr_title.setTextColor_(secondary)
-        if self._asr_label is not None:
-            self._asr_label.setTextColor_(secondary)
-
-        text_c = self._text_color(dark)
-        if self._status_label is not None:
-            self._status_label.setTextColor_(text_c)
-        if self._text_view is not None:
-            self._text_view.setTextColor_(text_c)
-
-    def _start_appearance_timer(self) -> None:
-        """Start a refresh timer that redraws bg view and checks text colors.
-
-        Same pattern as RecordingIndicatorPanel: timer triggers drawRect_
-        with a fresh dynamic NSColor each frame. Also polls _is_dark_mode()
-        to update text/separator colors when appearance changes.
-        """
-        self._stop_appearance_timer()
-        self._last_dark = _is_dark_mode()
-        try:
-            from Foundation import NSTimer
-            # Timer on content view for bg refresh (drawRect_ with dynamic NSColor)
-            if self._content_view is not None:
-                self._appearance_observer = (
-                    NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
-                        0.5, self._content_view, b"refresh:", None, True,
-                    )
-                )
-            # Timer on self for text/separator color polling
-            self._appearance_text_timer = (
-                NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
-                    1.0, self, b"refreshAppearance:", None, True,
-                )
-            )
-        except Exception:
-            logger.error("Failed to start appearance timer", exc_info=True)
-
-    def _stop_appearance_timer(self) -> None:
-        """Stop the appearance refresh timers."""
-        for attr in ("_appearance_observer", "_appearance_text_timer"):
-            timer = getattr(self, attr, None)
-            if timer is not None:
-                try:
-                    timer.invalidate()
-                except Exception:
-                    pass
-                setattr(self, attr, None)
-
-    def refreshAppearance_(self, timer) -> None:
-        """NSTimer callback: update text/separator colors when appearance changes."""
-        dark = _is_dark_mode()
-        if dark != self._last_dark:
-            self._last_dark = dark
-            self._apply_colors()
+    def _ai_label(self, suffix: str) -> str:
+        """Build the AI status label with optional LLM info prefix."""
+        base = "\u2728 AI"
+        if self._llm_info:
+            base += f" ({self._llm_info})"
+        if suffix:
+            return f"{base}  {suffix}"
+        return base
 
     def show(
         self,
@@ -194,27 +255,18 @@ class StreamingOverlayPanel:
     ) -> None:
         """Create and show the overlay panel. Must be called on main thread."""
         try:
-            from AppKit import (
-                NSColor,
-                NSFont,
-                NSPanel,
-                NSScreen,
-                NSScrollView,
-                NSStatusWindowLevel,
-                NSTextField,
-                NSTextView,
-                NSView,
-            )
-            from Foundation import NSMakeRect
+            from AppKit import NSColor, NSPanel, NSScreen, NSStatusWindowLevel
+            from Foundation import NSMakeRect, NSURL
+            from WebKit import WKWebView, WKWebViewConfiguration
 
             if self._panel is not None:
-                self.close()
+                self._do_close()
 
             self._cancel_event = cancel_event
             self._loading_seconds = 0
             self._llm_info = llm_info
-
-            dark = _is_dark_mode()
+            self._page_loaded = False
+            self._pending_js.clear()
 
             # Create borderless panel
             panel = NSPanel.alloc().initWithContentRect_styleMask_backing_defer_(
@@ -231,90 +283,49 @@ class StreamingOverlayPanel:
             panel.setHidesOnDeactivate_(False)
             panel.setCollectionBehavior_(1 << 4)  # canJoinAllSpaces
 
-            # Build content view with drawRect_-based rounded background
-            content = _StreamingBgView.alloc().initWithFrame_(
-                NSMakeRect(0, 0, _PANEL_WIDTH, _PANEL_HEIGHT)
+            # WKWebView
+            config = WKWebViewConfiguration.alloc().init()
+            webview = WKWebView.alloc().initWithFrame_configuration_(
+                NSMakeRect(0, 0, _PANEL_WIDTH, _PANEL_HEIGHT),
+                config,
             )
-            self._content_view = content
+            webview.setAutoresizingMask_(0x12)
+            webview.setValue_forKey_(False, "drawsBackground")
+            panel.contentView().addSubview_(webview)
 
-            inner_width = _PANEL_WIDTH - 2 * _PADDING
+            # Navigation delegate for page-load callback
+            nav_cls = _get_nav_delegate_class()
+            nav_delegate = nav_cls.alloc().init()
+            nav_delegate._panel_ref = self
+            webview.setNavigationDelegate_(nav_delegate)
 
-            # --- Top section: ASR result ---
-            y = _PANEL_HEIGHT - _PADDING - _LABEL_HEIGHT
+            self._panel = panel
+            self._webview = webview
+            self._nav_delegate = nav_delegate
 
-            asr_title_text = "\U0001f3a4 ASR"
+            # Build config and load HTML
+            ai_base = "\u2728 AI"
+            if llm_info:
+                ai_base += f" ({llm_info})"
+
+            asr_title = "\U0001f3a4 ASR"
             if stt_info:
-                asr_title_text += f"  ({stt_info})"
-            asr_title = NSTextField.labelWithString_(asr_title_text)
-            asr_title.setFrame_(NSMakeRect(_PADDING, y, inner_width, _LABEL_HEIGHT))
-            asr_title.setFont_(NSFont.boldSystemFontOfSize_(11.0))
-            asr_title.setTextColor_(self._secondary_text_color(dark))
-            content.addSubview_(asr_title)
-            self._asr_title = asr_title
+                asr_title += f"  ({stt_info})"
 
-            y -= _ASR_TEXT_HEIGHT
-            asr_label = NSTextField.wrappingLabelWithString_(asr_text or "")
-            asr_label.setFrame_(NSMakeRect(_PADDING, y, inner_width, _ASR_TEXT_HEIGHT))
-            asr_label.setFont_(NSFont.systemFontOfSize_(12.0))
-            asr_label.setTextColor_(self._secondary_text_color(dark))
-            asr_label.setMaximumNumberOfLines_(2)
-            content.addSubview_(asr_label)
-            self._asr_label = asr_label
-
-            # --- Separator ---
-            y -= _SEPARATOR_HEIGHT + 4
-            separator = NSView.alloc().initWithFrame_(
-                NSMakeRect(_PADDING, y, inner_width, _SEPARATOR_HEIGHT)
+            config_data = {
+                "asrTitle": asr_title,
+                "asrText": asr_text,
+                "statusText": ai_base,
+                "aiBase": ai_base,
+            }
+            html = _HTML_TEMPLATE.replace(
+                "__CONFIG__", json.dumps(config_data, ensure_ascii=False)
+            ).replace("__RADIUS__", str(_CORNER_RADIUS))
+            webview.loadHTMLString_baseURL_(
+                html, NSURL.fileURLWithPath_("/")
             )
-            separator.setWantsLayer_(True)
-            separator.layer().setBackgroundColor_(
-                self._separator_color(dark).CGColor()
-            )
-            content.addSubview_(separator)
-            self._separator = separator
 
-            # --- Bottom section: Enhancement streaming ---
-            y -= _STATUS_LABEL_HEIGHT + 4
-            status_label = NSTextField.labelWithString_(self._ai_label(""))
-            status_label.setFrame_(
-                NSMakeRect(_PADDING, y, inner_width, _STATUS_LABEL_HEIGHT)
-            )
-            status_label.setFont_(NSFont.boldSystemFontOfSize_(11.0))
-            status_label.setTextColor_(self._text_color(dark))
-            content.addSubview_(status_label)
-            self._status_label = status_label
-
-            # Streaming text area (NSScrollView + NSTextView)
-            stream_height = y - _PADDING
-            y -= stream_height
-            scroll_frame = NSMakeRect(_PADDING, _PADDING, inner_width, stream_height)
-            scroll = NSScrollView.alloc().initWithFrame_(scroll_frame)
-            scroll.setHasVerticalScroller_(True)
-            scroll.setBorderType_(0)  # NSNoBorder
-            scroll.setDrawsBackground_(False)
-
-            tv = NSTextView.alloc().initWithFrame_(
-                NSMakeRect(0, 0, inner_width, stream_height)
-            )
-            tv.setMinSize_(NSMakeRect(0, 0, inner_width, 0).size)
-            tv.setMaxSize_(NSMakeRect(0, 0, 1e7, 1e7).size)
-            tv.setVerticallyResizable_(True)
-            tv.setHorizontallyResizable_(False)
-            tv.textContainer().setWidthTracksTextView_(True)
-            tv.setFont_(NSFont.systemFontOfSize_(13.0))
-            tv.setTextColor_(self._text_color(dark))
-            tv.setEditable_(False)
-            tv.setSelectable_(False)
-            tv.setDrawsBackground_(False)
-
-            scroll.setDocumentView_(tv)
-            content.addSubview_(scroll)
-            self._text_view = tv
-            self._scroll_view = scroll
-
-            panel.setContentView_(content)
-
-            # Calculate bottom-right position as final target
+            # Position at bottom-right
             screen = NSScreen.mainScreen()
             target_x, target_y = 0, 0
             if screen:
@@ -325,7 +336,6 @@ class StreamingOverlayPanel:
             if animate_from_frame is not None:
                 from AppKit import NSAnimationContext
 
-                # Start from indicator position/size, expand to center
                 panel.setFrame_display_(animate_from_frame, False)
                 panel.setAlphaValue_(0.0)
                 panel.orderFront_(None)
@@ -343,13 +353,8 @@ class StreamingOverlayPanel:
                 panel.setFrameOrigin_((target_x, target_y))
                 panel.orderFront_(None)
 
-            self._panel = panel
-
             # Register global ESC key monitor
             self._register_esc_monitor()
-
-            # Register appearance change observer
-            self._start_appearance_timer()
 
             # Start loading timer
             self._start_loading_timer()
@@ -357,6 +362,10 @@ class StreamingOverlayPanel:
             logger.debug("Streaming overlay shown")
         except Exception:
             logger.error("Failed to show streaming overlay", exc_info=True)
+
+    # ------------------------------------------------------------------
+    # ESC key monitor
+    # ------------------------------------------------------------------
 
     def _register_esc_monitor(self) -> None:
         """Register a global key event monitor for ESC key."""
@@ -419,22 +428,12 @@ class StreamingOverlayPanel:
                 pass
             self._loading_timer = None
 
-    def _ai_label(self, suffix: str) -> str:
-        """Build the AI status label with optional LLM info prefix."""
-        base = "\u2728 AI"
-        if self._llm_info:
-            base += f" ({self._llm_info})"
-        if suffix:
-            return f"{base}  {suffix}"
-        return base
-
     def tickLoadingTimer_(self, timer) -> None:
         """NSTimer callback: update status label with elapsed seconds."""
         self._loading_seconds += 1
-        if self._status_label is not None:
-            self._status_label.setStringValue_(
-                self._ai_label(f"\u23f3 {self._loading_seconds}s")
-            )
+        self._eval_js(
+            f"setStatus({json.dumps(self._ai_label(f'⏳ {self._loading_seconds}s'))})"
+        )
 
     # ------------------------------------------------------------------
     # Streaming text updates (all thread-safe via callAfter)
@@ -446,26 +445,11 @@ class StreamingOverlayPanel:
 
         def _append():
             self._stop_loading_timer()
-            tv = self._text_view
-            if tv is None:
+            if self._webview is None:
                 return
-            from AppKit import NSFont
-            from Foundation import NSAttributedString, NSDictionary
-
-            attrs = NSDictionary.dictionaryWithObjects_forKeys_(
-                [self._text_color(_is_dark_mode()), NSFont.systemFontOfSize_(13.0)],
-                ["NSColor", "NSFont"],
+            self._eval_js(
+                f"appendText({json.dumps(chunk)},{completion_tokens})"
             )
-            attr_str = (
-                NSAttributedString.alloc().initWithString_attributes_(chunk, attrs)
-            )
-            tv.textStorage().appendAttributedString_(attr_str)
-            tv.scrollRangeToVisible_((tv.textStorage().length(), 0))
-            # Update status with token count
-            if completion_tokens > 0 and self._status_label is not None:
-                self._status_label.setStringValue_(
-                    self._ai_label(f"Tokens: \u2193{completion_tokens:,}")
-                )
 
         AppHelper.callAfter(_append)
 
@@ -475,30 +459,11 @@ class StreamingOverlayPanel:
 
         def _append():
             self._stop_loading_timer()
-            tv = self._text_view
-            if tv is None:
+            if self._webview is None:
                 return
-            from AppKit import NSFont, NSFontManager
-            from Foundation import NSAttributedString, NSDictionary
-
-            font = NSFont.systemFontOfSize_(13.0)
-            fm = NSFontManager.sharedFontManager()
-            italic_font = fm.convertFont_toHaveTrait_(font, 0x01)  # NSItalicFontMask
-
-            attrs = NSDictionary.dictionaryWithObjects_forKeys_(
-                [self._secondary_text_color(_is_dark_mode()), italic_font],
-                ["NSColor", "NSFont"],
+            self._eval_js(
+                f"appendThinkingText({json.dumps(chunk)},{thinking_tokens})"
             )
-            attr_str = (
-                NSAttributedString.alloc().initWithString_attributes_(chunk, attrs)
-            )
-            tv.textStorage().appendAttributedString_(attr_str)
-            tv.scrollRangeToVisible_((tv.textStorage().length(), 0))
-            # Update status with thinking token count
-            if thinking_tokens > 0 and self._status_label is not None:
-                self._status_label.setStringValue_(
-                    self._ai_label(f"\u25b6 Thinking: {thinking_tokens:,}")
-                )
 
         AppHelper.callAfter(_append)
 
@@ -507,8 +472,9 @@ class StreamingOverlayPanel:
         from PyObjCTools import AppHelper
 
         def _update():
-            if self._status_label is not None:
-                self._status_label.setStringValue_(text)
+            if self._webview is None:
+                return
+            self._eval_js(f"setStatus({json.dumps(text)})")
 
         AppHelper.callAfter(_update)
 
@@ -517,8 +483,9 @@ class StreamingOverlayPanel:
         from PyObjCTools import AppHelper
 
         def _update():
-            if self._asr_label is not None:
-                self._asr_label.setStringValue_(text)
+            if self._webview is None:
+                return
+            self._eval_js(f"setAsrText({json.dumps(text)})")
 
         AppHelper.callAfter(_update)
 
@@ -539,19 +506,11 @@ class StreamingOverlayPanel:
 
         def _update():
             self._stop_loading_timer()
-            if self._status_label is None:
+            if self._webview is None:
                 return
-            if usage and usage.get("total_tokens"):
-                total = usage["total_tokens"]
-                prompt = usage.get("prompt_tokens", 0)
-                completion = usage.get("completion_tokens", 0)
-                self._status_label.setStringValue_(
-                    self._ai_label(
-                        f"Tokens: {total:,} (\u2191{prompt:,} \u2193{completion:,})"
-                    )
-                )
-            else:
-                self._status_label.setStringValue_(self._ai_label(""))
+            self._eval_js(
+                f"setComplete({json.dumps(usage) if usage else 'null'})"
+            )
 
         AppHelper.callAfter(_update)
 
@@ -560,8 +519,9 @@ class StreamingOverlayPanel:
         from PyObjCTools import AppHelper
 
         def _clear():
-            if self._text_view is not None:
-                self._text_view.setString_("")
+            if self._webview is None:
+                return
+            self._eval_js("clearText()")
 
         AppHelper.callAfter(_clear)
 
@@ -599,7 +559,6 @@ class StreamingOverlayPanel:
             return
 
         if self._is_mouse_over_panel():
-            # Mouse is hovering — recheck after a short interval
             try:
                 from Foundation import NSTimer
 
@@ -654,20 +613,16 @@ class StreamingOverlayPanel:
         self._stop_loading_timer()
         self._stop_close_timer()
         self._remove_esc_monitor()
-        self._stop_appearance_timer()
         self._cancel_event = None
+        self._page_loaded = False
+        self._pending_js.clear()
 
         if self._panel is not None:
             self._panel.orderOut_(None)
             self._panel = None
 
-        self._asr_title = None
-        self._asr_label = None
-        self._status_label = None
-        self._text_view = None
-        self._scroll_view = None
-        self._content_view = None
-        self._separator = None
+        self._webview = None
+        self._nav_delegate = None
         logger.debug("Streaming overlay closed")
 
     def close(self) -> None:
