@@ -163,7 +163,7 @@ class TestStreamingIntegration:
     def test_streaming_release_calls_stop_streaming(self, mock_apphelper, ctrl, mock_app):
         mock_apphelper.callAfter = lambda fn, *a, **kw: fn(*a, **kw)
         mock_app._transcriber.supports_streaming = True
-        mock_app._transcriber.stop_streaming.return_value = "streaming result"
+        mock_app._transcriber.stop_streaming.return_value = "[mock from tests/controllers/test_recording_controller.py]"
         mock_app._sound_manager.enabled = False
 
         # Press to start streaming
@@ -194,7 +194,7 @@ class TestStreamingIntegration:
 
         mock_apphelper.callAfter = lambda fn, *a, **kw: fn(*a, **kw)
         mock_app._transcriber.supports_streaming = True
-        mock_app._transcriber.stop_streaming.return_value = "streaming result"
+        mock_app._transcriber.stop_streaming.return_value = "[mock from tests/controllers/test_recording_controller.py]"
         mock_app._sound_manager.enabled = False
         mock_app._preview_enabled = True
 
@@ -209,7 +209,7 @@ class TestStreamingIntegration:
 
         mock_app._do_transcribe_with_preview.assert_called_once()
         call_kwargs = mock_app._do_transcribe_with_preview.call_args[1]
-        assert call_kwargs["asr_text"] == "streaming result"
+        assert call_kwargs["asr_text"] == "[mock from tests/controllers/test_recording_controller.py]"
 
     def test_init_streaming_state(self, ctrl):
         assert ctrl._streaming_active is False

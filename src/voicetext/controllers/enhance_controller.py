@@ -222,6 +222,7 @@ class EnhanceController:
             self._preview_panel.set_enhance_complete(
                 request_id=request_id, usage=usage,
                 system_prompt=system_prompt,
+                final_text=enhanced,
             )
             display_text = "".join(collected)
             cache_key = self.cache_key()
@@ -230,7 +231,7 @@ class EnhanceController:
                 usage=usage,
                 system_prompt=system_prompt,
                 thinking_text=self._preview_panel._thinking_text,
-                final_text=None,
+                final_text=enhanced,
             )
         else:
             # All retries failed — update label, don't touch Final Result

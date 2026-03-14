@@ -1251,11 +1251,17 @@ class ResultPreviewPanel:
 
     def _on_page_loaded(self) -> None:
         """Called by the WKNavigationDelegate when the page finishes loading."""
-        self._page_loaded = True
-        for js_code in self._pending_js:
-            if self._webview is not None:
-                self._webview.evaluateJavaScript_completionHandler_(js_code, None)
+        pending = self._pending_js[:]
         self._pending_js.clear()
+        self._page_loaded = True
+        if pending and self._webview is not None:
+            # Execute all queued JS as a single atomic evaluation to guarantee
+            # execution order.  Sending them one-by-one via evaluateJavaScript
+            # is asynchronous and WKWebView may interleave other callbacks
+            # between evaluations, causing DOM state inconsistencies (e.g.
+            # "streaming result" text leaking into the final-text textarea).
+            combined = ";".join(pending)
+            self._webview.evaluateJavaScript_completionHandler_(combined, None)
 
     def _build_panel(self) -> None:
         """Build NSPanel + WKWebView."""

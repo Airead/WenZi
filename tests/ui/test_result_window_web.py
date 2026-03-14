@@ -868,7 +868,11 @@ class TestJsCallQueue:
 
         assert panel._page_loaded is True
         assert len(panel._pending_js) == 0
-        assert panel._webview.evaluateJavaScript_completionHandler_.call_count == 2
+        # Pending JS is flushed as a single combined call to guarantee order
+        panel._webview.evaluateJavaScript_completionHandler_.assert_called_once()
+        combined_js = panel._webview.evaluateJavaScript_completionHandler_.call_args[0][0]
+        assert "setAsrResult('a','')" in combined_js
+        assert "setEnhanceResult('b')" in combined_js
 
     def test_eval_js_direct_after_page_load(self):
         """JS calls after page load should execute immediately."""
@@ -930,7 +934,7 @@ class TestJsCallQueue:
 
         panel._on_page_loaded()
 
-        calls = panel._webview.evaluateJavaScript_completionHandler_.call_args_list
-        assert calls[0][0][0] == "first()"
-        assert calls[1][0][0] == "second()"
-        assert calls[2][0][0] == "third()"
+        # All pending JS is combined into a single call to guarantee order
+        panel._webview.evaluateJavaScript_completionHandler_.assert_called_once()
+        combined = panel._webview.evaluateJavaScript_completionHandler_.call_args[0][0]
+        assert combined == "first();second();third()"
