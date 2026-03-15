@@ -41,18 +41,28 @@ class RecordingController:
             import time
             time.sleep(0.35)
             if not app._busy:
-                dev_name = app._recorder.start()
-                self._start_streaming_if_supported()
-                self.start_recording_indicator(dev_name)
+                self._start_recording_and_update_indicator()
             app._recording_started.set()
+
+        # Show indicator immediately (without device name) so the user
+        # gets instant visual feedback while the recorder initialises.
+        self.start_recording_indicator(None)
 
         if app._sound_manager.enabled:
             threading.Thread(target=_delayed_start, daemon=True).start()
         else:
-            dev_name = app._recorder.start()
-            self._start_streaming_if_supported()
-            self.start_recording_indicator(dev_name)
+            self._start_recording_and_update_indicator()
             app._recording_started.set()
+
+    def _start_recording_and_update_indicator(self) -> None:
+        """Start the recorder and update the indicator with the device name."""
+        from PyObjCTools import AppHelper
+
+        app = self._app
+        dev_name = app._recorder.start()
+        self._start_streaming_if_supported()
+        if dev_name:
+            AppHelper.callAfter(app._recording_indicator.update_device_name, dev_name)
 
     def on_restart_recording(self) -> None:
         """Called when restart key (space) is pressed during recording."""
@@ -90,17 +100,15 @@ class RecordingController:
             import time
             time.sleep(0.35)
             if not app._busy:
-                dev_name = app._recorder.start()
-                self._start_streaming_if_supported()
-                self.start_recording_indicator(dev_name)
+                self._start_recording_and_update_indicator()
             app._recording_started.set()
+
+        self.start_recording_indicator(None)
 
         if app._sound_manager.enabled:
             threading.Thread(target=_delayed_start, daemon=True).start()
         else:
-            dev_name = app._recorder.start()
-            self._start_streaming_if_supported()
-            self.start_recording_indicator(dev_name)
+            self._start_recording_and_update_indicator()
             app._recording_started.set()
 
     def on_preview_history(self) -> None:

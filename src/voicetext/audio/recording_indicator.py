@@ -308,6 +308,55 @@ class RecordingIndicatorPanel:
         except Exception as e:
             logger.warning("Failed to hide recording indicator: %s", e)
 
+    def update_device_name(self, device_name: str) -> None:
+        """Update the device name label after the panel is already shown.
+
+        Resizes the panel from _PANEL_HEIGHT to _PANEL_HEIGHT_WITH_LABEL
+        and recreates the content view so the label area is included.
+        """
+        if self._panel is None or self._indicator_view is None:
+            return
+        if self._indicator_view._device_name == device_name:
+            return
+
+        try:
+            from AppKit import NSScreen
+            from Foundation import NSTimer
+
+            self._indicator_view._device_name = device_name
+            # Reset cached label attrs so they are rebuilt on next draw
+            self._indicator_view._label_attrs = None
+
+            new_height = _PANEL_HEIGHT_WITH_LABEL
+
+            # Resize panel and content view
+            content_view = self._indicator_view.create_view(_PANEL_WIDTH, new_height)
+            self._panel.setContentSize_((float(_PANEL_WIDTH), float(new_height)))
+            self._panel.setContentView_(content_view)
+
+            # Re-center on screen
+            screen = NSScreen.mainScreen()
+            if screen:
+                sf = screen.visibleFrame()
+                x = sf.origin.x + (sf.size.width - _PANEL_WIDTH) / 2
+                y = sf.origin.y + (sf.size.height - new_height) / 2
+                self._panel.setFrameOrigin_((x, y))
+
+            # Restart refresh timer with new content view
+            if self._timer is not None:
+                self._timer.invalidate()
+            self._timer = NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
+                _REFRESH_INTERVAL,
+                content_view,
+                b"refresh:",
+                None,
+                True,
+            )
+
+            logger.debug("Recording indicator updated with device: %s", device_name)
+        except Exception:
+            logger.debug("Failed to update recording indicator device name", exc_info=True)
+
     @property
     def current_frame(self) -> object | None:
         """Return the current panel frame rect, or None if not visible."""
