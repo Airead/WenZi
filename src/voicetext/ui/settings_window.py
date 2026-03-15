@@ -96,6 +96,7 @@ class SettingsPanel:
         self._llm_buttons: Dict[Tuple[str, str], object] = {}
         self._enhance_mode_buttons: Dict[str, object] = {}
         self._enhance_edit_buttons: Dict[str, object] = {}
+        self._scripting_check = None
         self._thinking_check = None
         self._vocab_check = None
         self._restart_key_popup = None
@@ -445,6 +446,25 @@ class SettingsPanel:
         )
         y = self._add_hint(
             "Use web-based preview (HTML/CSS); disable for native AppKit preview",
+            pad + 12, y, content_w - 24, doc_view,
+        )
+
+        y -= self._SECTION_GAP
+
+        # --- Scripting section ---
+        y -= self._LABEL_HEIGHT
+        scripting_label = self._make_label("Scripting", pad, y, content_w, label_font)
+        doc_view.addSubview_(scripting_label)
+
+        y -= (self._CONTROL_HEIGHT + self._ROW_GAP)
+        self._scripting_check = self._make_switch(
+            "Enable Scripting", pad + 12, y, content_w - 24,
+            state.get("scripting_enabled", False), small_font,
+            b"scriptingCheckChanged:", doc_view,
+        )
+        y = self._add_hint(
+            "Load user scripts from ~/.config/VoiceText/scripts/init.py "
+            "(requires app restart)",
             pad + 12, y, content_w - 24, doc_view,
         )
 
@@ -1061,6 +1081,9 @@ class SettingsPanel:
         value = sender.selectedItem().representedObject()
         if value:
             self._call("on_cancel_key_select", str(value))
+
+    def scriptingCheckChanged_(self, sender):
+        self._call("on_scripting_toggle", bool(sender.state()))
 
     def soundCheckChanged_(self, sender):
         self._call("on_sound_toggle", bool(sender.state()))

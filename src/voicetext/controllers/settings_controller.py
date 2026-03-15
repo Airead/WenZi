@@ -109,6 +109,9 @@ class SettingsController:
                 app._enhancer and app._enhancer.history_enabled
             ),
             "config_dir": app._config_dir,
+            "scripting_enabled": app._config.get("scripting", {}).get(
+                "enabled", False
+            ),
         }
 
         callbacks = {
@@ -116,6 +119,7 @@ class SettingsController:
             "on_record_hotkey": lambda: app._on_record_hotkey(None),
             "on_restart_key_select": self.restart_key_select,
             "on_cancel_key_select": self.cancel_key_select,
+            "on_scripting_toggle": self.scripting_toggle,
             "on_sound_toggle": self.sound_toggle,
             "on_visual_toggle": self.visual_toggle,
             "on_preview_toggle": self.preview_toggle,
@@ -186,6 +190,14 @@ class SettingsController:
         if app._hotkey_listener:
             app._hotkey_listener.set_cancel_key(key_name)
         logger.info("Cancel key set to: %s (from settings)", key_name)
+
+    def scripting_toggle(self, enabled: bool) -> None:
+        """Handle scripting toggle from Settings panel."""
+        app = self._app
+        scripting_cfg = app._config.setdefault("scripting", {})
+        scripting_cfg["enabled"] = enabled
+        save_config(app._config, app._config_path)
+        logger.info("Scripting set to: %s (requires restart)", enabled)
 
     def sound_toggle(self, enabled: bool) -> None:
         """Handle sound toggle from Settings panel."""
