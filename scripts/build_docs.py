@@ -181,7 +181,8 @@ DOC_INLINE_CSS = """\
     .doc-container hr { border: none; border-top: 1px solid var(--card-border); margin: 32px 0; }
     .doc-container .toc { background: var(--bg-alt); border-radius: 12px; padding: 24px 28px; margin-bottom: 40px; }
     .doc-container .toc h2 { margin-top: 0 !important; border-bottom: none !important; font-size: 1.2rem; }
-    .doc-container .toc ul { list-style: none; padding-left: 0; }
+    .doc-container .toc > ul { list-style: none; padding-left: 0; }
+    .doc-container .toc ul ul { list-style: none; padding-left: 1.2em; }
     .doc-container .toc li { margin-bottom: 6px; }
     .doc-container .toc a { color: var(--purple); }
     .table-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; margin-bottom: 16px; }

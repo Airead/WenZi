@@ -778,3 +778,29 @@ pre.code-block {
     gap: 16px;
   }
 }
+
+/* ---------- Tooltip ---------- */
+.tooltip {
+  position: relative;
+  cursor: help;
+  color: #e6a700;
+}
+.tooltip::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: 130%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #333;
+  color: #fff;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+.tooltip:hover::after {
+  opacity: 1;
+}
