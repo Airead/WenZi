@@ -3,6 +3,8 @@
 Polls NSPasteboard.changeCount() in a background thread and records
 text entries, excluding concealed/transient clipboard content from
 password managers and VoiceText itself.
+
+Storage uses SQLite for incremental writes instead of full JSON dumps.
 """
 
 from __future__ import annotations
@@ -11,9 +13,10 @@ import hashlib
 import json
 import logging
 import os
+import sqlite3
 import threading
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from typing import List, Optional
 
 logger = logging.getLogger(__name__)
@@ -22,6 +25,7 @@ logger = logging.getLogger(__name__)
 _CONCEALED_TYPE = "org.nspasteboard.ConcealedType"
 _TRANSIENT_TYPE = "com.nspasteboard.TransientType"
 
+_MAX_TEXT_LENGTH = 10_240  # 10 KB
 
 _DEFAULT_IMAGE_DIR = os.path.expanduser("~/.config/VoiceText/clipboard_images")
 
@@ -39,11 +43,201 @@ class ClipboardEntry:
     image_size: int = 0  # file size in bytes
 
 
+# ---------------------------------------------------------------------------
+# SQLite storage
+# ---------------------------------------------------------------------------
+
+_SCHEMA = """\
+CREATE TABLE IF NOT EXISTS entries (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    text       TEXT    NOT NULL DEFAULT '',
+    timestamp  REAL    NOT NULL,
+    source_app TEXT    NOT NULL DEFAULT '',
+    image_path TEXT    NOT NULL DEFAULT '',
+    image_width  INTEGER NOT NULL DEFAULT 0,
+    image_height INTEGER NOT NULL DEFAULT 0,
+    image_size   INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_entries_timestamp ON entries(timestamp);
+"""
+
+
+class _ClipboardDB:
+    """Thin wrapper around a SQLite database for clipboard entries."""
+
+    def __init__(self, db_path: str) -> None:
+        self._path = db_path
+        os.makedirs(os.path.dirname(db_path), exist_ok=True)
+        self._conn = sqlite3.connect(db_path, check_same_thread=False)
+        self._conn.execute("PRAGMA journal_mode=WAL")
+        self._conn.executescript(_SCHEMA)
+
+    def close(self) -> None:
+        self._conn.close()
+
+    # -- writes --
+
+    def insert(self, entry: ClipboardEntry) -> None:
+        self._conn.execute(
+            "INSERT INTO entries"
+            " (text, timestamp, source_app, image_path,"
+            "  image_width, image_height, image_size)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                entry.text, entry.timestamp, entry.source_app,
+                entry.image_path, entry.image_width,
+                entry.image_height, entry.image_size,
+            ),
+        )
+        self._conn.commit()
+
+    def update_timestamp(self, **match) -> bool:
+        """Set timestamp=now for the first row matching *match* kwargs.
+
+        Returns True if a row was updated.
+        """
+        if not match:
+            return False
+        where = " AND ".join(f"{k}=?" for k in match)
+        vals = list(match.values())
+        cur = self._conn.execute(
+            f"SELECT id FROM entries WHERE {where} LIMIT 1", vals,  # noqa: S608
+        )
+        row = cur.fetchone()
+        if row is None:
+            return False
+        self._conn.execute(
+            "UPDATE entries SET timestamp=? WHERE id=?",
+            (time.time(), row[0]),
+        )
+        self._conn.commit()
+        return True
+
+    def delete_expired(self, max_days: int) -> List[str]:
+        """Delete entries older than *max_days*. Returns removed image paths."""
+        cutoff = time.time() - max_days * 86400
+        cur = self._conn.execute(
+            "SELECT image_path FROM entries"
+            " WHERE timestamp < ? AND image_path != ''",
+            (cutoff,),
+        )
+        removed = [row[0] for row in cur.fetchall()]
+        self._conn.execute("DELETE FROM entries WHERE timestamp < ?", (cutoff,))
+        self._conn.commit()
+        return removed
+
+    def delete_all(self) -> None:
+        self._conn.execute("DELETE FROM entries")
+        self._conn.commit()
+
+    def delete_missing_images(self, image_dir: str) -> int:
+        """Delete image entries whose files no longer exist on disk."""
+        cur = self._conn.execute(
+            "SELECT id, image_path FROM entries WHERE image_path != ''",
+        )
+        to_delete = []
+        for row_id, img in cur.fetchall():
+            if not os.path.isfile(os.path.join(image_dir, img)):
+                to_delete.append(row_id)
+        if to_delete:
+            placeholders = ",".join("?" * len(to_delete))
+            self._conn.execute(
+                f"DELETE FROM entries WHERE id IN ({placeholders})",  # noqa: S608
+                to_delete,
+            )
+            self._conn.commit()
+        return len(to_delete)
+
+    # -- reads --
+
+    def load_all(self, max_days: int) -> List[ClipboardEntry]:
+        """Return all non-expired entries, newest first."""
+        cutoff = time.time() - max_days * 86400
+        cur = self._conn.execute(
+            "SELECT text, timestamp, source_app,"
+            " image_path, image_width, image_height, image_size"
+            " FROM entries WHERE timestamp >= ?"
+            " ORDER BY timestamp DESC",
+            (cutoff,),
+        )
+        return [
+            ClipboardEntry(
+                text=row[0], timestamp=row[1], source_app=row[2],
+                image_path=row[3], image_width=row[4],
+                image_height=row[5], image_size=row[6],
+            )
+            for row in cur.fetchall()
+        ]
+
+    def latest_text(self) -> str:
+        """Return the text of the most recent entry, or ''."""
+        cur = self._conn.execute(
+            "SELECT text FROM entries ORDER BY timestamp DESC LIMIT 1",
+        )
+        row = cur.fetchone()
+        return row[0] if row else ""
+
+    def latest_image_path(self) -> str:
+        """Return the image_path of the most recent entry, or ''."""
+        cur = self._conn.execute(
+            "SELECT image_path FROM entries ORDER BY timestamp DESC LIMIT 1",
+        )
+        row = cur.fetchone()
+        return row[0] if row else ""
+
+
+# ---------------------------------------------------------------------------
+# JSON migration helper
+# ---------------------------------------------------------------------------
+
+
+def _migrate_json_to_db(json_path: str, db: _ClipboardDB) -> int:
+    """Import entries from an old JSON file into the database.
+
+    Returns the number of entries imported.  The JSON file is renamed
+    to ``*.json.bak`` after successful migration.
+    """
+    if not os.path.isfile(json_path):
+        return 0
+    try:
+        with open(json_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if not isinstance(data, list):
+            return 0
+        count = 0
+        for d in data:
+            if not isinstance(d, dict):
+                continue
+            entry = ClipboardEntry(
+                text=d.get("text", ""),
+                timestamp=d.get("timestamp", 0),
+                source_app=d.get("source_app", ""),
+                image_path=d.get("image_path", ""),
+                image_width=d.get("image_width", 0),
+                image_height=d.get("image_height", 0),
+                image_size=d.get("image_size", 0),
+            )
+            db.insert(entry)
+            count += 1
+        # Rename old file so we don't re-import
+        os.rename(json_path, json_path + ".bak")
+        logger.info("Migrated %d entries from JSON to SQLite", count)
+        return count
+    except Exception:
+        logger.debug("Failed to migrate JSON clipboard history", exc_info=True)
+        return 0
+
+
+# ---------------------------------------------------------------------------
+# Monitor
+# ---------------------------------------------------------------------------
+
+
 class ClipboardMonitor:
     """Background monitor that records clipboard text changes.
 
     Polls NSPasteboard.changeCount() at a configurable interval and
-    stores entries in memory, with optional JSON persistence.
+    stores entries in memory (newest-first list) backed by SQLite.
     """
 
     def __init__(
@@ -62,9 +256,47 @@ class ClipboardMonitor:
         self._thread: Optional[threading.Thread] = None
         self._stop_event = threading.Event()
         self._last_change_count: int = -1
+        self._db: Optional[_ClipboardDB] = None
 
         if persist_path:
-            self._load_from_disk()
+            self._init_db()
+
+    def _init_db(self) -> None:
+        """Open or create the SQLite database and load entries."""
+        db_path = self._db_path()
+        self._db = _ClipboardDB(db_path)
+
+        # Migrate legacy JSON file if present
+        json_path = self._persist_path
+        if json_path and os.path.isfile(json_path):
+            _migrate_json_to_db(json_path, self._db)
+
+        # Clean up missing images and expired entries
+        dropped = self._db.delete_missing_images(self._image_dir)
+        if dropped:
+            logger.info("Dropped %d clipboard entries (image files missing)", dropped)
+
+        expired_images = self._db.delete_expired(self._max_days)
+        if expired_images:
+            logger.info(
+                "Dropped %d expired clipboard entries (>%d days)",
+                len(expired_images), self._max_days,
+            )
+            self._cleanup_image_files(expired_images)
+
+        # Load into memory
+        with self._lock:
+            self._entries = self._db.load_all(self._max_days)
+        logger.info("Loaded %d clipboard history entries", len(self._entries))
+
+    def _db_path(self) -> str:
+        """Derive the SQLite path from the persist_path."""
+        # e.g. ~/.config/VoiceText/clipboard_history.json
+        #   -> ~/.config/VoiceText/clipboard_history.db
+        base = self._persist_path
+        if base and base.endswith(".json"):
+            return base[:-5] + ".db"
+        return (base or "") + ".db"
 
     @staticmethod
     def default_image_dir() -> str:
@@ -111,7 +343,8 @@ class ClipboardMonitor:
         """Clear all history entries and associated image files."""
         with self._lock:
             self._entries.clear()
-        self._save_to_disk()
+        if self._db:
+            self._db.delete_all()
         self._clear_image_dir()
 
     def _poll_loop(self) -> None:
@@ -125,7 +358,12 @@ class ClipboardMonitor:
 
     def _check_clipboard(self) -> None:
         """Check if the clipboard has changed and record new content."""
-        from AppKit import NSPasteboard, NSPasteboardTypeString, NSPasteboardTypePNG, NSPasteboardTypeTIFF
+        from AppKit import (
+            NSPasteboard,
+            NSPasteboardTypePNG,
+            NSPasteboardTypeString,
+            NSPasteboardTypeTIFF,
+        )
 
         pb = NSPasteboard.generalPasteboard()
         current_count = pb.changeCount()
@@ -140,10 +378,16 @@ class ClipboardMonitor:
             logger.debug("Skipping concealed/transient clipboard entry")
             return
 
-        # Try text first
+        # Try text first (skip entries larger than 10 KB)
         text = pb.stringForType_(NSPasteboardTypeString)
         if text and str(text).strip():
             text_str = str(text).strip()
+            if len(text_str) > _MAX_TEXT_LENGTH:
+                logger.debug(
+                    "Skipping clipboard text: %d chars exceeds 10 KB limit",
+                    len(text_str),
+                )
+                return
             source_app = self._get_frontmost_app()
             self._add_entry(text_str, source_app)
             return
@@ -182,23 +426,18 @@ class ClipboardMonitor:
         return ""
 
     def promote(self, text: str) -> None:
-        """Move an existing entry to the top of the history list.
-
-        If found, updates its timestamp. If not found, does nothing.
-        Save is done inside the lock to prevent concurrent promotes
-        from producing an inconsistent on-disk state.
-        """
+        """Move an existing text entry to the top of the history list."""
         with self._lock:
             for i, entry in enumerate(self._entries):
                 if entry.text == text:
                     self._entries.pop(i)
                     entry.timestamp = time.time()
                     self._entries.insert(0, entry)
-                    snapshot = [asdict(e) for e in self._entries]
                     break
             else:
                 return
-            self._save_to_disk(snapshot)
+        if self._db:
+            self._db.update_timestamp(text=text)
 
     def promote_image(self, image_path: str) -> None:
         """Move an existing image entry to the top of the history list."""
@@ -208,11 +447,11 @@ class ClipboardMonitor:
                     self._entries.pop(i)
                     entry.timestamp = time.time()
                     self._entries.insert(0, entry)
-                    snapshot = [asdict(e) for e in self._entries]
                     break
             else:
                 return
-            self._save_to_disk(snapshot)
+        if self._db:
+            self._db.update_timestamp(image_path=image_path)
 
     def _add_image_entry(
         self, image_data: bytes, image_type: str, source_app: str = ""
@@ -224,28 +463,34 @@ class ClipboardMonitor:
 
         filename, width, height, file_size = result
 
+        entry = ClipboardEntry(
+            text="",
+            timestamp=time.time(),
+            source_app=source_app,
+            image_path=filename,
+            image_width=width,
+            image_height=height,
+            image_size=file_size,
+        )
+
+        removed: List[str] = []
         with self._lock:
             # Skip if same as the most recent entry (by filename hash)
             if self._entries and self._entries[0].image_path == filename:
                 return
-
-            entry = ClipboardEntry(
-                text="",
-                timestamp=time.time(),
-                source_app=source_app,
-                image_path=filename,
-                image_width=width,
-                image_height=height,
-                image_size=file_size,
-            )
             self._entries.insert(0, entry)
-
             removed = self._trim_expired_locked()
-            snapshot = [asdict(e) for e in self._entries]
 
-        if self._save_to_disk(snapshot) and removed:
+        if self._db:
+            self._db.insert(entry)
+            if removed:
+                self._db.delete_expired(self._max_days)
+
+        if removed:
             self._cleanup_image_files(removed)
-        logger.debug("Clipboard image entry added: %s (%dx%d)", filename, width, height)
+        logger.debug(
+            "Clipboard image entry added: %s (%dx%d)", filename, width, height,
+        )
 
     def _save_image(
         self, image_data: bytes, image_type: str
@@ -317,22 +562,26 @@ class ClipboardMonitor:
 
     def _add_entry(self, text: str, source_app: str = "") -> None:
         """Add a new entry, deduplicating consecutive identical texts."""
+        entry = ClipboardEntry(
+            text=text,
+            timestamp=time.time(),
+            source_app=source_app,
+        )
+
+        removed: List[str] = []
         with self._lock:
             # Skip if same as the most recent entry
             if self._entries and self._entries[0].text == text:
                 return
-
-            entry = ClipboardEntry(
-                text=text,
-                timestamp=time.time(),
-                source_app=source_app,
-            )
             self._entries.insert(0, entry)
-
             removed = self._trim_expired_locked()
-            snapshot = [asdict(e) for e in self._entries]
 
-        if self._save_to_disk(snapshot) and removed:
+        if self._db:
+            self._db.insert(entry)
+            if removed:
+                self._db.delete_expired(self._max_days)
+
+        if removed:
             self._cleanup_image_files(removed)
         logger.debug("Clipboard entry added: %s...", text[:40])
 
@@ -351,80 +600,3 @@ class ClipboardMonitor:
                 removed_images.append(entry.image_path)
         self._entries = kept
         return removed_images
-
-    def _save_to_disk(self, snapshot: Optional[list] = None) -> bool:
-        """Persist entries to JSON file. Returns True on success.
-
-        *snapshot* should be a pre-serialized list of dicts captured inside
-        the lock to avoid race conditions.  When ``None``, a fresh snapshot
-        is taken (legacy / ``clear()`` path).
-        """
-        if not self._persist_path:
-            return True
-        try:
-            path = os.path.expanduser(self._persist_path)
-            os.makedirs(os.path.dirname(path), exist_ok=True)
-            if snapshot is None:
-                with self._lock:
-                    snapshot = [asdict(e) for e in self._entries]
-            with open(path, "w", encoding="utf-8") as f:
-                json.dump(snapshot, f, ensure_ascii=False, indent=2)
-            return True
-        except Exception:
-            logger.debug("Failed to save clipboard history", exc_info=True)
-            return False
-
-    def _load_from_disk(self) -> None:
-        """Load entries from JSON file."""
-        if not self._persist_path:
-            return
-        path = os.path.expanduser(self._persist_path)
-        if not os.path.isfile(path):
-            return
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            entries = []
-            dropped = 0
-            for d in data:
-                if not isinstance(d, dict):
-                    continue
-                if "text" not in d and "image_path" not in d:
-                    continue
-                img = d.get("image_path", "")
-                # Drop image entries whose file no longer exists
-                if img and not os.path.isfile(
-                    os.path.join(self._image_dir, img)
-                ):
-                    dropped += 1
-                    continue
-                entries.append(
-                    ClipboardEntry(
-                        text=d.get("text", ""),
-                        timestamp=d.get("timestamp", 0),
-                        source_app=d.get("source_app", ""),
-                        image_path=img,
-                        image_width=d.get("image_width", 0),
-                        image_height=d.get("image_height", 0),
-                        image_size=d.get("image_size", 0),
-                    )
-                )
-            with self._lock:
-                self._entries = entries
-                expired_images = self._trim_expired_locked()
-            need_save = dropped > 0 or len(expired_images) > 0
-            if dropped:
-                logger.info(
-                    "Dropped %d clipboard image entries (files missing)", dropped
-                )
-            if expired_images:
-                logger.info(
-                    "Dropped %d expired clipboard entries (>%d days)",
-                    len(expired_images), self._max_days,
-                )
-                self._cleanup_image_files(expired_images)
-            if need_save:
-                self._save_to_disk()
-            logger.info("Loaded %d clipboard history entries", len(self._entries))
-        except Exception:
-            logger.debug("Failed to load clipboard history", exc_info=True)

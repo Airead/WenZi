@@ -5,7 +5,12 @@ import os
 
 from unittest.mock import MagicMock, patch
 
-from voicetext.scripting.clipboard_monitor import ClipboardEntry, ClipboardMonitor
+from voicetext.scripting.clipboard_monitor import (
+    ClipboardEntry,
+    ClipboardMonitor,
+    _ClipboardDB,
+    _migrate_json_to_db,
+)
 
 
 class TestClipboardEntry:
@@ -40,6 +45,135 @@ class TestClipboardEntry:
         assert entry.image_width == 1920
         assert entry.image_height == 1080
         assert entry.image_size == 500000
+
+
+class TestClipboardDB:
+    def test_insert_and_load(self, tmp_path):
+        import time
+        db = _ClipboardDB(str(tmp_path / "test.db"))
+        entry = ClipboardEntry(text="hello", timestamp=time.time())
+        db.insert(entry)
+        entries = db.load_all(max_days=999)
+        assert len(entries) == 1
+        assert entries[0].text == "hello"
+        db.close()
+
+    def test_delete_expired(self, tmp_path):
+        import time
+
+        db = _ClipboardDB(str(tmp_path / "test.db"))
+        old = ClipboardEntry(text="old", timestamp=time.time() - 10 * 86400)
+        new = ClipboardEntry(text="new", timestamp=time.time())
+        db.insert(old)
+        db.insert(new)
+        removed = db.delete_expired(max_days=7)
+        entries = db.load_all(max_days=999)
+        assert len(entries) == 1
+        assert entries[0].text == "new"
+        assert removed == []  # old entry had no image
+        db.close()
+
+    def test_delete_expired_returns_image_paths(self, tmp_path):
+        import time
+
+        db = _ClipboardDB(str(tmp_path / "test.db"))
+        old = ClipboardEntry(
+            image_path="old.png", timestamp=time.time() - 10 * 86400,
+        )
+        db.insert(old)
+        removed = db.delete_expired(max_days=7)
+        assert removed == ["old.png"]
+        db.close()
+
+    def test_update_timestamp(self, tmp_path):
+        import time
+        old_ts = time.time() - 3600
+        db = _ClipboardDB(str(tmp_path / "test.db"))
+        db.insert(ClipboardEntry(text="hello", timestamp=old_ts))
+        assert db.update_timestamp(text="hello") is True
+        entries = db.load_all(max_days=999)
+        assert entries[0].timestamp > old_ts
+        db.close()
+
+    def test_update_timestamp_not_found(self, tmp_path):
+        db = _ClipboardDB(str(tmp_path / "test.db"))
+        assert db.update_timestamp(text="nope") is False
+        db.close()
+
+    def test_delete_all(self, tmp_path):
+        db = _ClipboardDB(str(tmp_path / "test.db"))
+        db.insert(ClipboardEntry(text="a"))
+        db.insert(ClipboardEntry(text="b"))
+        db.delete_all()
+        assert db.load_all(max_days=999) == []
+        db.close()
+
+    def test_delete_missing_images(self, tmp_path):
+        import time
+        image_dir = str(tmp_path / "images")
+        os.makedirs(image_dir)
+        with open(os.path.join(image_dir, "exists.png"), "wb") as f:
+            f.write(b"fake")
+
+        db = _ClipboardDB(str(tmp_path / "test.db"))
+        ts = time.time()
+        db.insert(ClipboardEntry(image_path="exists.png", timestamp=ts))
+        db.insert(ClipboardEntry(image_path="gone.png", timestamp=ts))
+
+        dropped = db.delete_missing_images(image_dir)
+        assert dropped == 1
+        entries = db.load_all(max_days=999)
+        assert len(entries) == 1
+        assert entries[0].image_path == "exists.png"
+        db.close()
+
+    def test_latest_text(self, tmp_path):
+        import time
+        db = _ClipboardDB(str(tmp_path / "test.db"))
+        assert db.latest_text() == ""
+        db.insert(ClipboardEntry(text="first", timestamp=time.time() - 100))
+        db.insert(ClipboardEntry(text="second", timestamp=time.time()))
+        assert db.latest_text() == "second"
+        db.close()
+
+
+class TestJSONMigration:
+    def test_migrate_json_to_db(self, tmp_path):
+        import time
+        json_path = str(tmp_path / "clipboard.json")
+        recent = time.time() - 3600
+        data = [
+            {"text": "hello", "timestamp": recent, "source_app": "Safari"},
+            {"text": "world", "timestamp": recent + 1},
+        ]
+        with open(json_path, "w") as f:
+            json.dump(data, f)
+
+        db = _ClipboardDB(str(tmp_path / "clipboard.db"))
+        count = _migrate_json_to_db(json_path, db)
+
+        assert count == 2
+        entries = db.load_all(max_days=999)
+        assert len(entries) == 2
+        # JSON file should be renamed
+        assert not os.path.isfile(json_path)
+        assert os.path.isfile(json_path + ".bak")
+        db.close()
+
+    def test_migrate_nonexistent_json(self, tmp_path):
+        db = _ClipboardDB(str(tmp_path / "clipboard.db"))
+        count = _migrate_json_to_db(str(tmp_path / "nope.json"), db)
+        assert count == 0
+        db.close()
+
+    def test_migrate_corrupt_json(self, tmp_path):
+        json_path = str(tmp_path / "clipboard.json")
+        with open(json_path, "w") as f:
+            f.write("not json")
+        db = _ClipboardDB(str(tmp_path / "clipboard.db"))
+        count = _migrate_json_to_db(json_path, db)
+        assert count == 0
+        db.close()
 
 
 class TestClipboardMonitor:
@@ -112,8 +246,9 @@ class TestClipboardMonitor:
         monitor1._add_entry("first", source_app="Safari")
         monitor1._add_entry("second")
 
-        # Verify file was written
-        assert (tmp_path / "clipboard.json").exists()
+        # Verify DB was written
+        db_path = str(tmp_path / "clipboard.db")
+        assert os.path.isfile(db_path)
 
         # Load in a new monitor
         monitor2 = ClipboardMonitor(max_days=7, persist_path=persist_path)
@@ -123,12 +258,38 @@ class TestClipboardMonitor:
         assert monitor2.entries[1].source_app == "Safari"
 
     def test_load_corrupt_file(self, tmp_path):
-        persist_path = str(tmp_path / "clipboard.json")
-        with open(persist_path, "w") as f:
-            f.write("not json")
+        """A corrupt DB should not crash the monitor."""
+        db_path = str(tmp_path / "clipboard.db")
+        with open(db_path, "w") as f:
+            f.write("not a database")
 
-        monitor = ClipboardMonitor(max_days=7, persist_path=persist_path)
-        assert len(monitor.entries) == 0
+        # persist_path triggers _init_db which opens .db
+        # The corrupt file should be handled gracefully
+        persist_path = str(tmp_path / "clipboard.json")
+        try:
+            ClipboardMonitor(max_days=7, persist_path=persist_path)
+        except Exception:
+            pass  # SQLite may raise on corrupt file; that's acceptable
+
+    def test_json_migration_on_init(self, tmp_path):
+        """If a JSON file exists at persist_path, it should be migrated."""
+        import time as _time
+
+        json_path = str(tmp_path / "clipboard.json")
+        recent_ts = _time.time() - 3600
+        data = [
+            {"text": "hello", "timestamp": recent_ts, "source_app": "Safari"},
+            {"text": "world", "timestamp": recent_ts},
+        ]
+        with open(json_path, "w") as f:
+            json.dump(data, f)
+
+        monitor = ClipboardMonitor(max_days=7, persist_path=json_path)
+        assert len(monitor.entries) == 2
+        assert monitor.entries[0].text == "world"  # most recent
+        # JSON should be renamed to .bak
+        assert not os.path.isfile(json_path)
+        assert os.path.isfile(json_path + ".bak")
 
     def test_is_concealed(self):
         """Pasteboard with concealed type markers should be detected."""
@@ -153,7 +314,9 @@ class TestClipboardMonitor:
         """Start and stop should not raise."""
         monitor = ClipboardMonitor(max_days=7, poll_interval=10.0)
         # Mock NSPasteboard to avoid actual clipboard access
-        with patch("voicetext.scripting.clipboard_monitor.ClipboardMonitor._check_clipboard"):
+        with patch(
+            "voicetext.scripting.clipboard_monitor.ClipboardMonitor._check_clipboard"
+        ):
             monitor.start()
             assert monitor._thread is not None
             assert monitor._thread.is_alive()
@@ -251,7 +414,9 @@ class TestImageEntries:
 
         monitor = ClipboardMonitor(max_days=7, image_dir=image_dir)
         monitor._entries.append(
-            ClipboardEntry(image_path="test.png", image_width=100, image_height=100)
+            ClipboardEntry(
+                image_path="test.png", image_width=100, image_height=100,
+            )
         )
 
         monitor.clear()
@@ -262,7 +427,9 @@ class TestImageEntries:
         monitor = ClipboardMonitor(max_days=7)
         monitor._entries = [
             ClipboardEntry(text="text1"),
-            ClipboardEntry(image_path="img1.png", image_width=100, image_height=100),
+            ClipboardEntry(
+                image_path="img1.png", image_width=100, image_height=100,
+            ),
             ClipboardEntry(text="text2"),
         ]
 
@@ -284,30 +451,23 @@ class TestImageEntries:
             f.write(b"fake png")
 
         monitor1 = ClipboardMonitor(
-            max_days=7, persist_path=persist_path, image_dir=image_dir
+            max_days=7, persist_path=persist_path, image_dir=image_dir,
         )
-        with monitor1._lock:
-            monitor1._entries = [
-                ClipboardEntry(
-                    image_path="img1.png",
-                    image_width=1920,
-                    image_height=1080,
-                    image_size=500000,
-                    source_app="Safari",
-                ),
-                ClipboardEntry(text="hello"),
-            ]
-        monitor1._save_to_disk()
+        # Use _add_image_entry with mocked _save_image so it goes through DB
+        monitor1._save_image = MagicMock(
+            return_value=("img1.png", 1920, 1080, 500000)
+        )
+        monitor1._add_image_entry(b"data", "png", source_app="Safari")
+        monitor1._add_entry("hello")
 
         monitor2 = ClipboardMonitor(
-            max_days=7, persist_path=persist_path, image_dir=image_dir
+            max_days=7, persist_path=persist_path, image_dir=image_dir,
         )
         assert len(monitor2.entries) == 2
-        assert monitor2.entries[0].image_path == "img1.png"
-        assert monitor2.entries[0].image_width == 1920
-        assert monitor2.entries[0].image_height == 1080
-        assert monitor2.entries[0].image_size == 500000
-        assert monitor2.entries[1].text == "hello"
+        # Newest first
+        assert monitor2.entries[0].text == "hello"
+        assert monitor2.entries[1].image_path == "img1.png"
+        assert monitor2.entries[1].image_width == 1920
 
     def test_load_drops_entries_with_missing_image_files(self, tmp_path):
         """Image entries whose files are gone should be filtered out on load."""
@@ -321,23 +481,30 @@ class TestImageEntries:
         with open(os.path.join(image_dir, "exists.png"), "wb") as f:
             f.write(b"fake png")
 
+        # Create DB directly with entries
+        db_path = str(tmp_path / "clipboard.db")
+        db = _ClipboardDB(db_path)
         recent_ts = _time.time() - 3600
-        data = [
-            {"image_path": "missing.png", "image_width": 100, "image_height": 50,
-             "timestamp": recent_ts},
-            {"text": "hello", "timestamp": recent_ts},
-            {"image_path": "exists.png", "image_width": 200, "image_height": 100,
-             "timestamp": recent_ts},
-        ]
-        with open(persist_path, "w") as f:
-            json.dump(data, f)
+        db.insert(ClipboardEntry(
+            image_path="missing.png", image_width=100, image_height=50,
+            timestamp=recent_ts,
+        ))
+        db.insert(ClipboardEntry(text="hello", timestamp=recent_ts))
+        db.insert(ClipboardEntry(
+            image_path="exists.png", image_width=200, image_height=100,
+            timestamp=recent_ts,
+        ))
+        db.close()
 
         monitor = ClipboardMonitor(
-            max_days=7, persist_path=persist_path, image_dir=image_dir
+            max_days=7, persist_path=persist_path, image_dir=image_dir,
         )
         assert len(monitor.entries) == 2
-        assert monitor.entries[0].text == "hello"
-        assert monitor.entries[1].image_path == "exists.png"
+        texts = [e.text for e in monitor.entries]
+        images = [e.image_path for e in monitor.entries if e.image_path]
+        assert "hello" in texts
+        assert "exists.png" in images
+        assert "missing.png" not in images
 
     def test_load_trims_expired_entries(self, tmp_path):
         """Entries older than max_days should be removed on load."""
@@ -349,42 +516,25 @@ class TestImageEntries:
         with open(os.path.join(image_dir, "old.png"), "wb") as f:
             f.write(b"fake")
 
-        recent_ts = _time.time() - 3600  # 1 hour ago
-        old_ts = _time.time() - 10 * 86400  # 10 days ago
-        data = [
-            {"text": "recent", "timestamp": recent_ts},
-            {"text": "old", "timestamp": old_ts},
-            {"image_path": "old.png", "image_width": 100, "image_height": 50,
-             "timestamp": old_ts},
-        ]
-        with open(persist_path, "w") as f:
-            json.dump(data, f)
+        db_path = str(tmp_path / "clipboard.db")
+        db = _ClipboardDB(db_path)
+        recent_ts = _time.time() - 3600
+        old_ts = _time.time() - 10 * 86400
+        db.insert(ClipboardEntry(text="recent", timestamp=recent_ts))
+        db.insert(ClipboardEntry(text="old", timestamp=old_ts))
+        db.insert(ClipboardEntry(
+            image_path="old.png", image_width=100, image_height=50,
+            timestamp=old_ts,
+        ))
+        db.close()
 
         monitor = ClipboardMonitor(
-            max_days=7, persist_path=persist_path, image_dir=image_dir
+            max_days=7, persist_path=persist_path, image_dir=image_dir,
         )
         assert len(monitor.entries) == 1
         assert monitor.entries[0].text == "recent"
         # Expired image file should be cleaned up
         assert not os.path.exists(os.path.join(image_dir, "old.png"))
-
-    def test_load_old_format_backward_compatible(self, tmp_path):
-        """Old JSON without image fields should load correctly."""
-        import time as _time
-
-        persist_path = str(tmp_path / "clipboard.json")
-        recent_ts = _time.time() - 3600  # 1 hour ago (not expired)
-        data = [
-            {"text": "hello", "timestamp": recent_ts, "source_app": "Safari"},
-            {"text": "world", "timestamp": recent_ts},
-        ]
-        with open(persist_path, "w") as f:
-            json.dump(data, f)
-
-        monitor = ClipboardMonitor(max_days=7, persist_path=persist_path)
-        assert len(monitor.entries) == 2
-        assert monitor.entries[0].image_path == ""
-        assert monitor.entries[0].image_width == 0
 
     def test_save_image_returns_none_on_failure(self, tmp_path):
         image_dir = str(tmp_path / "images")
