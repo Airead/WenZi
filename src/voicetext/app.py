@@ -169,6 +169,7 @@ class VoiceTextApp(StatusBarApp):
         )
         self._recording_indicator = RecordingIndicatorPanel()
         self._recording_indicator.enabled = fb_cfg.get("visual_indicator", True)
+        self._recording_indicator.show_device_name = fb_cfg.get("show_device_name", False)
         self._streaming_overlay = StreamingOverlayPanel()
         self._level_poll_stop: threading.Event | None = None
         self._recording_started = threading.Event()

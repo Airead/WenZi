@@ -91,6 +91,7 @@ class SettingsController:
             "cancel_key": fb_cfg.get("cancel_key", "space"),
             "sound_enabled": app._sound_manager.enabled,
             "visual_indicator": app._recording_indicator.enabled,
+            "show_device_name": app._recording_indicator.show_device_name,
             "preview": app._preview_enabled,
             "preview_type": app._preview_type,
             "current_preset_id": app._current_preset_id,
@@ -122,6 +123,7 @@ class SettingsController:
             "on_scripting_toggle": self.scripting_toggle,
             "on_sound_toggle": self.sound_toggle,
             "on_visual_toggle": self.visual_toggle,
+            "on_device_name_toggle": self.show_device_name_toggle,
             "on_preview_toggle": self.preview_toggle,
             "on_preview_type_toggle": self.preview_type_toggle,
             "on_stt_select": self.stt_select,
@@ -217,6 +219,15 @@ class SettingsController:
 
         fb_cfg = app._config.setdefault("feedback", {})
         fb_cfg["visual_indicator"] = enabled
+        save_config(app._config, app._config_path)
+
+    def show_device_name_toggle(self, enabled: bool) -> None:
+        """Handle show device name toggle from Settings panel."""
+        app = self._app
+        app._recording_indicator.show_device_name = enabled
+
+        fb_cfg = app._config.setdefault("feedback", {})
+        fb_cfg["show_device_name"] = enabled
         save_config(app._config, app._config_path)
 
     def preview_toggle(self, enabled: bool) -> None:

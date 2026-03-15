@@ -315,7 +315,7 @@ class SettingsPanel:
         small_font = NSFont.systemFontOfSize_(12.0)
 
         hotkeys = state.get("hotkeys", {})
-        n_rows = len(hotkeys) + 13
+        n_rows = len(hotkeys) + 14
         total_h = max(content_h, n_rows * (self._CONTROL_HEIGHT + self._ROW_GAP) + 200)
 
         doc_view = NSView.alloc().initWithFrame_(
@@ -417,6 +417,17 @@ class SettingsPanel:
         )
         y = self._add_hint(
             "Show a floating indicator while recording",
+            pad + 12, y, content_w - 24, doc_view,
+        )
+
+        y -= (self._CONTROL_HEIGHT + self._ROW_GAP)
+        self._device_name_check = self._make_switch(
+            "Show Device Name", pad + 12, y, content_w - 24,
+            state.get("show_device_name", False), small_font,
+            b"deviceNameCheckChanged:", doc_view,
+        )
+        y = self._add_hint(
+            "Show the input device name on the recording indicator",
             pad + 12, y, content_w - 24, doc_view,
         )
 
@@ -1090,6 +1101,9 @@ class SettingsPanel:
 
     def visualCheckChanged_(self, sender):
         self._call("on_visual_toggle", bool(sender.state()))
+
+    def deviceNameCheckChanged_(self, sender):
+        self._call("on_device_name_toggle", bool(sender.state()))
 
     def previewCheckChanged_(self, sender):
         self._call("on_preview_toggle", bool(sender.state()))

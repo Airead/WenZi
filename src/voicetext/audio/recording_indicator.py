@@ -214,6 +214,7 @@ class RecordingIndicatorPanel:
         self._indicator_view: Optional[RecordingIndicatorView] = None
         self._smoothed_level: float = 0.0
         self._enabled: bool = True
+        self._show_device_name: bool = False
 
     @property
     def enabled(self) -> bool:
@@ -224,6 +225,14 @@ class RecordingIndicatorPanel:
         self._enabled = value
         if not value:
             self.hide()
+
+    @property
+    def show_device_name(self) -> bool:
+        return self._show_device_name
+
+    @show_device_name.setter
+    def show_device_name(self, value: bool) -> None:
+        self._show_device_name = value
 
     def show(self, device_name: Optional[str] = None) -> None:
         """Create and show the floating indicator panel."""

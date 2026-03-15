@@ -61,7 +61,7 @@ class RecordingController:
         app = self._app
         dev_name = app._recorder.start()
         self._start_streaming_if_supported()
-        if dev_name:
+        if dev_name and app._recording_indicator.show_device_name:
             AppHelper.callAfter(app._recording_indicator.update_device_name, dev_name)
 
     def on_restart_recording(self) -> None:

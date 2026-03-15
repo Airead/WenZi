@@ -19,8 +19,17 @@ class TestRecordingIndicatorPanel:
     def test_initial_state(self):
         panel = RecordingIndicatorPanel()
         assert panel.enabled is True
+        assert panel.show_device_name is False
         assert panel._panel is None
         assert panel._timer is None
+
+    def test_show_device_name_toggle(self):
+        panel = RecordingIndicatorPanel()
+        assert panel.show_device_name is False
+        panel.show_device_name = True
+        assert panel.show_device_name is True
+        panel.show_device_name = False
+        assert panel.show_device_name is False
 
     def test_enabled_toggle(self):
         panel = RecordingIndicatorPanel()
