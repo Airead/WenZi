@@ -25,6 +25,7 @@ cd "$PROJECT_DIR"
 
 echo "==> Cleaning previous build..."
 rm -rf build dist
+find "$PROJECT_DIR/src" -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 
 echo "==> Running PyInstaller..."
 uv run pyinstaller VoiceText.spec --clean --noconfirm
