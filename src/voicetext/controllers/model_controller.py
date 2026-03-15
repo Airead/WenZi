@@ -355,10 +355,7 @@ models:
                 old_transcriber.cleanup()
 
                 cached = is_model_cached(preset)
-                if not cached or preset.backend == "funasr":
-                    # FunASR has multiple sub-models (ASR, VAD, Punc) that
-                    # may need downloading even when the main model is cached.
-                    # Pre-compute paths to avoid import deadlocks in threads.
+                if not cached:
                     monitor_args = self._make_download_monitor_args(preset)
                     monitor_thread = threading.Thread(
                         target=self._monitor_download_progress,
@@ -514,7 +511,7 @@ models:
             try:
                 from huggingface_hub import model_info
 
-                info = model_info(preset.model)
+                info = model_info(preset.model, files_metadata=True)
                 total = sum(
                     s.size for s in (info.siblings or []) if s.size is not None
                 )

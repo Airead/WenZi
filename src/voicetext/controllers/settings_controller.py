@@ -316,9 +316,7 @@ class SettingsController:
                 old_transcriber.cleanup()
 
                 cached = is_model_cached(preset)
-                if not cached or preset.backend == "funasr":
-                    # FunASR has multiple sub-models (ASR, VAD, Punc) that
-                    # may need downloading even when the main model is cached.
+                if not cached:
                     monitor_args = app._model_controller._make_download_monitor_args(preset)
                     monitor_thread = threading.Thread(
                         target=app._model_controller._monitor_download_progress,

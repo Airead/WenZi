@@ -933,15 +933,12 @@ class VoiceTextApp(StatusBarApp):
                 stop_event = threading.Event()
                 monitor_thread = None
                 preset = PRESET_BY_ID.get(self._current_preset_id)
-                backend = asr_cfg.get("backend", "")
                 need_monitor = (
                     not self._current_remote_asr
-                    and (
-                        backend == "funasr"
-                        or (preset and not is_model_cached(preset))
-                    )
+                    and preset
+                    and not is_model_cached(preset)
                 )
-                if need_monitor and preset:
+                if need_monitor:
                     monitor_args = self._model_controller._make_download_monitor_args(preset)
                     monitor_thread = threading.Thread(
                         target=self._model_controller._monitor_download_progress,
