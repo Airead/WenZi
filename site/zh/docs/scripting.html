@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>脚本系统 — VoiceText</title>
+  <link rel="icon" type="image/png" href="../../images/icon.png">
+  <link rel="stylesheet" href="../../css/style.css">
+  <style>
+    .doc-container { max-width: 800px; margin: 0 auto; padding: 80px 24px 60px; }
+    .doc-container h1 { font-size: 2.2rem; font-weight: 800; margin-bottom: 8px; }
+    .doc-container .doc-subtitle { font-size: 1.1rem; margin-bottom: 32px; color: var(--text-secondary); }
+    .doc-container h2 { font-size: 1.6rem; margin-top: 48px; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid var(--card-border); }
+    .doc-container h3 { font-size: 1.2rem; margin-top: 32px; margin-bottom: 12px; }
+    .doc-container h4 { font-size: 1.05rem; margin-top: 24px; margin-bottom: 8px; }
+    .doc-container p { margin-bottom: 16px; color: var(--text-secondary); }
+    .doc-container ul, .doc-container ol { margin-bottom: 16px; padding-left: 24px; color: var(--text-secondary); }
+    .doc-container li { margin-bottom: 8px; }
+    .doc-container li > ul, .doc-container li > ol { margin-top: 8px; margin-bottom: 0; }
+    .doc-container blockquote { border-left: 3px solid var(--purple); padding: 12px 16px; margin: 16px 0; background: var(--bg-alt); border-radius: 0 8px 8px 0; color: var(--text-secondary); }
+    .doc-container code { background: var(--code-bg); padding: 2px 6px; border-radius: 4px; font-size: 0.88rem; }
+    .doc-container pre { background: var(--code-bg); border-radius: 8px; padding: 16px; overflow-x: auto; font-size: 0.88rem; line-height: 1.6; margin-bottom: 16px; }
+    .doc-container pre code { background: none; padding: 0; }
+    .doc-container strong { color: var(--text); }
+    .doc-container img { border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin: 16px 0; }
+    .doc-container hr { border: none; border-top: 1px solid var(--card-border); margin: 32px 0; }
+    .doc-container .toc { background: var(--bg-alt); border-radius: 12px; padding: 24px 28px; margin-bottom: 40px; }
+    .doc-container .toc h2 { margin-top: 0 !important; border-bottom: none !important; font-size: 1.2rem; }
+    .doc-container .toc ul { list-style: none; padding-left: 0; }
+    .doc-container .toc li { margin-bottom: 6px; }
+    .doc-container .toc a { color: var(--purple); }
+    .table-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; margin-bottom: 16px; }
+    .doc-container table { width: 100%; border-collapse: collapse; background: var(--card-bg); border-radius: 8px; overflow: hidden; border: 1px solid var(--card-border); }
+    .doc-container th, .doc-container td { padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--card-border); }
+    .doc-container th { background: var(--purple); color: #fff; font-weight: 600; font-size: 0.95rem; }
+    .doc-container tr:last-child td { border-bottom: none; }
+    .doc-container tr:hover td { background: var(--bg-alt); }
+    .doc-nav { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 48px; }
+    .doc-nav-card { display: block; background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 20px 24px; transition: box-shadow 0.2s; text-decoration: none; }
+    .doc-nav-card:hover { box-shadow: 0 2px 12px rgba(0,0,0,0.08); text-decoration: none; }
+    .doc-nav-card h3 { color: var(--text); margin-bottom: 4px; font-size: 1rem; }
+    .doc-nav-card p { color: var(--text-secondary); margin: 0; font-size: 0.9rem; }
+    @media (max-width: 600px) { .doc-nav { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+
+  <header class="site-header">
+    <nav class="nav container">
+      <a href="../../" class="nav-brand">
+        <img src="../../images/icon.png" alt="VoiceText icon">
+        VoiceText
+      </a>
+      <ul class="nav-links">
+        <li><a href="../../">&larr; 返回</a></li>
+        <li><a href="../../docs/scripting.html" class="lang-switch">English</a></li>
+        <li><a href="https://github.com/Airead/VoiceText" target="_blank">GitHub</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <article class="doc-container">
+    <h1>脚本系统</h1>
+    <p class="doc-subtitle">使用 Python 脚本自动化 macOS 任务——Leader 键、快捷键、提示、剪贴板等。</p>
+
+    <div class="toc">
+      <h2>目录</h2>
+      <div class="toc">
+<ul>
+<li><a href="#_1">快速开始</a></li>
+<li><a href="#leader">Leader 键</a><ul>
+<li><a href="#_2">触发键</a></li>
+<li><a href="#_3">映射动作</a></li>
+</ul>
+</li>
+<li><a href="#api">API 参考</a><ul>
+<li><a href="#vtleadertrigger_key-mappings">vt.leader(trigger_key, mappings)</a></li>
+<li><a href="#vtapplaunchname">vt.app.launch(name)</a></li>
+<li><a href="#vtappfrontmost">vt.app.frontmost()</a></li>
+<li><a href="#vtalerttext-duration20">vt.alert(text, duration=2.0)</a></li>
+<li><a href="#vtnotifytitle-message">vt.notify(title, message="")</a></li>
+<li><a href="#vtpasteboardget">vt.pasteboard.get()</a></li>
+<li><a href="#vtpasteboardsettext">vt.pasteboard.set(text)</a></li>
+<li><a href="#vtkeystrokekey-modifiersnone">vt.keystroke(key, modifiers=None)</a></li>
+<li><a href="#vtexecutecommand-backgroundtrue">vt.execute(command, background=True)</a></li>
+<li><a href="#vttimerafterseconds-callback">vt.timer.after(seconds, callback)</a></li>
+<li><a href="#vttimereveryseconds-callback">vt.timer.every(seconds, callback)</a></li>
+<li><a href="#vttimercanceltimer_id">vt.timer.cancel(timer_id)</a></li>
+<li><a href="#vtdateformaty-m-d">vt.date(format="%Y-%m-%d")</a></li>
+<li><a href="#vtreload">vt.reload()</a></li>
+</ul>
+</li>
+<li><a href="#_4">使用示例</a><ul>
+<li><a href="#_5">应用启动器</a></li>
+<li><a href="#_6">工具快捷键</a></li>
+<li><a href="#_7">定时提醒</a></li>
+<li><a href="#_8">全局快捷键</a></li>
+</ul>
+</li>
+<li><a href="#_9">脚本运行环境</a></li>
+<li><a href="#_10">安全说明</a></li>
+<li><a href="#_11">常见问题</a></li>
+</ul>
+</div>
+
+    </div>
+
+<p>VoiceText 内置了一个基于 Python 的脚本系统，可以用来自动化 macOS 常见操作——通过 Leader 键启动应用、绑定全局快捷键、显示提示、操作剪贴板等。</p>
+<h2 id="_1"><a href="#_1" class="heading-anchor">快速开始</a></h2>
+<ol>
+<li><strong>启用脚本系统</strong>：在 设置 → 通用 → Scripting 中打开开关，或者直接编辑 <code>config.json</code>：</li>
+</ol>
+<p><code>json
+   {
+     "scripting": {
+       "enabled": true
+     }
+   }</code></p>
+<ol start="2">
+<li><strong>创建脚本文件</strong> <code>~/.config/VoiceText/scripts/init.py</code>：</li>
+</ol>
+<p><code>python
+   vt.leader("cmd_r", [
+       {"key": "w", "app": "WeChat"},
+       {"key": "s", "app": "Slack"},
+       {"key": "t", "app": "iTerm"},
+   ])</code></p>
+<ol start="3">
+<li><strong>重启 VoiceText</strong>。按住右 Command 键，屏幕上会显示快捷键面板，再按字母键即可启动对应应用。</li>
+</ol>
+<h2 id="leader"><a href="#leader" class="heading-anchor">Leader 键</a></h2>
+<p>Leader 键的使用方式：按住一个触发键（如右 Command），屏幕上会浮现可用映射列表，然后按第二个键执行对应操作。松开触发键后面板自动消失。</p>
+<pre><code class="language-python">vt.leader(&quot;cmd_r&quot;, [
+    {&quot;key&quot;: &quot;w&quot;, &quot;app&quot;: &quot;WeChat&quot;},
+    {&quot;key&quot;: &quot;f&quot;, &quot;app&quot;: &quot;Safari&quot;},
+    {&quot;key&quot;: &quot;g&quot;, &quot;app&quot;: &quot;/Users/me/Applications/Google Chrome.app&quot;},
+    {&quot;key&quot;: &quot;i&quot;, &quot;exec&quot;: &quot;/usr/local/bin/code ~/work/projects&quot;, &quot;desc&quot;: &quot;projects&quot;},
+    {&quot;key&quot;: &quot;d&quot;, &quot;desc&quot;: &quot;日期&quot;, &quot;func&quot;: lambda: (
+        vt.pasteboard.set(vt.date(&quot;%Y-%m-%d&quot;)),
+        vt.notify(&quot;日期已复制&quot;, vt.date(&quot;%Y-%m-%d&quot;)),
+    )},
+    {&quot;key&quot;: &quot;r&quot;, &quot;desc&quot;: &quot;重载脚本&quot;, &quot;func&quot;: lambda: vt.reload()},
+])
+</code></pre>
+<h3 id="_2"><a href="#_2" class="heading-anchor">触发键</a></h3>
+<p>任何修饰键都可以作为触发键，可用名称如下：</p>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th>按键</th>
+<th>名称</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>右 Command</td>
+<td><code>cmd_r</code></td>
+</tr>
+<tr>
+<td>右 Alt/Option</td>
+<td><code>alt_r</code></td>
+</tr>
+<tr>
+<td>右 Shift</td>
+<td><code>shift_r</code></td>
+</tr>
+<tr>
+<td>右 Control</td>
+<td><code>ctrl_r</code></td>
+</tr>
+<tr>
+<td>左 Command</td>
+<td><code>cmd</code></td>
+</tr>
+<tr>
+<td>左 Alt/Option</td>
+<td><code>alt</code></td>
+</tr>
+<tr>
+<td>左 Shift</td>
+<td><code>shift</code></td>
+</tr>
+<tr>
+<td>左 Control</td>
+<td><code>ctrl</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>可以用不同的触发键注册多组 Leader：</p>
+<pre><code class="language-python">vt.leader(&quot;cmd_r&quot;, [...])   # 右 Command 启动应用
+vt.leader(&quot;alt_r&quot;, [...])   # 右 Alt 执行工具操作
+</code></pre>
+<h3 id="_3"><a href="#_3" class="heading-anchor">映射动作</a></h3>
+<p>每个映射字典需要 <code>"key"</code> 字段加一个动作：</p>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th>字段</th>
+<th>类型</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>key</code></td>
+<td><code>str</code></td>
+<td>子键名称（如 <code>"w"</code>、<code>"1"</code>、<code>"f"</code>）</td>
+</tr>
+<tr>
+<td><code>app</code></td>
+<td><code>str</code></td>
+<td>应用名称或 <code>.app</code> 完整路径，启动/聚焦该应用</td>
+</tr>
+<tr>
+<td><code>func</code></td>
+<td><code>callable</code></td>
+<td>要调用的 Python 函数</td>
+</tr>
+<tr>
+<td><code>exec</code></td>
+<td><code>str</code></td>
+<td>要执行的 Shell 命令</td>
+</tr>
+<tr>
+<td><code>desc</code></td>
+<td><code>str</code></td>
+<td>可选描述，显示在浮窗面板中</td>
+</tr>
+</tbody>
+</table></div>
+<p>如果省略 <code>desc</code>，面板会显示应用名称或命令。</p>
+<h2 id="api"><a href="#api" class="heading-anchor">API 参考</a></h2>
+<h3 id="vtleadertrigger_key-mappings"><a href="#vtleadertrigger_key-mappings" class="heading-anchor"><code>vt.leader(trigger_key, mappings)</code></a></h3>
+<p>注册一组 Leader 键配置。</p>
+<pre><code class="language-python">vt.leader(&quot;cmd_r&quot;, [
+    {&quot;key&quot;: &quot;w&quot;, &quot;app&quot;: &quot;WeChat&quot;},
+])
+</code></pre>
+<h3 id="vtapplaunchname"><a href="#vtapplaunchname" class="heading-anchor"><code>vt.app.launch(name)</code></a></h3>
+<p>启动或聚焦应用。支持应用名称或完整路径。</p>
+<pre><code class="language-python">vt.app.launch(&quot;Safari&quot;)
+vt.app.launch(&quot;/Applications/Visual Studio Code.app&quot;)
+</code></pre>
+<h3 id="vtappfrontmost"><a href="#vtappfrontmost" class="heading-anchor"><code>vt.app.frontmost()</code></a></h3>
+<p>返回当前前台应用的名称。</p>
+<pre><code class="language-python">name = vt.app.frontmost()  # 例如 &quot;Finder&quot;
+</code></pre>
+<h3 id="vtalerttext-duration20"><a href="#vtalerttext-duration20" class="heading-anchor"><code>vt.alert(text, duration=2.0)</code></a></h3>
+<p>在屏幕上显示一个浮动提示，<code>duration</code> 秒后自动消失。</p>
+<pre><code class="language-python">vt.alert(&quot;你好！&quot;, duration=3.0)
+</code></pre>
+<h3 id="vtnotifytitle-message"><a href="#vtnotifytitle-message" class="heading-anchor"><code>vt.notify(title, message="")</code></a></h3>
+<p>发送 macOS 系统通知。</p>
+<pre><code class="language-python">vt.notify(&quot;构建完成&quot;, &quot;所有测试已通过&quot;)
+</code></pre>
+<h3 id="vtpasteboardget"><a href="#vtpasteboardget" class="heading-anchor"><code>vt.pasteboard.get()</code></a></h3>
+<p>获取当前剪贴板文本，没有内容则返回 <code>None</code>。</p>
+<pre><code class="language-python">text = vt.pasteboard.get()
+</code></pre>
+<h3 id="vtpasteboardsettext"><a href="#vtpasteboardsettext" class="heading-anchor"><code>vt.pasteboard.set(text)</code></a></h3>
+<p>设置剪贴板文本。</p>
+<pre><code class="language-python">vt.pasteboard.set(&quot;Hello, world!&quot;)
+</code></pre>
+<h3 id="vtkeystrokekey-modifiersnone"><a href="#vtkeystrokekey-modifiersnone" class="heading-anchor"><code>vt.keystroke(key, modifiers=None)</code></a></h3>
+<p>通过 Quartz CGEvent 模拟按键。</p>
+<pre><code class="language-python">vt.keystroke(&quot;c&quot;, modifiers=[&quot;cmd&quot;])       # Cmd+C
+vt.keystroke(&quot;v&quot;, modifiers=[&quot;cmd&quot;])       # Cmd+V
+vt.keystroke(&quot;space&quot;)                       # 空格
+vt.keystroke(&quot;a&quot;, modifiers=[&quot;cmd&quot;, &quot;shift&quot;])  # Cmd+Shift+A
+</code></pre>
+<h3 id="vtexecutecommand-backgroundtrue"><a href="#vtexecutecommand-backgroundtrue" class="heading-anchor"><code>vt.execute(command, background=True)</code></a></h3>
+<p>执行 Shell 命令。</p>
+<pre><code class="language-python">vt.execute(&quot;open ~/Downloads&quot;)             # 后台执行（返回 None）
+output = vt.execute(&quot;date&quot;, background=False)  # 前台执行（返回 stdout）
+</code></pre>
+<h3 id="vttimerafterseconds-callback"><a href="#vttimerafterseconds-callback" class="heading-anchor"><code>vt.timer.after(seconds, callback)</code></a></h3>
+<p>延迟执行一次。返回 <code>timer_id</code>。</p>
+<pre><code class="language-python">tid = vt.timer.after(5.0, lambda: vt.alert(&quot;5 秒到了&quot;))
+</code></pre>
+<h3 id="vttimereveryseconds-callback"><a href="#vttimereveryseconds-callback" class="heading-anchor"><code>vt.timer.every(seconds, callback)</code></a></h3>
+<p>按间隔重复执行。返回 <code>timer_id</code>。</p>
+<pre><code class="language-python">tid = vt.timer.every(60.0, lambda: vt.notify(&quot;提醒&quot;, &quot;该休息了&quot;))
+</code></pre>
+<h3 id="vttimercanceltimer_id"><a href="#vttimercanceltimer_id" class="heading-anchor"><code>vt.timer.cancel(timer_id)</code></a></h3>
+<p>取消定时器。</p>
+<pre><code class="language-python">tid = vt.timer.every(10.0, my_func)
+vt.timer.cancel(tid)
+</code></pre>
+<h3 id="vtdateformaty-m-d"><a href="#vtdateformaty-m-d" class="heading-anchor"><code>vt.date(format="%Y-%m-%d")</code></a></h3>
+<p>返回格式化的当前日期/时间字符串。</p>
+<pre><code class="language-python">vt.date()              # &quot;2025-03-15&quot;
+vt.date(&quot;%H:%M:%S&quot;)   # &quot;14:30:00&quot;
+vt.date(&quot;%Y-%m-%d %H:%M&quot;)  # &quot;2025-03-15 14:30&quot;
+</code></pre>
+<h3 id="vtreload"><a href="#vtreload" class="heading-anchor"><code>vt.reload()</code></a></h3>
+<p>重新加载所有脚本。停止当前监听器，重新读取 <code>init.py</code>，然后重启。</p>
+<pre><code class="language-python">vt.reload()
+</code></pre>
+<h2 id="_4"><a href="#_4" class="heading-anchor">使用示例</a></h2>
+<h3 id="_5"><a href="#_5" class="heading-anchor">应用启动器</a></h3>
+<pre><code class="language-python">vt.leader(&quot;cmd_r&quot;, [
+    {&quot;key&quot;: &quot;1&quot;, &quot;app&quot;: &quot;1Password&quot;},
+    {&quot;key&quot;: &quot;b&quot;, &quot;app&quot;: &quot;Obsidian&quot;},
+    {&quot;key&quot;: &quot;c&quot;, &quot;app&quot;: &quot;Calendar&quot;},
+    {&quot;key&quot;: &quot;f&quot;, &quot;app&quot;: &quot;Safari&quot;},
+    {&quot;key&quot;: &quot;g&quot;, &quot;app&quot;: &quot;/Users/me/Applications/Google Chrome.app&quot;},
+    {&quot;key&quot;: &quot;n&quot;, &quot;app&quot;: &quot;Notes&quot;},
+    {&quot;key&quot;: &quot;s&quot;, &quot;app&quot;: &quot;Slack&quot;},
+    {&quot;key&quot;: &quot;t&quot;, &quot;app&quot;: &quot;iTerm&quot;},
+    {&quot;key&quot;: &quot;v&quot;, &quot;app&quot;: &quot;Visual Studio Code&quot;},
+    {&quot;key&quot;: &quot;w&quot;, &quot;app&quot;: &quot;WeChat&quot;},
+    {&quot;key&quot;: &quot;z&quot;, &quot;app&quot;: &quot;zoom.us&quot;},
+])
+</code></pre>
+<h3 id="_6"><a href="#_6" class="heading-anchor">工具快捷键</a></h3>
+<pre><code class="language-python">vt.leader(&quot;alt_r&quot;, [
+    {&quot;key&quot;: &quot;d&quot;, &quot;desc&quot;: &quot;日期 → 剪贴板&quot;, &quot;func&quot;: lambda: (
+        vt.pasteboard.set(vt.date(&quot;%Y-%m-%d&quot;)),
+        vt.notify(&quot;日期已复制&quot;, vt.date(&quot;%Y-%m-%d&quot;)),
+    )},
+    {&quot;key&quot;: &quot;t&quot;, &quot;desc&quot;: &quot;时间戳&quot;, &quot;func&quot;: lambda: (
+        vt.pasteboard.set(vt.date(&quot;%Y-%m-%d %H:%M:%S&quot;)),
+        vt.alert(&quot;时间戳已复制&quot;),
+    )},
+    {&quot;key&quot;: &quot;r&quot;, &quot;desc&quot;: &quot;重载脚本&quot;, &quot;func&quot;: lambda: vt.reload()},
+])
+</code></pre>
+<h3 id="_7"><a href="#_7" class="heading-anchor">定时提醒</a></h3>
+<pre><code class="language-python"># 每 30 分钟提醒休息
+vt.timer.every(1800, lambda: vt.notify(&quot;休息&quot;, &quot;站起来活动一下！&quot;))
+</code></pre>
+<h3 id="_8"><a href="#_8" class="heading-anchor">全局快捷键</a></h3>
+<pre><code class="language-python"># Ctrl+Cmd+N 打开备忘录
+vt.hotkey.bind(&quot;ctrl+cmd+n&quot;, lambda: vt.execute(&quot;open -a Notes&quot;))
+</code></pre>
+<h2 id="_9"><a href="#_9" class="heading-anchor">脚本运行环境</a></h2>
+<ul>
+<li>脚本作为标准 Python 代码运行，可以使用 <code>import</code> 导入任何模块</li>
+<li><code>vt</code> 对象作为全局变量直接可用，无需导入</li>
+<li>脚本中的错误会被捕获并以浮窗提示显示</li>
+<li>脚本在启动时加载一次，修改后需调用 <code>vt.reload()</code> 重新加载</li>
+<li>脚本路径：<code>~/.config/VoiceText/scripts/init.py</code></li>
+<li>可通过 <code>"scripting": {"script_dir": "/path/to/scripts"}</code> 自定义脚本目录</li>
+</ul>
+<h2 id="_10"><a href="#_10" class="heading-anchor">安全说明</a></h2>
+<p>脚本以<strong>未沙箱化的 Python</strong> 运行，拥有与 VoiceText 相同的系统权限。这意味着脚本可以：</p>
+<ul>
+<li>读写你的用户账户能访问的任何文件</li>
+<li>执行任意 Shell 命令</li>
+<li>访问网络</li>
+<li>读取剪贴板内容</li>
+<li>模拟按键并与其他应用交互</li>
+</ul>
+<p><strong>请只运行你自己编写或仔细审查过的脚本。</strong> 不要从不可信的来源直接复制粘贴脚本。恶意脚本可能会在你不知情的情况下窃取数据、安装软件或修改文件。</p>
+<p>出于安全考虑，脚本系统默认处于禁用状态。</p>
+<h2 id="_11"><a href="#_11" class="heading-anchor">常见问题</a></h2>
+<p><strong>脚本没有加载？</strong>
+- 确认 <code>config.json</code> 中 <code>"scripting": {"enabled": true}</code> 已设置
+- 启用后需要重启 VoiceText
+- 查看日志 <code>~/Library/Logs/VoiceText/voicetext.log</code> 排查错误</p>
+<p><strong>Leader 键没有响应？</strong>
+- 确保 VoiceText 已获得辅助功能权限（系统设置 → 隐私与安全性 → 辅助功能）
+- 检查触发键名称是否正确（如 <code>cmd_r</code> 而非 <code>right_cmd</code>）</p>
+<p><strong>提示面板不可见？</strong>
+- 面板需要辅助功能权限才能显示在其他应用之上</p>
+<p><strong>脚本报错？</strong>
+- 语法错误和异常会记录到日志并以浮窗提示
+- 查看 <code>~/Library/Logs/VoiceText/voicetext.log</code> 获取完整错误信息</p>
+
+    <div class="doc-nav">
+      <a href="conversation-history-enhancement.html" class="doc-nav-card">
+        <h3>&larr; 会话历史增强</h3>
+        <p>通过历史记录实现话题连续性和实体解析。</p>
+      </a>
+      <div></div>
+    </div>
+  </article>
+
+</body>
+</html>

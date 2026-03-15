@@ -138,6 +138,10 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "logging": {
         "level": "INFO",
     },
+    "scripting": {
+        "enabled": False,
+        "script_dir": None,
+    },
 }
 
 # FunASR model config (aligned with vocotype-cli)

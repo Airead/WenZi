@@ -713,6 +713,8 @@ class VoiceTextApp(StatusBarApp):
         self._settings_controller.on_open_settings(_)
 
     def _on_quit_click(self, _) -> None:
+        if hasattr(self, "_script_engine") and self._script_engine:
+            self._script_engine.stop()
         if self._hotkey_listener:
             self._hotkey_listener.stop()
         if self._clipboard_hotkey_listener:
@@ -752,6 +754,15 @@ class VoiceTextApp(StatusBarApp):
 
         # Start hotkey listeners
         self._start_hotkey_listeners()
+
+        # Start scripting engine if enabled
+        scripting_cfg = self._config.get("scripting", {})
+        if scripting_cfg.get("enabled", False):
+            from .scripting import ScriptEngine
+
+            script_dir = scripting_cfg.get("script_dir")
+            self._script_engine = ScriptEngine(script_dir=script_dir)
+            self._script_engine.start()
 
         # Start clipboard enhance hotkey listener if configured
         clip_hotkey = self._config.get("clipboard_enhance", {}).get("hotkey", "")

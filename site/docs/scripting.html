@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Scripting — VoiceText</title>
+  <link rel="icon" type="image/png" href="../images/icon.png">
+  <link rel="stylesheet" href="../css/style.css">
+  <style>
+    .doc-container { max-width: 800px; margin: 0 auto; padding: 80px 24px 60px; }
+    .doc-container h1 { font-size: 2.2rem; font-weight: 800; margin-bottom: 8px; }
+    .doc-container .doc-subtitle { font-size: 1.1rem; margin-bottom: 32px; color: var(--text-secondary); }
+    .doc-container h2 { font-size: 1.6rem; margin-top: 48px; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid var(--card-border); }
+    .doc-container h3 { font-size: 1.2rem; margin-top: 32px; margin-bottom: 12px; }
+    .doc-container h4 { font-size: 1.05rem; margin-top: 24px; margin-bottom: 8px; }
+    .doc-container p { margin-bottom: 16px; color: var(--text-secondary); }
+    .doc-container ul, .doc-container ol { margin-bottom: 16px; padding-left: 24px; color: var(--text-secondary); }
+    .doc-container li { margin-bottom: 8px; }
+    .doc-container li > ul, .doc-container li > ol { margin-top: 8px; margin-bottom: 0; }
+    .doc-container blockquote { border-left: 3px solid var(--purple); padding: 12px 16px; margin: 16px 0; background: var(--bg-alt); border-radius: 0 8px 8px 0; color: var(--text-secondary); }
+    .doc-container code { background: var(--code-bg); padding: 2px 6px; border-radius: 4px; font-size: 0.88rem; }
+    .doc-container pre { background: var(--code-bg); border-radius: 8px; padding: 16px; overflow-x: auto; font-size: 0.88rem; line-height: 1.6; margin-bottom: 16px; }
+    .doc-container pre code { background: none; padding: 0; }
+    .doc-container strong { color: var(--text); }
+    .doc-container img { border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin: 16px 0; }
+    .doc-container hr { border: none; border-top: 1px solid var(--card-border); margin: 32px 0; }
+    .doc-container .toc { background: var(--bg-alt); border-radius: 12px; padding: 24px 28px; margin-bottom: 40px; }
+    .doc-container .toc h2 { margin-top: 0 !important; border-bottom: none !important; font-size: 1.2rem; }
+    .doc-container .toc ul { list-style: none; padding-left: 0; }
+    .doc-container .toc li { margin-bottom: 6px; }
+    .doc-container .toc a { color: var(--purple); }
+    .table-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; margin-bottom: 16px; }
+    .doc-container table { width: 100%; border-collapse: collapse; background: var(--card-bg); border-radius: 8px; overflow: hidden; border: 1px solid var(--card-border); }
+    .doc-container th, .doc-container td { padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--card-border); }
+    .doc-container th { background: var(--purple); color: #fff; font-weight: 600; font-size: 0.95rem; }
+    .doc-container tr:last-child td { border-bottom: none; }
+    .doc-container tr:hover td { background: var(--bg-alt); }
+    .doc-nav { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 48px; }
+    .doc-nav-card { display: block; background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 20px 24px; transition: box-shadow 0.2s; text-decoration: none; }
+    .doc-nav-card:hover { box-shadow: 0 2px 12px rgba(0,0,0,0.08); text-decoration: none; }
+    .doc-nav-card h3 { color: var(--text); margin-bottom: 4px; font-size: 1rem; }
+    .doc-nav-card p { color: var(--text-secondary); margin: 0; font-size: 0.9rem; }
+    @media (max-width: 600px) { .doc-nav { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+
+  <header class="site-header">
+    <nav class="nav container">
+      <a href="../" class="nav-brand">
+        <img src="../images/icon.png" alt="VoiceText icon">
+        VoiceText
+      </a>
+      <ul class="nav-links">
+        <li><a href="../">&larr; Back</a></li>
+        <li><a href="../zh/docs/scripting.html" class="lang-switch">中文</a></li>
+        <li><a href="https://github.com/Airead/VoiceText" target="_blank">GitHub</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <article class="doc-container">
+    <h1>Scripting</h1>
+    <p class="doc-subtitle">Automate macOS tasks with Python scripts — leader keys, hotkeys, alerts, and more.</p>
+
+    <div class="toc">
+      <h2>Table of Contents</h2>
+      <div class="toc">
+<ul>
+<li><a href="#quick-start">Quick Start</a></li>
+<li><a href="#leader-keys">Leader Keys</a><ul>
+<li><a href="#trigger-keys">Trigger Keys</a></li>
+<li><a href="#mapping-actions">Mapping Actions</a></li>
+</ul>
+</li>
+<li><a href="#api-reference">API Reference</a><ul>
+<li><a href="#vtleadertrigger_key-mappings">vt.leader(trigger_key, mappings)</a></li>
+<li><a href="#vtapplaunchname">vt.app.launch(name)</a></li>
+<li><a href="#vtappfrontmost">vt.app.frontmost()</a></li>
+<li><a href="#vtalerttext-duration20">vt.alert(text, duration=2.0)</a></li>
+<li><a href="#vtnotifytitle-message">vt.notify(title, message="")</a></li>
+<li><a href="#vtpasteboardget">vt.pasteboard.get()</a></li>
+<li><a href="#vtpasteboardsettext">vt.pasteboard.set(text)</a></li>
+<li><a href="#vtkeystrokekey-modifiersnone">vt.keystroke(key, modifiers=None)</a></li>
+<li><a href="#vtexecutecommand-backgroundtrue">vt.execute(command, background=True)</a></li>
+<li><a href="#vttimerafterseconds-callback">vt.timer.after(seconds, callback)</a></li>
+<li><a href="#vttimereveryseconds-callback">vt.timer.every(seconds, callback)</a></li>
+<li><a href="#vttimercanceltimer_id">vt.timer.cancel(timer_id)</a></li>
+<li><a href="#vtdateformaty-m-d">vt.date(format="%Y-%m-%d")</a></li>
+<li><a href="#vtreload">vt.reload()</a></li>
+</ul>
+</li>
+<li><a href="#examples">Examples</a><ul>
+<li><a href="#app-launcher">App Launcher</a></li>
+<li><a href="#utility-keys">Utility Keys</a></li>
+<li><a href="#timed-reminders">Timed Reminders</a></li>
+<li><a href="#quick-actions-with-hotkeys">Quick Actions with Hotkeys</a></li>
+</ul>
+</li>
+<li><a href="#script-environment">Script Environment</a></li>
+<li><a href="#security">Security</a></li>
+<li><a href="#troubleshooting">Troubleshooting</a></li>
+</ul>
+</div>
+
+    </div>
+
+<p>VoiceText includes a Python-based scripting system that lets you automate macOS tasks — launch apps with leader keys, bind global hotkeys, show alerts, and more.</p>
+<h2 id="quick-start"><a href="#quick-start" class="heading-anchor">Quick Start</a></h2>
+<ol>
+<li><strong>Enable scripting</strong> in Settings → General → Scripting, or set it directly in <code>config.json</code>:</li>
+</ol>
+<p><code>json
+   {
+     "scripting": {
+       "enabled": true
+     }
+   }</code></p>
+<ol start="2">
+<li><strong>Create your script</strong> at <code>~/.config/VoiceText/scripts/init.py</code>:</li>
+</ol>
+<p><code>python
+   vt.leader("cmd_r", [
+       {"key": "w", "app": "WeChat"},
+       {"key": "s", "app": "Slack"},
+       {"key": "t", "app": "iTerm"},
+   ])</code></p>
+<ol start="3">
+<li><strong>Restart VoiceText</strong>. Hold right Command, see the mapping panel, press a letter key to launch the app.</li>
+</ol>
+<h2 id="leader-keys"><a href="#leader-keys" class="heading-anchor">Leader Keys</a></h2>
+<p>Leader keys let you hold a trigger key (like right Command) and then press a second key to perform an action. A floating panel shows available mappings while the trigger key is held.</p>
+<pre><code class="language-python">vt.leader(&quot;cmd_r&quot;, [
+    {&quot;key&quot;: &quot;w&quot;, &quot;app&quot;: &quot;WeChat&quot;},
+    {&quot;key&quot;: &quot;f&quot;, &quot;app&quot;: &quot;Safari&quot;},
+    {&quot;key&quot;: &quot;g&quot;, &quot;app&quot;: &quot;/Users/me/Applications/Google Chrome.app&quot;},
+    {&quot;key&quot;: &quot;i&quot;, &quot;exec&quot;: &quot;/usr/local/bin/code ~/work/projects&quot;, &quot;desc&quot;: &quot;projects&quot;},
+    {&quot;key&quot;: &quot;d&quot;, &quot;desc&quot;: &quot;date&quot;, &quot;func&quot;: lambda: (
+        vt.pasteboard.set(vt.date(&quot;%Y-%m-%d&quot;)),
+        vt.notify(&quot;Date copied&quot;, vt.date(&quot;%Y-%m-%d&quot;)),
+    )},
+    {&quot;key&quot;: &quot;r&quot;, &quot;desc&quot;: &quot;reload&quot;, &quot;func&quot;: lambda: vt.reload()},
+])
+</code></pre>
+<h3 id="trigger-keys"><a href="#trigger-keys" class="heading-anchor">Trigger Keys</a></h3>
+<p>Any modifier key can be a trigger. Available names:</p>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Name</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Right Command</td>
+<td><code>cmd_r</code></td>
+</tr>
+<tr>
+<td>Right Alt/Option</td>
+<td><code>alt_r</code></td>
+</tr>
+<tr>
+<td>Right Shift</td>
+<td><code>shift_r</code></td>
+</tr>
+<tr>
+<td>Right Control</td>
+<td><code>ctrl_r</code></td>
+</tr>
+<tr>
+<td>Left Command</td>
+<td><code>cmd</code></td>
+</tr>
+<tr>
+<td>Left Alt/Option</td>
+<td><code>alt</code></td>
+</tr>
+<tr>
+<td>Left Shift</td>
+<td><code>shift</code></td>
+</tr>
+<tr>
+<td>Left Control</td>
+<td><code>ctrl</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>You can register multiple leaders with different trigger keys:</p>
+<pre><code class="language-python">vt.leader(&quot;cmd_r&quot;, [...])   # Right Command for apps
+vt.leader(&quot;alt_r&quot;, [...])   # Right Alt for utilities
+</code></pre>
+<h3 id="mapping-actions"><a href="#mapping-actions" class="heading-anchor">Mapping Actions</a></h3>
+<p>Each mapping dict requires <code>"key"</code> and one action:</p>
+<div class="table-wrapper"><table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>key</code></td>
+<td><code>str</code></td>
+<td>The sub-key to press (e.g. <code>"w"</code>, <code>"1"</code>, <code>"f"</code>)</td>
+</tr>
+<tr>
+<td><code>app</code></td>
+<td><code>str</code></td>
+<td>App name or full <code>.app</code> path to launch/focus</td>
+</tr>
+<tr>
+<td><code>func</code></td>
+<td><code>callable</code></td>
+<td>Python function to call</td>
+</tr>
+<tr>
+<td><code>exec</code></td>
+<td><code>str</code></td>
+<td>Shell command to execute</td>
+</tr>
+<tr>
+<td><code>desc</code></td>
+<td><code>str</code></td>
+<td>Optional description shown in the panel</td>
+</tr>
+</tbody>
+</table></div>
+<p>If <code>desc</code> is omitted, the panel displays the app name or command.</p>
+<h2 id="api-reference"><a href="#api-reference" class="heading-anchor">API Reference</a></h2>
+<h3 id="vtleadertrigger_key-mappings"><a href="#vtleadertrigger_key-mappings" class="heading-anchor"><code>vt.leader(trigger_key, mappings)</code></a></h3>
+<p>Register a leader-key configuration.</p>
+<pre><code class="language-python">vt.leader(&quot;cmd_r&quot;, [
+    {&quot;key&quot;: &quot;w&quot;, &quot;app&quot;: &quot;WeChat&quot;},
+])
+</code></pre>
+<h3 id="vtapplaunchname"><a href="#vtapplaunchname" class="heading-anchor"><code>vt.app.launch(name)</code></a></h3>
+<p>Launch or focus an application. Accepts app name or full path.</p>
+<pre><code class="language-python">vt.app.launch(&quot;Safari&quot;)
+vt.app.launch(&quot;/Applications/Visual Studio Code.app&quot;)
+</code></pre>
+<h3 id="vtappfrontmost"><a href="#vtappfrontmost" class="heading-anchor"><code>vt.app.frontmost()</code></a></h3>
+<p>Return the localized name of the frontmost application.</p>
+<pre><code class="language-python">name = vt.app.frontmost()  # e.g. &quot;Finder&quot;
+</code></pre>
+<h3 id="vtalerttext-duration20"><a href="#vtalerttext-duration20" class="heading-anchor"><code>vt.alert(text, duration=2.0)</code></a></h3>
+<p>Show a brief floating message on screen. Auto-dismisses after <code>duration</code> seconds.</p>
+<pre><code class="language-python">vt.alert(&quot;Hello!&quot;, duration=3.0)
+</code></pre>
+<h3 id="vtnotifytitle-message"><a href="#vtnotifytitle-message" class="heading-anchor"><code>vt.notify(title, message="")</code></a></h3>
+<p>Send a macOS notification.</p>
+<pre><code class="language-python">vt.notify(&quot;Build complete&quot;, &quot;All tests passed&quot;)
+</code></pre>
+<h3 id="vtpasteboardget"><a href="#vtpasteboardget" class="heading-anchor"><code>vt.pasteboard.get()</code></a></h3>
+<p>Return the current clipboard text, or <code>None</code>.</p>
+<pre><code class="language-python">text = vt.pasteboard.get()
+</code></pre>
+<h3 id="vtpasteboardsettext"><a href="#vtpasteboardsettext" class="heading-anchor"><code>vt.pasteboard.set(text)</code></a></h3>
+<p>Set the clipboard text.</p>
+<pre><code class="language-python">vt.pasteboard.set(&quot;Hello, world!&quot;)
+</code></pre>
+<h3 id="vtkeystrokekey-modifiersnone"><a href="#vtkeystrokekey-modifiersnone" class="heading-anchor"><code>vt.keystroke(key, modifiers=None)</code></a></h3>
+<p>Synthesize a keystroke via Quartz CGEvent.</p>
+<pre><code class="language-python">vt.keystroke(&quot;c&quot;, modifiers=[&quot;cmd&quot;])       # Cmd+C
+vt.keystroke(&quot;v&quot;, modifiers=[&quot;cmd&quot;])       # Cmd+V
+vt.keystroke(&quot;space&quot;)                       # Space
+vt.keystroke(&quot;a&quot;, modifiers=[&quot;cmd&quot;, &quot;shift&quot;])  # Cmd+Shift+A
+</code></pre>
+<h3 id="vtexecutecommand-backgroundtrue"><a href="#vtexecutecommand-backgroundtrue" class="heading-anchor"><code>vt.execute(command, background=True)</code></a></h3>
+<p>Execute a shell command.</p>
+<pre><code class="language-python">vt.execute(&quot;open ~/Downloads&quot;)             # Background (returns None)
+output = vt.execute(&quot;date&quot;, background=False)  # Foreground (returns stdout)
+</code></pre>
+<h3 id="vttimerafterseconds-callback"><a href="#vttimerafterseconds-callback" class="heading-anchor"><code>vt.timer.after(seconds, callback)</code></a></h3>
+<p>Execute a function once after a delay. Returns a <code>timer_id</code>.</p>
+<pre><code class="language-python">tid = vt.timer.after(5.0, lambda: vt.alert(&quot;5 seconds passed&quot;))
+</code></pre>
+<h3 id="vttimereveryseconds-callback"><a href="#vttimereveryseconds-callback" class="heading-anchor"><code>vt.timer.every(seconds, callback)</code></a></h3>
+<p>Execute a function repeatedly at an interval. Returns a <code>timer_id</code>.</p>
+<pre><code class="language-python">tid = vt.timer.every(60.0, lambda: vt.notify(&quot;Reminder&quot;, &quot;Take a break&quot;))
+</code></pre>
+<h3 id="vttimercanceltimer_id"><a href="#vttimercanceltimer_id" class="heading-anchor"><code>vt.timer.cancel(timer_id)</code></a></h3>
+<p>Cancel a timer.</p>
+<pre><code class="language-python">tid = vt.timer.every(10.0, my_func)
+vt.timer.cancel(tid)
+</code></pre>
+<h3 id="vtdateformaty-m-d"><a href="#vtdateformaty-m-d" class="heading-anchor"><code>vt.date(format="%Y-%m-%d")</code></a></h3>
+<p>Return the current date/time as a formatted string.</p>
+<pre><code class="language-python">vt.date()              # &quot;2025-03-15&quot;
+vt.date(&quot;%H:%M:%S&quot;)   # &quot;14:30:00&quot;
+vt.date(&quot;%Y-%m-%d %H:%M&quot;)  # &quot;2025-03-15 14:30&quot;
+</code></pre>
+<h3 id="vtreload"><a href="#vtreload" class="heading-anchor"><code>vt.reload()</code></a></h3>
+<p>Reload all scripts. Stops current listeners, re-reads <code>init.py</code>, and restarts.</p>
+<pre><code class="language-python">vt.reload()
+</code></pre>
+<h2 id="examples"><a href="#examples" class="heading-anchor">Examples</a></h2>
+<h3 id="app-launcher"><a href="#app-launcher" class="heading-anchor">App Launcher</a></h3>
+<pre><code class="language-python">vt.leader(&quot;cmd_r&quot;, [
+    {&quot;key&quot;: &quot;1&quot;, &quot;app&quot;: &quot;1Password&quot;},
+    {&quot;key&quot;: &quot;b&quot;, &quot;app&quot;: &quot;Obsidian&quot;},
+    {&quot;key&quot;: &quot;c&quot;, &quot;app&quot;: &quot;Calendar&quot;},
+    {&quot;key&quot;: &quot;f&quot;, &quot;app&quot;: &quot;Safari&quot;},
+    {&quot;key&quot;: &quot;g&quot;, &quot;app&quot;: &quot;/Users/me/Applications/Google Chrome.app&quot;},
+    {&quot;key&quot;: &quot;n&quot;, &quot;app&quot;: &quot;Notes&quot;},
+    {&quot;key&quot;: &quot;s&quot;, &quot;app&quot;: &quot;Slack&quot;},
+    {&quot;key&quot;: &quot;t&quot;, &quot;app&quot;: &quot;iTerm&quot;},
+    {&quot;key&quot;: &quot;v&quot;, &quot;app&quot;: &quot;Visual Studio Code&quot;},
+    {&quot;key&quot;: &quot;w&quot;, &quot;app&quot;: &quot;WeChat&quot;},
+    {&quot;key&quot;: &quot;z&quot;, &quot;app&quot;: &quot;zoom.us&quot;},
+])
+</code></pre>
+<h3 id="utility-keys"><a href="#utility-keys" class="heading-anchor">Utility Keys</a></h3>
+<pre><code class="language-python">vt.leader(&quot;alt_r&quot;, [
+    {&quot;key&quot;: &quot;d&quot;, &quot;desc&quot;: &quot;date → clipboard&quot;, &quot;func&quot;: lambda: (
+        vt.pasteboard.set(vt.date(&quot;%Y-%m-%d&quot;)),
+        vt.notify(&quot;Date copied&quot;, vt.date(&quot;%Y-%m-%d&quot;)),
+    )},
+    {&quot;key&quot;: &quot;t&quot;, &quot;desc&quot;: &quot;timestamp&quot;, &quot;func&quot;: lambda: (
+        vt.pasteboard.set(vt.date(&quot;%Y-%m-%d %H:%M:%S&quot;)),
+        vt.alert(&quot;Timestamp copied&quot;),
+    )},
+    {&quot;key&quot;: &quot;r&quot;, &quot;desc&quot;: &quot;reload scripts&quot;, &quot;func&quot;: lambda: vt.reload()},
+])
+</code></pre>
+<h3 id="timed-reminders"><a href="#timed-reminders" class="heading-anchor">Timed Reminders</a></h3>
+<pre><code class="language-python"># Remind to take a break every 30 minutes
+vt.timer.every(1800, lambda: vt.notify(&quot;Break&quot;, &quot;Stand up and stretch!&quot;))
+</code></pre>
+<h3 id="quick-actions-with-hotkeys"><a href="#quick-actions-with-hotkeys" class="heading-anchor">Quick Actions with Hotkeys</a></h3>
+<pre><code class="language-python"># Ctrl+Cmd+N to open a new note
+vt.hotkey.bind(&quot;ctrl+cmd+n&quot;, lambda: vt.execute(&quot;open -a Notes&quot;))
+</code></pre>
+<h2 id="script-environment"><a href="#script-environment" class="heading-anchor">Script Environment</a></h2>
+<ul>
+<li>Scripts run as standard Python with full access to <code>import</code></li>
+<li>The <code>vt</code> object is available as a global variable — no import needed</li>
+<li>Errors in scripts are caught and displayed as alerts</li>
+<li>Scripts are loaded once at startup; use <code>vt.reload()</code> to re-read changes</li>
+<li>Script path: <code>~/.config/VoiceText/scripts/init.py</code></li>
+<li>Custom script directory can be set via <code>"scripting": {"script_dir": "/path/to/scripts"}</code> in config</li>
+</ul>
+<h2 id="security"><a href="#security" class="heading-anchor">Security</a></h2>
+<p>Scripts run as <strong>unsandboxed Python</strong> with the same permissions as VoiceText itself. This means a script can:</p>
+<ul>
+<li>Read and write any file your user account can access</li>
+<li>Execute arbitrary shell commands</li>
+<li>Access the network</li>
+<li>Read the clipboard</li>
+<li>Simulate keystrokes and interact with other applications</li>
+</ul>
+<p><strong>Only run scripts you wrote yourself or have reviewed.</strong> Do not copy-paste scripts from untrusted sources without reading them first. A malicious script could silently exfiltrate data, install software, or modify files.</p>
+<p>Scripting is disabled by default for this reason.</p>
+<h2 id="troubleshooting"><a href="#troubleshooting" class="heading-anchor">Troubleshooting</a></h2>
+<p><strong>Scripts not loading?</strong>
+- Check that <code>"scripting": {"enabled": true}</code> is set in <code>config.json</code>
+- Restart VoiceText after enabling
+- Check logs at <code>~/Library/Logs/VoiceText/voicetext.log</code> for errors</p>
+<p><strong>Leader key not responding?</strong>
+- Ensure VoiceText has Accessibility permission (System Settings → Privacy &amp; Security → Accessibility)
+- Verify the trigger key name is correct (e.g. <code>cmd_r</code> not <code>right_cmd</code>)</p>
+<p><strong>Alert panel not visible?</strong>
+- The panel requires Accessibility permission to display over other apps</p>
+<p><strong>Script errors?</strong>
+- Syntax errors and exceptions are logged and shown as alerts
+- Check <code>~/Library/Logs/VoiceText/voicetext.log</code> for stack traces</p>
+
+    <div class="doc-nav">
+      <a href="conversation-history-enhancement.html" class="doc-nav-card">
+        <h3>&larr; Conversation History Enhancement</h3>
+        <p>Topic continuity and entity resolution via history.</p>
+      </a>
+      <div></div>
+    </div>
+  </article>
+
+</body>
+</html>

@@ -145,6 +145,17 @@ DOC_REGISTRY: list[dict] = [
         "icon": "&#128172;",
         "nav_order": 9,
     },
+    {
+        "slug": "scripting",
+        "src_en": "scripting.md",
+        "src_zh": "scripting-zh.md",
+        "title_en": "Scripting",
+        "title_zh": "脚本系统",
+        "desc_en": "Automate macOS tasks with Python scripts — leader keys, hotkeys, alerts, and more.",
+        "desc_zh": "使用 Python 脚本自动化 macOS 任务——Leader 键、快捷键、提示、剪贴板等。",
+        "icon": "&#128187;",
+        "nav_order": 10,
+    },
 ]
 
 # ---------------------------------------------------------------------------
