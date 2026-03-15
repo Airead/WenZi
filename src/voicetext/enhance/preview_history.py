@@ -65,6 +65,18 @@ class PreviewHistoryStore:
         if 0 <= reversed_idx < len(self._records):
             self._records[reversed_idx].timestamp = timestamp
 
+    def move_to_front(self, index: int) -> None:
+        """Move a record to the newest position (end of internal list).
+
+        *index* is newest-first (0 = already newest, no-op).
+        """
+        if index <= 0:
+            return
+        reversed_idx = len(self._records) - 1 - index
+        if 0 <= reversed_idx < len(self._records):
+            record = self._records.pop(reversed_idx)
+            self._records.append(record)
+
     def count(self) -> int:
         return len(self._records)
 

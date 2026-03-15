@@ -216,6 +216,9 @@ class PreviewController:
         record.llm_model = current_llm
         record.action = "copy" if result_holder.get("copy_to_clipboard") else "confirm"
 
+        # Move to front so it won't be evicted first
+        self._preview_history.move_to_front(history_index)
+
     # ------------------------------------------------------------------
     # Preview with transcription (hotkey → record → preview)
     # ------------------------------------------------------------------
