@@ -53,13 +53,15 @@ class TimerEntry:
 class ScriptingRegistry:
     """Registration center for all scripting resources.
 
-    Stores leaders, hotkeys, and timers registered by user scripts.
+    Stores leaders, hotkeys, timers, and chooser sources registered by
+    user scripts.
     """
 
     def __init__(self) -> None:
         self._leaders: Dict[str, LeaderConfig] = {}
         self._hotkeys: List[HotkeyBinding] = []
         self._timers: Dict[str, TimerEntry] = {}
+        self._chooser_sources: Dict[str, Any] = {}  # name → ChooserSource
         self._lock = threading.Lock()
 
     @property
@@ -73,6 +75,10 @@ class ScriptingRegistry:
     @property
     def timers(self) -> Dict[str, TimerEntry]:
         return self._timers
+
+    @property
+    def chooser_sources(self) -> Dict[str, Any]:
+        return self._chooser_sources
 
     def register_leader(self, trigger_key: str, mappings: List[LeaderMapping]) -> None:
         """Register a leader-key configuration."""
@@ -133,4 +139,5 @@ class ScriptingRegistry:
                     pass
         self._hotkeys.clear()
         self._leaders.clear()
+        self._chooser_sources.clear()
         logger.info("Registry cleared")

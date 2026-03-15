@@ -30,8 +30,9 @@ class _VTNamespace:
         self.app = AppAPI()
         self.pasteboard = PasteboardAPI()
         self.timer = TimerAPI(registry)
-        # HotkeyAPI is created lazily to avoid circular imports
+        # HotkeyAPI and ChooserAPI are created lazily to avoid circular imports
         self._hotkey_api = None
+        self._chooser_api = None
         self._reload_callback: Optional[Callable] = None
 
     @property
@@ -42,6 +43,15 @@ class _VTNamespace:
 
             self._hotkey_api = HotkeyAPI(self._registry)
         return self._hotkey_api
+
+    @property
+    def chooser(self):
+        """Access the chooser API (lazy init)."""
+        if self._chooser_api is None:
+            from .chooser import ChooserAPI
+
+            self._chooser_api = ChooserAPI()
+        return self._chooser_api
 
     def leader(self, trigger_key: str, mappings: List[dict]) -> None:
         """Register a leader-key configuration.

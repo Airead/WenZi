@@ -153,6 +153,12 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "scripting": {
         "enabled": False,
         "script_dir": None,
+        "chooser": {
+            "hotkey": "cmd+space",
+            "clipboard_history": True,
+            "clipboard_max_items": 50,
+            "app_search": True,
+        },
     },
 }
 

@@ -984,7 +984,9 @@ class VoiceTextApp(StatusBarApp):
             from .scripting import ScriptEngine
 
             script_dir = scripting_cfg.get("script_dir")
-            self._script_engine = ScriptEngine(script_dir=script_dir)
+            self._script_engine = ScriptEngine(
+                script_dir=script_dir, config=scripting_cfg
+            )
             self._script_engine.start()
 
         # Start clipboard enhance hotkey listener if configured
