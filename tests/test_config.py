@@ -10,11 +10,14 @@ from unittest.mock import MagicMock, patch
 from voicetext.config import (
     DEFAULT_CONFIG,
     DEFAULT_CONFIG_DIR,
+    ConfigError,
     load_config,
     resolve_config_dir,
     save_config,
+    set_config_readonly,
     validate_config,
     _merge_dict,
+    _strip_jsonc,
 )
 
 
@@ -42,10 +45,74 @@ class TestMergeDict:
         assert _merge_dict(base, {}) == {"a": 1}
 
 
+class TestStripJsonc:
+    def test_no_comments(self):
+        text = '{"a": 1, "b": "hello"}'
+        assert json.loads(_strip_jsonc(text)) == {"a": 1, "b": "hello"}
+
+    def test_single_line_comment(self):
+        text = '{\n  "a": 1, // this is a comment\n  "b": 2\n}'
+        assert json.loads(_strip_jsonc(text)) == {"a": 1, "b": 2}
+
+    def test_block_comment(self):
+        text = '{\n  /* block comment */\n  "a": 1\n}'
+        assert json.loads(_strip_jsonc(text)) == {"a": 1}
+
+    def test_multiline_block_comment(self):
+        text = '{\n  /* block\n  comment\n  */\n  "a": 1\n}'
+        assert json.loads(_strip_jsonc(text)) == {"a": 1}
+
+    def test_trailing_comma_object(self):
+        text = '{"a": 1, "b": 2,}'
+        assert json.loads(_strip_jsonc(text)) == {"a": 1, "b": 2}
+
+    def test_trailing_comma_array(self):
+        text = '{"a": [1, 2, 3,]}'
+        assert json.loads(_strip_jsonc(text)) == {"a": [1, 2, 3]}
+
+    def test_comment_like_string_preserved(self):
+        text = '{"url": "https://example.com", "note": "a // b"}'
+        result = json.loads(_strip_jsonc(text))
+        assert result["url"] == "https://example.com"
+        assert result["note"] == "a // b"
+
+    def test_slash_star_in_string_preserved(self):
+        text = '{"pattern": "/* not a comment */"}'
+        result = json.loads(_strip_jsonc(text))
+        assert result["pattern"] == "/* not a comment */"
+
+    def test_escaped_quote_in_string(self):
+        text = r'{"msg": "say \"hello\" // world"}'
+        result = json.loads(_strip_jsonc(text))
+        assert result["msg"] == 'say "hello" // world'
+
+    def test_comment_at_start_of_line(self):
+        text = '{\n// comment line\n  "a": 1\n}'
+        assert json.loads(_strip_jsonc(text)) == {"a": 1}
+
+    def test_trailing_comma_with_whitespace(self):
+        text = '{"a": 1 ,  \n  }'
+        assert json.loads(_strip_jsonc(text)) == {"a": 1}
+
+    def test_mixed_comments_and_trailing_commas(self):
+        text = """{
+  // Top comment
+  "name": "test",  // inline
+  "items": [
+    1,
+    2, /* block */ 3,
+  ],
+  /* "removed": true, */
+}"""
+        result = json.loads(_strip_jsonc(text))
+        assert result == {"name": "test", "items": [1, 2, 3]}
+
+
 class TestLoadConfig:
     def test_default_config_creates_file(self, tmp_path):
         config_file = tmp_path / "config.json"
-        config = load_config(str(config_file))
+        config, error = load_config(str(config_file))
+        assert error is None
         assert config["hotkeys"] == {"fn": True}
         assert config["audio"]["sample_rate"] == 16000
         # File should be created
@@ -56,7 +123,8 @@ class TestLoadConfig:
 
     def test_default_config_creates_parent_dirs(self, tmp_path):
         config_file = tmp_path / "sub" / "dir" / "config.json"
-        config = load_config(str(config_file))
+        config, error = load_config(str(config_file))
+        assert error is None
         assert config_file.exists()
         assert config["hotkeys"] == {"fn": True}
 
@@ -69,7 +137,8 @@ class TestLoadConfig:
             tmp_path = f.name
 
         try:
-            config = load_config(tmp_path)
+            config, error = load_config(tmp_path)
+            assert error is None
             assert config["hotkeys"]["f5"] is True
             assert config["audio"]["sample_rate"] == 44100
             # Defaults should be preserved for unset keys
@@ -87,7 +156,8 @@ class TestLoadConfig:
             tmp_path = f.name
 
         try:
-            config = load_config(tmp_path)
+            config, error = load_config(tmp_path)
+            assert error is None
             assert "hotkey" not in config
             assert config["hotkeys"] == {"f5": True}
             # File should be updated on disk
@@ -99,13 +169,57 @@ class TestLoadConfig:
 
     def test_explicit_missing_file_creates_default(self, tmp_path):
         config_file = tmp_path / "nonexistent.json"
-        config = load_config(str(config_file))
+        config, error = load_config(str(config_file))
+        assert error is None
         assert config_file.exists()
         assert config == DEFAULT_CONFIG
 
     def test_default_config_has_preset_field(self):
         assert "preset" in DEFAULT_CONFIG["asr"]
         assert DEFAULT_CONFIG["asr"]["preset"] is None
+
+    def test_load_jsonc_with_comments(self, tmp_path):
+        config_file = tmp_path / "config.json"
+        config_file.write_text("""{
+  // Audio settings
+  "audio": {
+    "sample_rate": 44100  /* custom rate */
+  },
+  "hotkeys": {"f5": true,}  // trailing comma
+}""")
+        config, error = load_config(str(config_file))
+        assert error is None
+        assert config["audio"]["sample_rate"] == 44100
+        assert config["hotkeys"]["f5"] is True
+
+    def test_syntax_error_returns_config_error(self, tmp_path):
+        config_file = tmp_path / "config.json"
+        config_file.write_text('{"bad": syntax}')
+        config, error = load_config(str(config_file))
+        assert error is not None
+        assert isinstance(error, ConfigError)
+        assert "Syntax error" in error.message
+        # Should fall back to default config
+        assert config == dict(DEFAULT_CONFIG)
+
+    def test_non_object_returns_config_error(self, tmp_path):
+        config_file = tmp_path / "config.json"
+        config_file.write_text("[1, 2, 3]")
+        config, error = load_config(str(config_file))
+        assert error is not None
+        assert "JSON object" in error.message
+        assert config == dict(DEFAULT_CONFIG)
+
+    def test_unreadable_file_returns_config_error(self, tmp_path):
+        config_file = tmp_path / "config.json"
+        config_file.write_text("{}")
+        config_file.chmod(0o000)
+        config, error = load_config(str(config_file))
+        assert error is not None
+        assert "Cannot read" in error.message
+        assert config == dict(DEFAULT_CONFIG)
+        # Restore permissions for cleanup
+        config_file.chmod(0o644)
 
 
 class TestSaveConfig:
@@ -117,7 +231,8 @@ class TestSaveConfig:
         save_config(config, str(config_file))
 
         assert config_file.exists()
-        loaded = load_config(str(config_file))
+        loaded, error = load_config(str(config_file))
+        assert error is None
         assert loaded["asr"]["preset"] == "mlx-whisper-tiny"
 
     def test_save_creates_parent_dirs(self, tmp_path):
@@ -133,7 +248,8 @@ class TestSaveConfig:
         modified["hotkeys"] = {"f5": True}
         save_config(modified, str(config_file))
 
-        loaded = load_config(str(config_file))
+        loaded, error = load_config(str(config_file))
+        assert error is None
         assert loaded["hotkeys"]["f5"] is True
 
     def test_save_sets_owner_only_permissions(self, tmp_path):
@@ -151,6 +267,34 @@ class TestSaveConfig:
 
         mode = stat.S_IMODE(config_file.stat().st_mode)
         assert mode == 0o600
+
+    def test_readonly_prevents_save(self, tmp_path):
+        config_file = tmp_path / "config.json"
+        save_config(DEFAULT_CONFIG, str(config_file))
+        original_content = config_file.read_text()
+
+        set_config_readonly(True)
+        try:
+            modified = dict(DEFAULT_CONFIG)
+            modified["hotkeys"] = {"f5": True}
+            save_config(modified, str(config_file))
+            # File should NOT have changed
+            assert config_file.read_text() == original_content
+        finally:
+            set_config_readonly(False)
+
+    def test_readonly_clear_allows_save(self, tmp_path):
+        config_file = tmp_path / "config.json"
+        save_config(DEFAULT_CONFIG, str(config_file))
+
+        set_config_readonly(True)
+        set_config_readonly(False)
+
+        modified = dict(DEFAULT_CONFIG)
+        modified["hotkeys"] = {"f5": True}
+        save_config(modified, str(config_file))
+        loaded, _ = load_config(str(config_file))
+        assert loaded["hotkeys"]["f5"] is True
 
 
 class TestValidateConfig:

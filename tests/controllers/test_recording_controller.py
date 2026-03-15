@@ -15,6 +15,7 @@ def mock_app():
     """Create a mock VoiceTextApp with all attributes used by RecordingController."""
     app = MagicMock()
     app._busy = False
+    app._config_degraded = False
     app._config = {
         "feedback": {"sound_enabled": True, "visual_indicator": True},
     }

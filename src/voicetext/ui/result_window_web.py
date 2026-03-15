@@ -846,6 +846,77 @@ class ResultPreviewPanel:
     # Public API
     # ------------------------------------------------------------------
 
+    def warmup(self) -> None:
+        """Pre-create NSPanel + WKWebView to eliminate first-show latency.
+
+        Call via AppHelper.callAfter() after the event loop starts.
+        The pre-created panel and webview are reused by _build_panel().
+        """
+        if self._panel is not None:
+            return
+        try:
+            from AppKit import (
+                NSBackingStoreBuffered,
+                NSClosableWindowMask,
+                NSPanel,
+                NSStatusWindowLevel,
+                NSTitledWindowMask,
+            )
+            from Foundation import NSMakeRect
+            from WebKit import WKUserContentController, WKWebView, WKWebViewConfiguration
+
+            height = self._PANEL_HEIGHT
+
+            panel = NSPanel.alloc().initWithContentRect_styleMask_backing_defer_(
+                NSMakeRect(0, 0, self._PANEL_WIDTH, height),
+                NSTitledWindowMask | NSClosableWindowMask,
+                NSBackingStoreBuffered,
+                True,  # defer=True, don't create window server resources yet
+            )
+            panel.setLevel_(NSStatusWindowLevel)
+            panel.setFloatingPanel_(True)
+            panel.setHidesOnDeactivate_(False)
+
+            # Close delegate
+            delegate_cls = _get_panel_close_delegate_class()
+            delegate = delegate_cls.alloc().init()
+            delegate._panel_ref = self
+            panel.setDelegate_(delegate)
+            self._close_delegate = delegate
+
+            # WKWebView with message handler
+            config = WKWebViewConfiguration.alloc().init()
+            content_controller = WKUserContentController.alloc().init()
+            handler_cls = _get_message_handler_class()
+            handler = handler_cls.alloc().init()
+            handler._panel_ref = self
+            content_controller.addScriptMessageHandler_name_(handler, "action")
+            config.setUserContentController_(content_controller)
+
+            webview = WKWebView.alloc().initWithFrame_configuration_(
+                NSMakeRect(0, 0, self._PANEL_WIDTH, height),
+                config,
+            )
+            webview.setAutoresizingMask_(0x12)
+            webview.setValue_forKey_(False, "drawsBackground")
+
+            # Navigation delegate
+            nav_delegate_cls = _get_navigation_delegate_class()
+            nav_delegate = nav_delegate_cls.alloc().init()
+            nav_delegate._panel_ref = self
+            webview.setNavigationDelegate_(nav_delegate)
+
+            self._panel = panel
+            self._webview = webview
+            self._message_handler = handler
+            self._navigation_delegate = nav_delegate
+            self._page_loaded = False
+            self._pending_js = []
+
+            logger.debug("WebResultPreviewPanel warmup complete")
+        except Exception:
+            logger.debug("WebResultPreviewPanel warmup failed", exc_info=True)
+
     def show(
         self,
         asr_text: str,
@@ -1408,18 +1479,12 @@ class ResultPreviewPanel:
             self._webview.evaluateJavaScript_completionHandler_(combined, None)
 
     def _build_panel(self) -> None:
-        """Build NSPanel + WKWebView."""
+        """Build NSPanel + WKWebView, reusing pre-created objects from warmup()."""
         from AppKit import (
             NSApp,
-            NSBackingStoreBuffered,
-            NSClosableWindowMask,
-            NSPanel,
             NSScreen,
-            NSStatusWindowLevel,
-            NSTitledWindowMask,
         )
         from Foundation import NSMakeRect, NSURL
-        from WebKit import WKUserContentController, WKWebView, WKWebViewConfiguration
 
         # Enable ⌘C/⌘V/⌘A via Edit menu in the responder chain
         from voicetext.ui.result_window import _ensure_edit_menu
@@ -1436,17 +1501,72 @@ class ResultPreviewPanel:
 
         NSApp.setActivationPolicy_(0)  # Regular (foreground)
 
-        panel = NSPanel.alloc().initWithContentRect_styleMask_backing_defer_(
-            NSMakeRect(0, 0, self._PANEL_WIDTH, height),
-            NSTitledWindowMask | NSClosableWindowMask,
-            NSBackingStoreBuffered,
-            False,
-        )
+        if self._panel is not None and self._webview is not None:
+            # Reuse pre-created panel and webview from warmup()
+            panel = self._panel
+            webview = self._webview
+            panel.setContentSize_((self._PANEL_WIDTH, height))
+            webview.setFrame_(NSMakeRect(0, 0, self._PANEL_WIDTH, height))
+            if webview.superview() is None:
+                panel.contentView().addSubview_(webview)
+        else:
+            # Cold path: create from scratch (warmup was not called)
+            from AppKit import (
+                NSBackingStoreBuffered,
+                NSClosableWindowMask,
+                NSPanel,
+                NSStatusWindowLevel,
+                NSTitledWindowMask,
+            )
+            from WebKit import WKUserContentController, WKWebView, WKWebViewConfiguration
+
+            panel = NSPanel.alloc().initWithContentRect_styleMask_backing_defer_(
+                NSMakeRect(0, 0, self._PANEL_WIDTH, height),
+                NSTitledWindowMask | NSClosableWindowMask,
+                NSBackingStoreBuffered,
+                False,
+            )
+            panel.setLevel_(NSStatusWindowLevel)
+            panel.setFloatingPanel_(True)
+            panel.setHidesOnDeactivate_(False)
+
+            # Close delegate
+            delegate_cls = _get_panel_close_delegate_class()
+            delegate = delegate_cls.alloc().init()
+            delegate._panel_ref = self
+            panel.setDelegate_(delegate)
+            self._close_delegate = delegate
+
+            # WKWebView with message handler
+            config = WKWebViewConfiguration.alloc().init()
+            content_controller = WKUserContentController.alloc().init()
+            handler_cls = _get_message_handler_class()
+            handler = handler_cls.alloc().init()
+            handler._panel_ref = self
+            content_controller.addScriptMessageHandler_name_(handler, "action")
+            config.setUserContentController_(content_controller)
+
+            webview = WKWebView.alloc().initWithFrame_configuration_(
+                NSMakeRect(0, 0, self._PANEL_WIDTH, height),
+                config,
+            )
+            webview.setAutoresizingMask_(0x12)
+            webview.setValue_forKey_(False, "drawsBackground")
+            panel.contentView().addSubview_(webview)
+
+            # Navigation delegate
+            nav_delegate_cls = _get_navigation_delegate_class()
+            nav_delegate = nav_delegate_cls.alloc().init()
+            nav_delegate._panel_ref = self
+            webview.setNavigationDelegate_(nav_delegate)
+
+            self._panel = panel
+            self._webview = webview
+            self._message_handler = handler
+            self._navigation_delegate = nav_delegate
+
         panel_title = "Enhance Clipboard" if self._source == "clipboard" else "Preview"
         panel.setTitle_(panel_title)
-        panel.setLevel_(NSStatusWindowLevel)
-        panel.setFloatingPanel_(True)
-        panel.setHidesOnDeactivate_(False)
 
         # Center on screen
         screen = NSScreen.mainScreen()
@@ -1459,47 +1579,10 @@ class ResultPreviewPanel:
         else:
             panel.center()
 
-        # Close delegate
-        delegate_cls = _get_panel_close_delegate_class()
-        delegate = delegate_cls.alloc().init()
-        delegate._panel_ref = self
-        panel.setDelegate_(delegate)
-        self._close_delegate = delegate
-
-        # WKWebView with message handler
-        config = WKWebViewConfiguration.alloc().init()
-        content_controller = WKUserContentController.alloc().init()
-
-        handler_cls = _get_message_handler_class()
-        handler = handler_cls.alloc().init()
-        handler._panel_ref = self
-        content_controller.addScriptMessageHandler_name_(handler, "action")
-        config.setUserContentController_(content_controller)
-
-        webview = WKWebView.alloc().initWithFrame_configuration_(
-            NSMakeRect(0, 0, self._PANEL_WIDTH, height),
-            config,
-        )
-        webview.setAutoresizingMask_(0x12)  # Width + Height sizable
-        # Make webview background transparent to match panel
-        webview.setValue_forKey_(False, "drawsBackground")
-        panel.contentView().addSubview_(webview)
-
-        # Navigation delegate — flush pending JS calls when page finishes loading
-        nav_delegate_cls = _get_navigation_delegate_class()
-        nav_delegate = nav_delegate_cls.alloc().init()
-        nav_delegate._panel_ref = self
-        webview.setNavigationDelegate_(nav_delegate)
-
-        self._panel = panel
-        self._webview = webview
-        self._message_handler = handler
-        self._navigation_delegate = nav_delegate
         self._page_loaded = False
         self._pending_js = []
 
         # Build config JSON and load HTML
-        # Detect if ASR text is empty (STT pending) — show loading in initial HTML
         asr_loading = self._asr_text == "" and self._source != "clipboard"
         config_data = {
             "asrTitle": "Clipboard Text" if self._source == "clipboard" else "ASR",

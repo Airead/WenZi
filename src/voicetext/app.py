@@ -13,7 +13,7 @@ from ApplicationServices import AXIsProcessTrusted, AXIsProcessTrustedWithOption
 from CoreFoundation import kCFBooleanTrue
 
 from .enhance.auto_vocab_builder import AutoVocabBuilder
-from .config import load_config, resolve_config_dir, save_config
+from .config import load_config, resolve_config_dir, save_config, set_config_readonly
 from .controllers.enhance_controller import EnhanceController
 from .enhance.conversation_history import ConversationHistory
 from .usage_stats import UsageStats
@@ -45,6 +45,7 @@ from .transcription.base import create_transcriber
 from .ui_helpers import (
     activate_for_dialog,
     restore_accessory,
+    topmost_alert,
 )
 
 
@@ -63,6 +64,7 @@ _STATUS_ICONS: Dict[str, str] = {
     "Preview...": "eye",
     "(empty)": "mic.slash",
     "Error": "exclamationmark.triangle",
+    "Config Error": "exclamationmark.triangle",
     "Switching...": "arrow.triangle.2.circlepath",
     "Loading...": "cpu",
     "Unloading...": "arrow.up.circle",
@@ -91,7 +93,11 @@ class VoiceTextApp(StatusBarApp):
         import os
         self._config_dir = resolve_config_dir(config_dir)
         self._config_path = os.path.join(self._config_dir, "config.json")
-        self._config = load_config(self._config_path)
+        self._config, config_error = load_config(self._config_path)
+        self._config_error = config_error
+        self._config_degraded = config_error is not None
+        if self._config_degraded:
+            set_config_readonly(True)
         self._setup_logging()
 
         audio_cfg = self._config["audio"]
@@ -169,6 +175,7 @@ class VoiceTextApp(StatusBarApp):
         )
         self._recording_indicator = RecordingIndicatorPanel()
         self._recording_indicator.enabled = fb_cfg.get("visual_indicator", True)
+        self._recording_indicator.show_device_name = fb_cfg.get("show_device_name", False)
         self._streaming_overlay = StreamingOverlayPanel()
         self._level_poll_stop: threading.Event | None = None
         self._recording_started = threading.Event()
@@ -378,17 +385,27 @@ class VoiceTextApp(StatusBarApp):
             "Settings...", callback=self._on_open_settings
         )
 
-        self.menu = [
-            self._status_item,
-            None,
-            self._clipboard_enhance_item,
-            self._browse_history_item,
-            self._settings_item,
-            None,
-            self._view_logs_item,
-            self._usage_stats_item,
-            self._about_item,
-        ]
+        if self._config_degraded:
+            self._config_error_item = StatusMenuItem(
+                "Config Error...", callback=lambda _: self._show_config_error_alert()
+            )
+            self.menu = [
+                self._config_error_item,
+                None,
+                self._view_logs_item,
+            ]
+        else:
+            self.menu = [
+                self._status_item,
+                None,
+                self._clipboard_enhance_item,
+                self._browse_history_item,
+                self._settings_item,
+                None,
+                self._view_logs_item,
+                self._usage_stats_item,
+                self._about_item,
+            ]
         self.quit_button.set_callback(self._on_quit_click)
 
     def _setup_logging(self) -> None:
@@ -710,6 +727,9 @@ class VoiceTextApp(StatusBarApp):
 
     def _on_open_settings(self, _) -> None:
         """Open the Settings panel with current state and callbacks."""
+        if self._config_degraded:
+            self._show_config_error_alert()
+            return
         self._settings_controller.on_open_settings(_)
 
     def _on_quit_click(self, _) -> None:
@@ -735,6 +755,51 @@ class VoiceTextApp(StatusBarApp):
         logger.warning("Accessibility permission not granted, prompting user")
         return False
 
+    def _warmup(self) -> None:
+        """Pre-create heavy objects after the event loop starts.
+
+        Runs on the main thread via AppHelper.callAfter() so that the
+        first recording / preview interaction feels instant.
+        """
+        try:
+            self._sound_manager.warmup()
+        except Exception:
+            logger.debug("Sound warmup failed", exc_info=True)
+        try:
+            if hasattr(self._preview_panel, "warmup"):
+                self._preview_panel.warmup()
+        except Exception:
+            logger.debug("Preview panel warmup failed", exc_info=True)
+
+    def _show_config_error(self) -> None:
+        """Show config error alert if config loading failed."""
+        if self._config_error is None:
+            return
+        self._set_status("Config Error")
+        self._show_config_error_alert()
+
+    def _show_config_error_alert(self) -> None:
+        """Show an alert about the config error with a 'Show in Finder' button."""
+        if self._config_error is None:
+            return
+        result = topmost_alert(
+            title="Configuration Error",
+            message=(
+                f"Failed to load {self._config_error.path}\n\n"
+                f"{self._config_error.message}\n\n"
+                "The app is running with default settings and will not "
+                "save any changes. Please fix the config file and restart."
+            ),
+            ok="Show in Finder",
+            cancel="Close",
+        )
+        restore_accessory()
+        if result:
+            import subprocess
+            subprocess.Popen(
+                ["open", "-R", self._config_error.path],
+            )
+
     def run(self, **kwargs) -> None:
         """Initialize models and start the app."""
         self._ensure_accessibility()
@@ -742,13 +807,16 @@ class VoiceTextApp(StatusBarApp):
         # Load models in background
         def _init_models():
             try:
-                self._set_status("Loading...")
+                if not self._config_degraded:
+                    self._set_status("Loading...")
                 self._transcriber.initialize()
-                self._set_status("VT")
+                if not self._config_degraded:
+                    self._set_status("VT")
                 logger.info("Models loaded, app ready")
             except Exception as e:
                 logger.error("Model initialization failed: %s", e)
-                self._set_status("Error")
+                if not self._config_degraded:
+                    self._set_status("Error")
 
         threading.Thread(target=_init_models, daemon=True).start()
 
@@ -772,6 +840,16 @@ class VoiceTextApp(StatusBarApp):
                 on_activate=self._preview_controller.on_clipboard_enhance,
             )
             self._clipboard_hotkey_listener.start()
+
+        # Schedule warmup after the event loop starts to pre-create heavy
+        # objects (WKWebView, NSSound) so the first user interaction is snappy.
+        from PyObjCTools import AppHelper
+
+        AppHelper.callAfter(self._warmup)
+
+        # Show config error alert after the event loop starts
+        if self._config_error is not None:
+            AppHelper.callAfter(self._show_config_error)
 
         super().run(**kwargs)
 

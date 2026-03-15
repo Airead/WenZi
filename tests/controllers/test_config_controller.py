@@ -139,7 +139,7 @@ class TestOnReloadConfig:
     @patch("voicetext.controllers.config_controller.send_notification")
     @patch("voicetext.controllers.config_controller.load_config")
     def test_reload_success(self, mock_load, mock_notify, ctrl, mock_app):
-        mock_load.return_value = {
+        mock_load.return_value = ({
             "output": {"method": "clipboard", "append_newline": True, "preview": False},
             "logging": {"level": "DEBUG"},
             "ai_enhance": {"enabled": True, "mode": "translate", "thinking": True,
@@ -148,7 +148,7 @@ class TestOnReloadConfig:
                            "default_provider": "openai", "default_model": "gpt-4o"},
             "feedback": {"sound_enabled": False, "sound_volume": 0.5, "visual_indicator": False},
             "clipboard_enhance": {"hotkey": "ctrl+cmd+v"},
-        }
+        }, None)
         mock_app._enhance_menu_items = {}
         mock_app._enhance_thinking_item = MagicMock()
         mock_app._enhance_vocab_item = MagicMock()

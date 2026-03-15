@@ -44,12 +44,13 @@ class TestSoundManagerPlay:
         sm.play("unknown_event")
         mock_play.assert_not_called()
 
-    def test_play_on_main_thread_file_not_found(self):
+    def test_play_on_main_thread_no_cache_file_not_found(self):
         sm = SoundManager(enabled=True)
-        # Should not raise
-        sm._play_on_main_thread("/nonexistent/path.wav")
+        sm._start_sound_path = "/nonexistent/path.wav"
+        # Should not raise when no cached sound and file missing
+        sm._play_on_main_thread()
 
-    def test_play_on_main_thread_with_mock_nssound(self, tmp_path):
+    def test_play_on_main_thread_fallback_loads_and_caches(self, tmp_path):
         dummy = tmp_path / "test.wav"
         dummy.write_bytes(b"fake")
 
@@ -63,14 +64,56 @@ class TestSoundManagerPlay:
         mock_appkit.NSSound = mock_nssound
 
         sm = SoundManager(enabled=True, volume=0.5)
+        sm._start_sound_path = str(dummy)
         with patch.dict("sys.modules", {"AppKit": mock_appkit}):
-            sm._play_on_main_thread(str(dummy))
+            sm._play_on_main_thread()
 
         mock_nssound.alloc.return_value.initWithContentsOfFile_byReference_.assert_called_with(
             str(dummy), True
         )
         mock_sound_instance.setVolume_.assert_called_with(0.5)
         mock_sound_instance.play.assert_called_once()
+        # Sound should be cached after first play
+        assert sm._cached_sound is mock_sound_instance
+
+    def test_play_on_main_thread_uses_cached_sound(self):
+        mock_cached = MagicMock()
+        sm = SoundManager(enabled=True, volume=0.5)
+        sm._cached_sound = mock_cached
+
+        sm._play_on_main_thread()
+
+        mock_cached.stop.assert_called_once()
+        mock_cached.play.assert_called_once()
+
+    def test_warmup_caches_nssound(self, tmp_path):
+        dummy = tmp_path / "test.wav"
+        dummy.write_bytes(b"fake")
+
+        mock_sound_instance = MagicMock()
+        mock_nssound = MagicMock()
+        mock_nssound.alloc.return_value.initWithContentsOfFile_byReference_.return_value = (
+            mock_sound_instance
+        )
+
+        mock_appkit = MagicMock()
+        mock_appkit.NSSound = mock_nssound
+
+        sm = SoundManager(enabled=True, volume=0.5)
+        sm._start_sound_path = str(dummy)
+        with patch.dict("sys.modules", {"AppKit": mock_appkit}):
+            sm.warmup()
+
+        assert sm._cached_sound is mock_sound_instance
+        mock_sound_instance.setVolume_.assert_called_with(0.5)
+
+    def test_warmup_skips_if_already_cached(self):
+        sm = SoundManager(enabled=True)
+        existing = MagicMock()
+        sm._cached_sound = existing
+        sm.warmup()
+        # Should not replace existing cache
+        assert sm._cached_sound is existing
 
 
 class TestEnsureStartSound:

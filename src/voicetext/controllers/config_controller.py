@@ -185,10 +185,15 @@ class ConfigController:
         app = self._app
 
         try:
-            new_config = load_config(app._config_path)
+            new_config, config_error = load_config(app._config_path)
         except Exception as e:
             logger.error("Failed to reload config: %s", e)
             send_notification("VoiceText", "Reload Failed", str(e))
+            return
+
+        if config_error is not None:
+            logger.error("Config reload error: %s", config_error)
+            send_notification("VoiceText", "Config Error", config_error.message)
             return
 
         app._config = new_config

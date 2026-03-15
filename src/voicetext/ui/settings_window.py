@@ -315,8 +315,10 @@ class SettingsPanel:
         small_font = NSFont.systemFontOfSize_(12.0)
 
         hotkeys = state.get("hotkeys", {})
-        n_rows = len(hotkeys) + 13
-        total_h = max(content_h, n_rows * (self._CONTROL_HEIGHT + self._ROW_GAP) + 200)
+        # Use a large initial height for layout (top-down); actual height
+        # is determined after all controls are placed and the frame is
+        # resized to fit, avoiding fragile hard-coded row counts.
+        total_h = 5000
 
         doc_view = NSView.alloc().initWithFrame_(
             NSMakeRect(0, 0, content_w - 20, total_h)
@@ -420,6 +422,17 @@ class SettingsPanel:
             pad + 12, y, content_w - 24, doc_view,
         )
 
+        y -= (self._CONTROL_HEIGHT + self._ROW_GAP)
+        self._device_name_check = self._make_switch(
+            "Show Device Name", pad + 12, y, content_w - 24,
+            state.get("show_device_name", False), small_font,
+            b"deviceNameCheckChanged:", doc_view,
+        )
+        y = self._add_hint(
+            "Show the input device name on the recording indicator",
+            pad + 12, y, content_w - 24, doc_view,
+        )
+
         y -= self._SECTION_GAP
 
         # --- Output section ---
@@ -509,6 +522,16 @@ class SettingsPanel:
             "Changes require app restart to take effect",
             pad + 12, y, content_w - 24, doc_view,
         )
+
+        # Shrink doc_view to actual content height and shift all subviews
+        # so that the first control starts at the top.
+        actual_h = max(content_h, total_h - y + pad)
+        offset = total_h - actual_h
+        from AppKit import NSMakeSize
+        doc_view.setFrameSize_(NSMakeSize(content_w - 20, actual_h))
+        for subview in doc_view.subviews():
+            frame = subview.frame()
+            subview.setFrameOrigin_((frame.origin.x, frame.origin.y - offset))
 
         scroll.setDocumentView_(doc_view)
         tab_item.setView_(scroll)
@@ -1090,6 +1113,9 @@ class SettingsPanel:
 
     def visualCheckChanged_(self, sender):
         self._call("on_visual_toggle", bool(sender.state()))
+
+    def deviceNameCheckChanged_(self, sender):
+        self._call("on_device_name_toggle", bool(sender.state()))
 
     def previewCheckChanged_(self, sender):
         self._call("on_preview_toggle", bool(sender.state()))

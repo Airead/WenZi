@@ -129,6 +129,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "sound_enabled": True,
         "sound_volume": 0.4,
         "visual_indicator": True,
+        "show_device_name": False,
         "restart_key": "cmd",
         "cancel_key": "space",
     },
@@ -163,6 +164,59 @@ MODELS = {
 }
 
 
+def _strip_jsonc(text: str) -> str:
+    """Strip JSONC features (// comments, /* */ block comments, trailing commas).
+
+    Processes the text character-by-character to correctly handle comments
+    inside strings (which must be preserved).
+    """
+    result: list[str] = []
+    i = 0
+    n = len(text)
+    in_string = False
+    escape = False
+
+    while i < n:
+        ch = text[i]
+
+        if in_string:
+            result.append(ch)
+            if escape:
+                escape = False
+            elif ch == "\\":
+                escape = True
+            elif ch == '"':
+                in_string = False
+            i += 1
+            continue
+
+        # Not inside a string
+        if ch == '"':
+            in_string = True
+            result.append(ch)
+            i += 1
+        elif ch == "/" and i + 1 < n and text[i + 1] == "/":
+            # Single-line comment: skip until end of line
+            i += 2
+            while i < n and text[i] != "\n":
+                i += 1
+        elif ch == "/" and i + 1 < n and text[i + 1] == "*":
+            # Block comment: skip until */
+            i += 2
+            while i + 1 < n and not (text[i] == "*" and text[i + 1] == "/"):
+                i += 1
+            i += 2  # skip closing */
+        else:
+            result.append(ch)
+            i += 1
+
+    # Remove trailing commas before } or ]
+    import re
+    cleaned = "".join(result)
+    cleaned = re.sub(r",\s*([}\]])", r"\1", cleaned)
+    return cleaned
+
+
 def _merge_dict(base: Dict[str, Any], overrides: Dict[str, Any]) -> Dict[str, Any]:
     result = dict(base)
     for key, value in overrides.items():
@@ -186,11 +240,29 @@ def _ensure_default_config(config_path: str) -> None:
     logger.info("Created default config: %s", config_path)
 
 
+_config_readonly: bool = False
+
+
+def set_config_readonly(readonly: bool = True) -> None:
+    """Set or clear the module-level readonly flag.
+
+    When True, ``save_config()`` will silently skip writes to prevent
+    overwriting the user's config file with defaults after a parse error.
+    """
+    global _config_readonly
+    _config_readonly = readonly
+
+
 def save_config(config: Dict[str, Any], path: Optional[str] = None) -> None:
     """Save configuration to a JSON file.
 
     If no path is given, uses ~/.config/VoiceText/config.json.
+    Writes are suppressed when the readonly flag is set.
     """
+    if _config_readonly:
+        logger.warning("Config save skipped: config is in readonly mode (parse error at startup)")
+        return
+
     if not path:
         path = DEFAULT_CONFIG_PATH
 
@@ -221,6 +293,7 @@ def validate_config(config: Dict[str, Any]) -> Dict[str, Any]:
         ("feedback.sound_enabled", bool, None, DEFAULT_CONFIG["feedback"]["sound_enabled"]),
         ("feedback.sound_volume", (int, float), lambda v: 0.0 <= v <= 1.0, DEFAULT_CONFIG["feedback"]["sound_volume"]),
         ("feedback.visual_indicator", bool, None, DEFAULT_CONFIG["feedback"]["visual_indicator"]),
+        ("feedback.show_device_name", bool, None, DEFAULT_CONFIG["feedback"]["show_device_name"]),
         ("output.method", str, lambda v: v in {"auto", "paste", "clipboard"}, DEFAULT_CONFIG["output"]["method"]),
         ("output.append_newline", bool, None, DEFAULT_CONFIG["output"]["append_newline"]),
         ("output.preview_type", str, lambda v: v in {"web", "native"},
@@ -294,11 +367,26 @@ def validate_config(config: Dict[str, Any]) -> Dict[str, Any]:
     return config
 
 
-def load_config(path: Optional[str] = None) -> Dict[str, Any]:
-    """Load configuration from a JSON file.
+class ConfigError:
+    """Describes a configuration loading error."""
 
-    If no path is given, uses ~/.config/VoiceText/config.json.
-    If the file does not exist, creates it with default values.
+    def __init__(self, path: str, message: str) -> None:
+        self.path = path
+        self.message = message
+
+    def __str__(self) -> str:
+        return f"{self.path}: {self.message}"
+
+
+def load_config(path: Optional[str] = None) -> tuple[Dict[str, Any], Optional[ConfigError]]:
+    """Load configuration from a JSON/JSONC file.
+
+    Supports ``//`` and ``/* */`` comments as well as trailing commas.
+
+    Returns:
+        A tuple of (config_dict, error).  *error* is ``None`` on success or
+        a :class:`ConfigError` describing the problem.  On error the returned
+        config is the built-in default so the app can still start.
     """
     if not path:
         path = DEFAULT_CONFIG_PATH
@@ -307,10 +395,36 @@ def load_config(path: Optional[str] = None) -> Dict[str, Any]:
 
     if not os.path.exists(expanded):
         _ensure_default_config(expanded)
-        return dict(DEFAULT_CONFIG)
+        return dict(DEFAULT_CONFIG), None
 
-    with open(expanded, "r", encoding="utf-8") as f:
-        overrides = json.load(f)
+    try:
+        with open(expanded, "r", encoding="utf-8") as f:
+            raw = f.read()
+    except OSError as exc:
+        msg = f"Cannot read config file: {exc}"
+        logger.error(msg)
+        return dict(DEFAULT_CONFIG), ConfigError(expanded, msg)
+
+    try:
+        cleaned = _strip_jsonc(raw)
+        overrides = json.loads(cleaned)
+    except json.JSONDecodeError as exc:
+        # Map error position back to the original file for a useful message
+        lines = raw.splitlines()
+        lineno = min(exc.lineno, len(lines)) if exc.lineno else 1
+        context = lines[lineno - 1].rstrip() if lineno <= len(lines) else ""
+        msg = (
+            f"Syntax error on line {lineno}: {exc.msg}\n"
+            f"  {context}\n"
+            f"  {' ' * max(0, exc.colno - 1)}^"
+        )
+        logger.error("Config parse error in %s:\n%s", expanded, msg)
+        return dict(DEFAULT_CONFIG), ConfigError(expanded, msg)
+
+    if not isinstance(overrides, dict):
+        msg = f"Config file must be a JSON object, got {type(overrides).__name__}"
+        logger.error(msg)
+        return dict(DEFAULT_CONFIG), ConfigError(expanded, msg)
 
     config = _merge_dict(DEFAULT_CONFIG, overrides)
 
@@ -323,4 +437,4 @@ def load_config(path: Optional[str] = None) -> Dict[str, Any]:
             logger.info("Migrated hotkey %r → hotkeys dict", old)
 
     validate_config(config)
-    return config
+    return config, None

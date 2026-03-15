@@ -19,8 +19,17 @@ class TestRecordingIndicatorPanel:
     def test_initial_state(self):
         panel = RecordingIndicatorPanel()
         assert panel.enabled is True
+        assert panel.show_device_name is False
         assert panel._panel is None
         assert panel._timer is None
+
+    def test_show_device_name_toggle(self):
+        panel = RecordingIndicatorPanel()
+        assert panel.show_device_name is False
+        panel.show_device_name = True
+        assert panel.show_device_name is True
+        panel.show_device_name = False
+        assert panel.show_device_name is False
 
     def test_enabled_toggle(self):
         panel = RecordingIndicatorPanel()
@@ -107,6 +116,44 @@ class TestRecordingIndicatorPanel:
 
         assert panel.current_frame is mock_frame
         mock_panel.frame.assert_called_once()
+
+    def test_update_device_name_noop_when_no_panel(self):
+        panel = RecordingIndicatorPanel()
+        # Should not raise when panel is not shown
+        panel.update_device_name("Test Mic")
+        assert panel._panel is None
+
+    def test_update_device_name_noop_when_same_name(self):
+        panel = RecordingIndicatorPanel()
+        panel._panel = MagicMock()
+        view = RecordingIndicatorView(device_name="Same Mic")
+        panel._indicator_view = view
+
+        panel.update_device_name("Same Mic")
+        # Panel should not be resized since name didn't change
+        panel._panel.setContentSize_.assert_not_called()
+
+    def test_update_device_name_updates_view_and_resets_attrs(self):
+        panel = RecordingIndicatorPanel()
+        view = RecordingIndicatorView(device_name=None)
+        # Pre-set label attrs to verify they get reset
+        view._label_attrs = {"some": "attrs"}
+        panel._indicator_view = view
+        mock_panel = MagicMock()
+        panel._panel = mock_panel
+        mock_timer = MagicMock()
+        panel._timer = mock_timer
+
+        # Patch the whole method's internals since it imports AppKit/Foundation
+        # Just verify the state changes by letting the exception path handle it
+        try:
+            panel.update_device_name("New Mic")
+        except Exception:
+            pass
+
+        # These are set before any AppKit calls
+        assert view._device_name == "New Mic"
+        assert view._label_attrs is None
 
     def test_animate_out_calls_completion_when_no_panel(self):
         panel = RecordingIndicatorPanel()

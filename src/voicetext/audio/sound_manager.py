@@ -106,7 +106,8 @@ class SoundManager:
     ) -> None:
         self._enabled = enabled
         self._volume = volume
-        self._start_sound = ensure_start_sound(config_dir)
+        self._start_sound_path = ensure_start_sound(config_dir)
+        self._cached_sound: object = None  # Cached NSSound instance
 
     @property
     def enabled(self) -> bool:
@@ -115,6 +116,29 @@ class SoundManager:
     @enabled.setter
     def enabled(self, value: bool) -> None:
         self._enabled = value
+
+    def warmup(self) -> None:
+        """Pre-load the NSSound object on the main thread.
+
+        Call via AppHelper.callAfter() after the event loop starts to
+        eliminate first-play latency.
+        """
+        if self._cached_sound is not None:
+            return
+        try:
+            from AppKit import NSSound
+
+            if not os.path.exists(self._start_sound_path):
+                return
+            sound = NSSound.alloc().initWithContentsOfFile_byReference_(
+                self._start_sound_path, True
+            )
+            if sound is not None:
+                sound.setVolume_(self._volume)
+                self._cached_sound = sound
+                logger.debug("NSSound pre-loaded: %s", self._start_sound_path)
+        except Exception as e:
+            logger.debug("NSSound warmup failed: %s", e)
 
     def play(self, event: str) -> None:
         """Play the sound for the given event. Only 'start' is supported."""
@@ -127,26 +151,34 @@ class SoundManager:
         try:
             from PyObjCTools import AppHelper
 
-            AppHelper.callAfter(self._play_on_main_thread, self._start_sound)
+            AppHelper.callAfter(self._play_on_main_thread)
         except Exception as e:
             logger.warning("Failed to schedule sound playback: %s", e)
 
-    def _play_on_main_thread(self, sound_path: str) -> None:
+    def _play_on_main_thread(self) -> None:
         """Actually play the sound file. Must be called on the main thread."""
         try:
+            if self._cached_sound is not None:
+                # Stop any ongoing playback and replay from the beginning
+                self._cached_sound.stop()
+                self._cached_sound.play()
+                return
+
+            # Fallback: load on demand if warmup was not called
             from AppKit import NSSound
 
-            if not os.path.exists(sound_path):
-                logger.warning("Sound file not found: %s", sound_path)
+            if not os.path.exists(self._start_sound_path):
+                logger.warning("Sound file not found: %s", self._start_sound_path)
                 return
 
             sound = NSSound.alloc().initWithContentsOfFile_byReference_(
-                sound_path, True
+                self._start_sound_path, True
             )
             if sound is None:
-                logger.warning("Failed to load sound: %s", sound_path)
+                logger.warning("Failed to load sound: %s", self._start_sound_path)
                 return
             sound.setVolume_(self._volume)
             sound.play()
+            self._cached_sound = sound
         except Exception as e:
-            logger.warning("Failed to play sound %s: %s", sound_path, e)
+            logger.warning("Failed to play sound: %s", e)
