@@ -360,8 +360,10 @@ class SettingsPanel:
 
         # Restart / Cancel key dropdowns
         _key_choices = [
-            ("space", "Space"), ("cmd", "Command"), ("ctrl", "Control"),
-            ("alt", "Option"), ("shift", "Shift"), ("esc", "Esc"),
+            ("space", "Space"), ("cmd", "Command"), ("cmd_r", "Command (Right)"),
+            ("ctrl", "Control"), ("ctrl_r", "Control (Right)"),
+            ("alt", "Option"), ("alt_r", "Option (Right)"),
+            ("shift", "Shift"), ("shift_r", "Shift (Right)"), ("esc", "Esc"),
         ]
         label_w = 80
         popup_w = 140
