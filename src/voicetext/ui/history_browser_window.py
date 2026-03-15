@@ -136,6 +136,10 @@ class HistoryBrowserPanel:
             self._panel.setDelegate_(None)
             self._close_delegate = None
             self._panel.orderOut_(None)
+
+        if self._conversation_history is not None:
+            self._conversation_history.release_full_cache()
+
         from AppKit import NSApp
 
         NSApp.setActivationPolicy_(1)  # NSApplicationActivationPolicyAccessory
@@ -146,10 +150,10 @@ class HistoryBrowserPanel:
             return
         if self._search_text:
             self._all_records = self._conversation_history.search(
-                self._search_text, limit=500
+                self._search_text
             )
         else:
-            self._all_records = self._conversation_history.get_all(limit=500)
+            self._all_records = self._conversation_history.get_all()
 
         self._rebuild_mode_popup()
         self._rebuild_model_popup()

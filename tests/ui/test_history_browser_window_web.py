@@ -292,7 +292,7 @@ class TestJsMessages:
 
         assert panel._search_text == "hello"
         assert panel._time_range == "30d"
-        history.search.assert_called_once_with("hello", limit=500)
+        history.search.assert_called_once_with("hello")
 
     def test_toggle_tags(self):
         from voicetext.ui.history_browser_window_web import HistoryBrowserPanel
@@ -560,8 +560,9 @@ class TestPushData:
         calls = _get_js_calls(panel)
         set_records_calls = [c for c in calls if c.startswith("setRecords(")]
         assert len(set_records_calls) == 1
-        # Should contain total count as second arg
-        assert ",2)" in set_records_calls[0]
+        # Should contain total count (2), page (0), totalPages (1), filteredCount (1)
+        call = set_records_calls[0]
+        assert ",2,0,1,1)" in call
 
     def test_push_tag_options(self):
         from voicetext.ui.history_browser_window_web import HistoryBrowserPanel

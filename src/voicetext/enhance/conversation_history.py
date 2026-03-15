@@ -14,15 +14,162 @@ logger = logging.getLogger(__name__)
 
 
 class ConversationHistory:
-    """Append-only JSONL logger and reader for conversation history."""
+    """Append-only JSONL logger and reader for conversation history.
+
+    Maintains two levels of in-memory cache to avoid repeated disk reads:
+
+    * ``_cache`` — the most recent ``_CACHE_SIZE`` raw records (unfiltered).
+      Populated lazily on the first ``get_recent()`` call.  Kept in sync by
+      ``log()``, ``update_record()``, and ``delete_record()``.  Invalidated
+      by ``_maybe_rotate()``.
+
+    * ``_full_cache`` — *all* parsed records from the JSONL file, used by
+      ``get_all()`` and ``search()``.  Populated lazily on the first call.
+      Staleness is detected via file mtime; callers (e.g. History Browser)
+      should call ``release_full_cache()`` when they no longer need it so
+      that memory is freed promptly.
+    """
 
     _MAX_RECORDS = 20000
     _ROTATE_SIZE_THRESHOLD = 4 * 1024 * 1024  # 4 MB — cheap pre-check
+    _CACHE_SIZE = 200
 
     def __init__(self, config_dir: str = DEFAULT_CONFIG_DIR) -> None:
         self._config_dir = os.path.expanduser(config_dir)
         self._history_path = os.path.join(self._config_dir, "conversation_history.jsonl")
         self._archive_path = os.path.join(self._config_dir, "conversation_history.1.jsonl")
+
+        # Hot-path cache: most recent _CACHE_SIZE raw records (oldest first)
+        self._cache: Optional[List[Dict[str, Any]]] = None
+
+        # Full cache: all parsed records (oldest first), for get_all/search
+        self._full_cache: Optional[List[Dict[str, Any]]] = None
+        self._full_cache_mtime: float = 0.0
+
+    # ------------------------------------------------------------------
+    # Cache helpers
+    # ------------------------------------------------------------------
+
+    def _ensure_cache(self) -> List[Dict[str, Any]]:
+        """Return the hot-path cache, loading from disk on first access."""
+        if self._cache is None:
+            self._cache = self._load_tail(self._CACHE_SIZE)
+        return self._cache
+
+    def _load_tail(self, n: int) -> List[Dict[str, Any]]:
+        """Load the last *n* valid records from the JSONL file."""
+        if not os.path.exists(self._history_path):
+            return []
+        try:
+            with open(self._history_path, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+        except Exception as e:
+            logger.warning("Failed to read conversation history: %s", e)
+            return []
+
+        results: List[Dict[str, Any]] = []
+        for line in reversed(lines):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            results.append(record)
+            if len(results) >= n:
+                break
+        results.reverse()
+        return results
+
+    def _ensure_full_cache(self) -> List[Dict[str, Any]]:
+        """Return the full cache, reloading from disk if the file changed."""
+        try:
+            mtime = os.path.getmtime(self._history_path)
+        except OSError:
+            return []
+
+        if self._full_cache is not None and mtime == self._full_cache_mtime:
+            return self._full_cache
+
+        self._full_cache = self._load_all_records()
+        self._full_cache_mtime = mtime
+        return self._full_cache
+
+    def _load_all_records(self) -> List[Dict[str, Any]]:
+        """Parse every valid record from the JSONL file (oldest first)."""
+        if not os.path.exists(self._history_path):
+            return []
+        try:
+            with open(self._history_path, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+        except Exception as e:
+            logger.warning("Failed to read conversation history: %s", e)
+            return []
+
+        records: List[Dict[str, Any]] = []
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                records.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+        return records
+
+    def release_full_cache(self) -> None:
+        """Release the full in-memory cache to free memory.
+
+        Should be called when the History Browser is closed so that the
+        (potentially large) record list is not kept alive unnecessarily.
+        """
+        self._full_cache = None
+        self._full_cache_mtime = 0.0
+
+    def _update_cache_record(self, timestamp: str, fields: Dict[str, Any]) -> None:
+        """Update matching record in both caches (if loaded)."""
+        for cache in (self._cache, self._full_cache):
+            if cache is None:
+                continue
+            for rec in cache:
+                if rec.get("timestamp") == timestamp:
+                    rec.update(fields)
+                    break
+
+    def _delete_cache_record(self, timestamp: str) -> None:
+        """Remove matching record from both caches (if loaded)."""
+        if self._cache is not None:
+            self._cache = [r for r in self._cache if r.get("timestamp") != timestamp]
+        if self._full_cache is not None:
+            self._full_cache = [r for r in self._full_cache if r.get("timestamp") != timestamp]
+
+    def _append_cache_record(self, record: Dict[str, Any]) -> None:
+        """Append a new record to both caches (if loaded)."""
+        if self._cache is not None:
+            self._cache.append(record)
+            if len(self._cache) > self._CACHE_SIZE:
+                self._cache = self._cache[-self._CACHE_SIZE:]
+        if self._full_cache is not None:
+            self._full_cache.append(record)
+            self._full_cache_mtime = self._get_mtime()
+
+    def _invalidate_caches(self) -> None:
+        """Invalidate both caches (e.g. after rotation)."""
+        self._cache = None
+        self._full_cache = None
+        self._full_cache_mtime = 0.0
+
+    def _get_mtime(self) -> float:
+        """Return the current mtime of the history file, or 0.0."""
+        try:
+            return os.path.getmtime(self._history_path)
+        except OSError:
+            return 0.0
+
+    # ------------------------------------------------------------------
+    # Write operations
+    # ------------------------------------------------------------------
 
     def log(
         self,
@@ -61,6 +208,8 @@ class ConversationHistory:
             f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
         logger.debug("Conversation logged: %s", self._history_path)
+
+        self._append_cache_record(record)
         self._maybe_rotate()
         return ts
 
@@ -95,10 +244,16 @@ class ConversationHistory:
             f.writelines(keep_lines)
         os.replace(tmp_path, self._history_path)
 
+        self._invalidate_caches()
+
         logger.info(
             "Rotated conversation history: archived %d records, kept %d",
             len(old_lines), len(keep_lines),
         )
+
+    # ------------------------------------------------------------------
+    # Read operations (low-frequency, no cache)
+    # ------------------------------------------------------------------
 
     def count(self) -> int:
         """Return the number of conversation records in the log file."""
@@ -180,6 +335,10 @@ class ConversationHistory:
         final = record.get("final_text")
         return enhanced is not None and enhanced != final
 
+    # ------------------------------------------------------------------
+    # Read operations (hot-path, cached)
+    # ------------------------------------------------------------------
+
     # Skip history entries whose final_text exceeds this length (e.g. clipboard
     # enhance with large input).  Long texts bloat the system prompt and add
     # little value as correction context.
@@ -192,6 +351,8 @@ class ConversationHistory:
         characters are skipped so that large clipboard-enhance entries do not
         bloat the LLM context.
 
+        Uses the in-memory cache to avoid disk reads on the hot path.
+
         Args:
             n: Number of records to return. Defaults to max_entries.
             max_entries: Default number of records when n is not specified.
@@ -200,72 +361,86 @@ class ConversationHistory:
             List of record dicts, oldest first.
         """
         count = n if n is not None else max_entries
+        cache = self._ensure_cache()
 
-        if not os.path.exists(self._history_path):
-            return []
-
-        try:
-            with open(self._history_path, "r", encoding="utf-8") as f:
-                lines = f.readlines()
-        except Exception as e:
-            logger.warning("Failed to read conversation history: %s", e)
-            return []
-
-        # Parse lines in reverse, collect preview_enabled=true records
         results: List[Dict[str, Any]] = []
-        for line in reversed(lines):
-            line = line.strip()
-            if not line:
+        for record in reversed(cache):
+            if record.get("preview_enabled") is not True:
                 continue
-            try:
-                record = json.loads(line)
-            except json.JSONDecodeError:
+            final = record.get("final_text", "")
+            if len(final) > self._MAX_TEXT_LENGTH_FOR_CONTEXT:
                 continue
-            if record.get("preview_enabled") is True:
-                final = record.get("final_text", "")
-                if len(final) > self._MAX_TEXT_LENGTH_FOR_CONTEXT:
-                    continue
-                results.append(record)
-                if len(results) >= count:
-                    break
+            results.append(record)
+            if len(results) >= count:
+                break
 
-        # Return oldest first
         results.reverse()
         return results
 
-    def get_all(self, limit: int = 100) -> List[Dict[str, Any]]:
+    # ------------------------------------------------------------------
+    # Read operations (full cache, for UI)
+    # ------------------------------------------------------------------
+
+    def get_all(self, limit: int = 0) -> List[Dict[str, Any]]:
         """Return all records (no filtering), newest first.
 
+        Uses the full in-memory cache; call ``release_full_cache()`` when
+        the data is no longer needed to free memory.
+
         Args:
-            limit: Maximum number of records to return.
+            limit: Maximum number of records to return.  0 means no limit.
 
         Returns:
             List of record dicts, newest first.
         """
-        if not os.path.exists(self._history_path):
+        cache = self._ensure_full_cache()
+        if not cache:
             return []
 
-        try:
-            with open(self._history_path, "r", encoding="utf-8") as f:
-                lines = f.readlines()
-        except Exception as e:
-            logger.warning("Failed to read conversation history: %s", e)
-            return []
+        if limit <= 0:
+            return list(reversed(cache))
 
         results: List[Dict[str, Any]] = []
-        for line in reversed(lines):
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                record = json.loads(line)
-            except json.JSONDecodeError:
-                continue
+        for record in reversed(cache):
             results.append(record)
             if len(results) >= limit:
                 break
+        return results
+
+    def search(self, query: str, limit: int = 0) -> List[Dict[str, Any]]:
+        """Search records by case-insensitive substring match on text fields.
+
+        Uses the full in-memory cache; call ``release_full_cache()`` when
+        the data is no longer needed to free memory.
+
+        Args:
+            query: Search string (case-insensitive).
+            limit: Maximum number of results.  0 means no limit.
+
+        Returns:
+            Matching records, newest first.
+        """
+        cache = self._ensure_full_cache()
+        if not cache:
+            return []
+
+        query_lower = query.lower()
+        results: List[Dict[str, Any]] = []
+        for record in reversed(cache):
+            searchable = " ".join(
+                str(record.get(k, ""))
+                for k in ("asr_text", "enhanced_text", "final_text")
+            ).lower()
+            if query_lower in searchable:
+                results.append(record)
+                if limit > 0 and len(results) >= limit:
+                    break
 
         return results
+
+    # ------------------------------------------------------------------
+    # Update / delete
+    # ------------------------------------------------------------------
 
     def update_final_text(self, timestamp: str, new_final_text: str) -> bool:
         """Update the final_text of a record identified by timestamp.
@@ -307,6 +482,7 @@ class ConversationHistory:
             return False
 
         found = False
+        edit_ts = datetime.now(timezone.utc).isoformat()
         new_lines: List[str] = []
         for line in lines:
             stripped = line.strip()
@@ -322,7 +498,7 @@ class ConversationHistory:
             if record.get("timestamp") == timestamp and not found:
                 for key, value in fields.items():
                     record[key] = value
-                record["edited_at"] = datetime.now(timezone.utc).isoformat()
+                record["edited_at"] = edit_ts
                 new_lines.append(json.dumps(record, ensure_ascii=False) + "\n")
                 found = True
             else:
@@ -335,6 +511,12 @@ class ConversationHistory:
         with open(tmp_path, "w", encoding="utf-8") as f:
             f.writelines(new_lines)
         os.replace(tmp_path, self._history_path)
+
+        cache_fields = {**fields, "edited_at": edit_ts}
+        self._update_cache_record(timestamp, cache_fields)
+        if self._full_cache is not None:
+            self._full_cache_mtime = self._get_mtime()
+
         return True
 
     def delete_record(self, timestamp: str) -> bool:
@@ -384,49 +566,16 @@ class ConversationHistory:
         with open(tmp_path, "w", encoding="utf-8") as f:
             f.writelines(new_lines)
         os.replace(tmp_path, self._history_path)
+
+        self._delete_cache_record(timestamp)
+        if self._full_cache is not None:
+            self._full_cache_mtime = self._get_mtime()
+
         return True
 
-    def search(self, query: str, limit: int = 100) -> List[Dict[str, Any]]:
-        """Search records by case-insensitive substring match on text fields.
-
-        Args:
-            query: Search string (case-insensitive).
-            limit: Maximum number of results.
-
-        Returns:
-            Matching records, newest first.
-        """
-        if not os.path.exists(self._history_path):
-            return []
-
-        try:
-            with open(self._history_path, "r", encoding="utf-8") as f:
-                lines = f.readlines()
-        except Exception as e:
-            logger.warning("Failed to read conversation history: %s", e)
-            return []
-
-        query_lower = query.lower()
-        results: List[Dict[str, Any]] = []
-        for line in reversed(lines):
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                record = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-
-            searchable = " ".join(
-                str(record.get(k, ""))
-                for k in ("asr_text", "enhanced_text", "final_text")
-            ).lower()
-            if query_lower in searchable:
-                results.append(record)
-                if len(results) >= limit:
-                    break
-
-        return results
+    # ------------------------------------------------------------------
+    # Prompt formatting (stateless, no caching needed)
+    # ------------------------------------------------------------------
 
     # Maximum total characters for formatted history injected into the
     # system prompt.  Keeps token usage bounded regardless of entry count.

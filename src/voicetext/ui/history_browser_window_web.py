@@ -141,6 +141,22 @@ body {
 }
 .stats-line .filtered { color: var(--accent); margin-left: 4px; }
 
+/* Pagination */
+.pager {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 6px 0; flex-shrink: 0;
+    font-size: 11px; color: var(--secondary);
+    -webkit-user-select: none; user-select: none;
+}
+.pager-btn {
+    height: 24px; padding: 0 10px; border: 1px solid var(--border); border-radius: 5px;
+    background: var(--btn-bg); color: var(--text);
+    font-size: 11px; cursor: pointer; transition: background 0.15s;
+}
+.pager-btn:hover { background: var(--btn-hover); }
+.pager-btn:disabled { opacity: 0.35; cursor: default; }
+.pager-info { min-width: 100px; text-align: center; }
+
 /* Table */
 .table-wrap {
     flex: 1; min-height: 0;
@@ -273,6 +289,12 @@ body {
     <div class="table-body" id="table-body"></div>
 </div>
 
+<div class="pager" id="pager" style="display:none">
+    <button class="pager-btn" id="pager-prev" disabled>&laquo; Prev</button>
+    <span class="pager-info" id="pager-info"></span>
+    <button class="pager-btn" id="pager-next" disabled>Next &raquo;</button>
+</div>
+
 <div class="detail" id="detail" style="display:none">
     <div class="detail-row">
         <div class="detail-label" id="asr-label">ASR:</div>
@@ -320,11 +342,19 @@ const timeInfo = document.getElementById('time-info');
 const deleteBtn = document.getElementById('delete-btn');
 const saveBtn = document.getElementById('save-btn');
 const closeBtn = document.getElementById('close-btn');
+const pagerEl = document.getElementById('pager');
+const pagerPrev = document.getElementById('pager-prev');
+const pagerNext = document.getElementById('pager-next');
+const pagerInfo = document.getElementById('pager-info');
 
 let selectedIndex = -1;
 let currentRecords = [];
 let originalFinalText = '';
 let activeTags = new Set();
+let currentPage = 0;
+let totalPages = 1;
+let totalFiltered = 0;
+const PAGE_SIZE = 100;
 
 const MODE_COLORS = {
     proofread: 'proofread', translate: 'translate',
@@ -366,6 +396,14 @@ clearBtn.addEventListener('click', () => {
     timeRange.value = '7d';
     activeTags.clear();
     post({type:'clearFilters'});
+});
+
+/* --- Pager --- */
+pagerPrev.addEventListener('click', () => {
+    if (currentPage > 0) post({type:'changePage', page: currentPage - 1});
+});
+pagerNext.addEventListener('click', () => {
+    if (currentPage < totalPages - 1) post({type:'changePage', page: currentPage + 1});
 });
 
 /* --- Tag toggle --- */
@@ -422,18 +460,31 @@ document.addEventListener('keydown', (e) => {
 
 /* === Python → JS API === */
 
-function setRecords(records, totalCount) {
+function setRecords(records, totalCount, page, numPages, filteredCount) {
     currentRecords = records;
+    currentPage = page || 0;
+    totalPages = numPages || 1;
+    totalFiltered = filteredCount || records.length;
     selectedIndex = -1;
     detail.style.display = 'none';
     finalInput.disabled = true; finalInput.value = '';
     saveBtn.disabled = true; deleteBtn.disabled = true;
 
     /* Stats */
-    if (totalCount !== records.length) {
-        statsLine.innerHTML = `Total ${totalCount} records<span class="filtered"> (${records.length} filtered)</span>`;
+    if (totalCount !== totalFiltered) {
+        statsLine.innerHTML = `Total ${totalCount} records<span class="filtered"> (${totalFiltered} filtered)</span>`;
     } else {
         statsLine.textContent = `Total ${totalCount} records`;
+    }
+
+    /* Pager */
+    if (totalPages > 1) {
+        pagerEl.style.display = 'flex';
+        pagerPrev.disabled = (currentPage <= 0);
+        pagerNext.disabled = (currentPage >= totalPages - 1);
+        pagerInfo.textContent = `Page ${currentPage + 1} / ${totalPages}`;
+    } else {
+        pagerEl.style.display = 'none';
     }
 
     /* Table rows */
@@ -463,6 +514,20 @@ function setRecords(records, totalCount) {
             `<div class="col col-tags">${tags}</div></div>`;
     }
     tableBody.innerHTML = html;
+    tableBody.scrollTop = 0;
+
+    /* After real rows are rendered, measure actual row height and correct
+       page size if needed (the initial probe may be inaccurate). */
+    requestAnimationFrame(() => {
+        const row = tableBody.querySelector('.row');
+        if (row) {
+            const h = row.getBoundingClientRect().height;
+            if (h > 0 && h !== measuredRowHeight) {
+                measuredRowHeight = h;
+                postPageSizeIfChanged();
+            }
+        }
+    });
 }
 
 const GROUP_LABELS = {mode: 'Mode', stt: 'STT', llm: 'LLM', special: ''};
@@ -591,6 +656,56 @@ document.addEventListener('mouseover', (e) => {
 });
 document.addEventListener('mouseout', (e) => {
     if (e.target.closest('[data-tip]')) tooltipEl.style.display = 'none';
+});
+
+/* --- Dynamic page size based on available height --- */
+let measuredRowHeight = 0;
+let lastPageSize = PAGE_SIZE;
+
+function getRowHeight() {
+    if (measuredRowHeight > 0) return measuredRowHeight;
+    /* Measure from an actual rendered row */
+    const row = tableBody.querySelector('.row');
+    if (row) {
+        measuredRowHeight = row.getBoundingClientRect().height;
+        return measuredRowHeight;
+    }
+    /* Measure via a hidden probe row */
+    const probe = document.createElement('div');
+    probe.className = 'row';
+    probe.style.visibility = 'hidden';
+    probe.innerHTML = '<div class="col col-time">0</div>' +
+        '<div class="col col-mode">x</div>' +
+        '<div class="col col-content">x</div>' +
+        '<div class="col col-tags"><span class="mini-tag">x</span></div>';
+    tableBody.appendChild(probe);
+    measuredRowHeight = probe.getBoundingClientRect().height;
+    tableBody.removeChild(probe);
+    return measuredRowHeight || 28;
+}
+
+function calcPageSize() {
+    const h = tableBody.clientHeight;
+    if (h <= 0) return lastPageSize;
+    return Math.max(5, Math.floor(h / getRowHeight()));
+}
+
+function postPageSizeIfChanged() {
+    const size = calcPageSize();
+    if (size !== lastPageSize) {
+        lastPageSize = size;
+        post({type: 'pageSize', size: size});
+    }
+}
+
+/* Post initial size once layout is ready */
+requestAnimationFrame(() => {
+    lastPageSize = calcPageSize();
+    post({type: 'pageSize', size: lastPageSize});
+});
+window.addEventListener('resize', () => {
+    measuredRowHeight = 0; /* re-measure after resize */
+    postPageSizeIfChanged();
 });
 </script>
 </body>
@@ -728,6 +843,8 @@ class HistoryBrowserPanel:
         self._search_text: str = ""
         self._time_range: str = "7d"
         self._active_tags: Set[str] = set()
+        self._page: int = 0
+        self._page_size: int = 100
 
     # ------------------------------------------------------------------
     # Public API
@@ -746,7 +863,8 @@ class HistoryBrowserPanel:
 
         NSApp.setActivationPolicy_(0)  # Regular
         self._build_panel()
-        self._reload_data()
+        # Data loading is deferred until JS reports the actual page size
+        # via the 'pageSize' message (triggered by requestAnimationFrame).
         self._panel.makeKeyAndOrderFront_(None)
         NSApp.activateIgnoringOtherApps_(True)
 
@@ -765,6 +883,9 @@ class HistoryBrowserPanel:
         self._page_loaded = False
         self._pending_js = []
 
+        if self._conversation_history is not None:
+            self._conversation_history.release_full_cache()
+
         from AppKit import NSApp
 
         NSApp.setActivationPolicy_(1)  # Accessory
@@ -778,11 +899,12 @@ class HistoryBrowserPanel:
         if self._conversation_history is None:
             return
         if self._search_text:
-            self._all_records = self._conversation_history.search(self._search_text, limit=500)
+            self._all_records = self._conversation_history.search(self._search_text)
         else:
-            self._all_records = self._conversation_history.get_all(limit=500)
+            self._all_records = self._conversation_history.get_all()
 
         self._apply_filters()
+        self._page = 0
         self._selected_index = -1
         self._push_tag_options()
         self._push_records()
@@ -819,16 +941,33 @@ class HistoryBrowserPanel:
         self._filtered_records = records
 
     def _push_records(self) -> None:
-        """Send current filtered records to JS."""
+        """Send current page of filtered records to JS."""
         from voicetext.enhance.conversation_history import ConversationHistory
 
+        filtered_count = len(self._filtered_records)
+        total_pages = max(1, (filtered_count + self._page_size - 1) // self._page_size)
+
+        # Clamp page to valid range
+        if self._page >= total_pages:
+            self._page = total_pages - 1
+        if self._page < 0:
+            self._page = 0
+
+        start = self._page * self._page_size
+        end = start + self._page_size
+        page_records = self._filtered_records[start:end]
+
         records_json = []
-        for r in self._filtered_records:
+        for r in page_records:
             entry = dict(r)
             entry["_corrected"] = ConversationHistory._is_corrected(r)
             records_json.append(entry)
+
         total = len(self._all_records)
-        self._eval_js(f"setRecords({json.dumps(records_json, ensure_ascii=False)},{total})")
+        self._eval_js(
+            f"setRecords({json.dumps(records_json, ensure_ascii=False)},"
+            f"{total},{self._page},{total_pages},{filtered_count})"
+        )
 
     def _push_tag_options(self) -> None:
         """Send available tag options with counts to JS."""
@@ -881,6 +1020,13 @@ class HistoryBrowserPanel:
         elif msg_type == "toggleTags":
             self._active_tags = set(body.get("tags", []))
             self._apply_filters()
+            self._page = 0
+            self._selected_index = -1
+            self._push_records()
+            self._eval_js("clearDetail()")
+
+        elif msg_type == "changePage":
+            self._page = body.get("page", 0)
             self._selected_index = -1
             self._push_records()
             self._eval_js("clearDetail()")
@@ -893,10 +1039,11 @@ class HistoryBrowserPanel:
             self._reload_data()
 
         elif msg_type == "selectRow":
-            index = body.get("index", -1)
-            if 0 <= index < len(self._filtered_records):
-                self._selected_index = index
-                record = self._filtered_records[index]
+            page_index = body.get("index", -1)
+            abs_index = self._page * self._page_size + page_index
+            if 0 <= abs_index < len(self._filtered_records):
+                self._selected_index = abs_index
+                record = self._filtered_records[abs_index]
                 self._eval_js(f"showDetail({json.dumps(record, ensure_ascii=False)})")
             else:
                 self._selected_index = -1
@@ -907,6 +1054,20 @@ class HistoryBrowserPanel:
 
         elif msg_type == "delete":
             self._on_delete_clicked(body.get("timestamp", ""))
+
+        elif msg_type == "pageSize":
+            new_size = body.get("size", self._page_size)
+            if new_size != self._page_size or not self._all_records:
+                self._page_size = new_size
+                if not self._all_records:
+                    # Initial load — triggered by JS after measuring layout
+                    self._reload_data()
+                else:
+                    # Resize — re-push with new page size
+                    self._page = 0
+                    self._selected_index = -1
+                    self._push_records()
+                    self._eval_js("clearDetail()")
 
         elif msg_type == "close":
             self.close()
@@ -921,7 +1082,8 @@ class HistoryBrowserPanel:
         ok = self._conversation_history.update_final_text(timestamp, new_text)
         if ok:
             self._filtered_records[self._selected_index]["final_text"] = new_text
-            self._eval_js(f"markSaved({self._selected_index})")
+            page_index = self._selected_index - self._page * self._page_size
+            self._eval_js(f"markSaved({page_index})")
             if self._on_save:
                 self._on_save(timestamp, new_text)
 
