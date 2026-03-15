@@ -27,6 +27,7 @@ class ScriptEngine:
         self._clipboard_monitor = None
         self._usage_tracker = None
         self._snippet_store = None
+        self._snippet_expander = None
 
         # Create vt namespace and install as module singleton
         from voicetext.scripting.api import _VTNamespace
@@ -56,6 +57,9 @@ class ScriptEngine:
         if self._clipboard_monitor is not None:
             self._clipboard_monitor.stop()
             self._clipboard_monitor = None
+        if self._snippet_expander is not None:
+            self._snippet_expander.stop()
+            self._snippet_expander = None
         self._registry.clear()
         logger.info("Script engine stopped")
 
@@ -164,6 +168,17 @@ class ScriptEngine:
                 logger.info("Built-in snippet source registered")
             except Exception:
                 logger.exception("Failed to register snippet source")
+
+        # Snippet keyword auto-expansion
+        if chooser_config.get("snippet_expansion", True) and self._snippet_store:
+            try:
+                from voicetext.scripting.snippet_expander import SnippetExpander
+
+                self._snippet_expander = SnippetExpander(self._snippet_store)
+                self._snippet_expander.start()
+                logger.info("Snippet keyword expander started")
+            except Exception:
+                logger.exception("Failed to start snippet expander")
 
         # Bookmark search source
         if chooser_config.get("bookmarks", True):

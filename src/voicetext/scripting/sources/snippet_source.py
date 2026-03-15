@@ -166,7 +166,7 @@ class SnippetStore:
     def __init__(self, path: Optional[str] = None) -> None:
         self._dir = path or _DEFAULT_SNIPPETS_DIR
         self._snippets: List[Dict[str, str]] = []
-        self._loaded = False
+        self._migrated = False
 
     @property
     def snippets(self) -> List[Dict[str, str]]:
@@ -176,10 +176,9 @@ class SnippetStore:
     # -- loading -------------------------------------------------------------
 
     def _ensure_loaded(self) -> None:
-        if self._loaded:
-            return
-        self._loaded = True
-        self._maybe_migrate()
+        if not self._migrated:
+            self._migrated = True
+            self._maybe_migrate()
         self._scan_directory()
 
     def _scan_directory(self) -> None:
@@ -375,7 +374,6 @@ class SnippetStore:
 
     def reload(self) -> None:
         """Force reload from disk."""
-        self._loaded = False
         self._snippets = []
         self._ensure_loaded()
 
