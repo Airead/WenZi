@@ -110,6 +110,10 @@ When adding new user-facing behaviors or interactions, always add corresponding 
 4. Update the stats display in `_on_show_usage_stats()`
 5. Add tests in `tests/test_usage_stats.py`
 
+## Worktree Management
+
+Do NOT use Claude Code's built-in `EnterWorktree`. All worktrees are managed by Worktrunk. When an isolated environment is needed, prompt the user to create one with Worktrunk.
+
 ## Pre-PR Rebase
 
 **MANDATORY before creating a pull request.** You MUST rebase onto the latest `main` branch before pushing:

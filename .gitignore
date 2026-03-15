@@ -28,6 +28,9 @@ htmlcov/
 # macOS
 .DS_Store
 
+# Claude Code
+.claude/worktrees/
+
 # IDE
 .idea/
 .vscode/
