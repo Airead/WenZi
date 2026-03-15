@@ -501,7 +501,8 @@ class PreviewController:
             except Exception as e:
                 logger.error("Background STT failed: %s", e)
                 app._preview_panel.set_asr_result(
-                    f"(error: {e})",
+                    f"(error: {e})\n\n"
+                    "Please try switching to a different model from the menu.",
                     request_id=0,
                 )
 
