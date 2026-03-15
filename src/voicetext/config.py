@@ -158,6 +158,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
             "clipboard_history": True,
             "clipboard_max_items": 50,
             "app_search": True,
+            "file_search": True,
+            "snippets": True,
+            "usage_learning": True,
         },
     },
 }

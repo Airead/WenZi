@@ -7,7 +7,8 @@ pure-Python logic: source registration, search dispatch, item execution.
 import json
 from unittest.mock import MagicMock, patch
 
-from voicetext.scripting.sources import ChooserItem, ChooserSource
+from voicetext.scripting.sources import ChooserItem, ChooserSource, ModifierAction
+from voicetext.scripting.sources.usage_tracker import UsageTracker
 from voicetext.scripting.ui.chooser_panel import ChooserPanel
 
 
@@ -91,7 +92,7 @@ class TestSearchLogic:
         panel.register_source(
             _make_source(
                 "clipboard",
-                prefix=">cb",
+                prefix="cb",
                 items=[ChooserItem(title="Safari URL copied")],
             )
         )
@@ -105,14 +106,43 @@ class TestSearchLogic:
         panel.register_source(
             _make_source(
                 "clipboard",
-                prefix=">cb",
+                prefix="cb",
                 items=[
                     ChooserItem(title="hello world"),
                     ChooserItem(title="https://github.com"),
                 ],
             )
         )
-        panel._do_search(">cb hello")
+        panel._do_search("cb hello")
+        assert len(panel._current_items) == 1
+        assert panel._current_items[0].title == "hello world"
+
+    def test_bare_prefix_activates_source(self):
+        """Typing just the prefix (without trailing space) should activate source."""
+        panel = _make_panel()
+        items = [ChooserItem(title="item1"), ChooserItem(title="item2")]
+        panel.register_source(
+            _make_source("clipboard", prefix="cb", items=items)
+        )
+        panel._do_search("cb")
+        # Bare prefix activates source with empty query
+        # The mock search returns items matching "" which matches all
+        assert len(panel._current_items) == 2
+
+    def test_prefix_with_space_strips_prefix(self):
+        """'cb hello' should search clipboard for 'hello'."""
+        panel = _make_panel()
+        panel.register_source(
+            _make_source(
+                "clipboard",
+                prefix="cb",
+                items=[
+                    ChooserItem(title="hello world"),
+                    ChooserItem(title="goodbye"),
+                ],
+            )
+        )
+        panel._do_search("cb hello")
         assert len(panel._current_items) == 1
         assert panel._current_items[0].title == "hello world"
 
@@ -137,25 +167,6 @@ class TestSearchLogic:
         # Higher priority source first
         assert panel._current_items[0].title == "Safari"
         assert panel._current_items[1].title == "Safari Tips"
-
-    def test_search_with_explicit_source_name(self):
-        panel = _make_panel()
-        panel.register_source(
-            _make_source(
-                "apps",
-                items=[ChooserItem(title="Safari")],
-            )
-        )
-        panel.register_source(
-            _make_source(
-                "bookmarks",
-                items=[ChooserItem(title="Safari Tips")],
-            )
-        )
-        panel._active_source = "bookmarks"
-        panel._do_search("Safari", source_name="bookmarks")
-        assert len(panel._current_items) == 1
-        assert panel._current_items[0].title == "Safari Tips"
 
     def test_search_error_handling(self):
         """Source raising an exception should not crash the panel."""
@@ -288,15 +299,6 @@ class TestJSMessageHandling:
         time.sleep(0.3)
         assert called == [True]
 
-    def test_switch_source_message(self):
-        panel = _make_panel()
-        panel.register_source(_make_source("apps"))
-        panel.register_source(_make_source("bookmarks"))
-        panel._handle_js_message(
-            {"type": "switchSource", "source": "bookmarks", "query": ""}
-        )
-        assert panel._active_source == "bookmarks"
-
     def test_request_preview_message(self):
         panel = _make_panel()
         panel._current_items = [
@@ -323,6 +325,24 @@ class TestJSMessageHandling:
         panel._handle_js_message({"type": "requestPreview", "index": 5})
         call_args = panel._eval_js.call_args[0][0]
         assert "setPreview(null)" in call_args
+
+
+class TestPrefixHints:
+    def test_push_prefix_hints(self):
+        panel = _make_panel()
+        panel.register_source(_make_source("apps"))
+        panel.register_source(_make_source("clipboard", prefix="cb"))
+        panel._push_prefix_hints_to_js()
+        call_args = panel._eval_js.call_args[0][0]
+        assert "setPrefixHints" in call_args
+        assert "cb clipboard" in call_args
+
+    def test_no_prefix_sources(self):
+        panel = _make_panel()
+        panel.register_source(_make_source("apps"))
+        panel._push_prefix_hints_to_js()
+        call_args = panel._eval_js.call_args[0][0]
+        assert "setPrefixHints([])" in call_args
 
 
 class TestPushItemsToJS:
@@ -375,3 +395,161 @@ class TestPushItemsToJS:
         panel._push_items_to_js()
         v2 = panel._items_version
         assert v2 == v1 + 1
+
+    def test_has_modifiers_flag(self):
+        panel = _make_panel()
+        panel._current_items = [
+            ChooserItem(
+                title="App",
+                modifiers={"alt": ModifierAction(subtitle="/path")},
+            ),
+        ]
+        panel._push_items_to_js()
+        call_args = panel._eval_js.call_args[0][0]
+        assert '"hasModifiers": true' in call_args
+
+
+class TestUsageTrackerIntegration:
+    def test_usage_boosts_results(self):
+        import os
+        import tempfile
+
+        tmpdir = tempfile.mkdtemp()
+        path = os.path.join(tmpdir, "usage.json")
+        tracker = UsageTracker(path=path)
+
+        panel = ChooserPanel(usage_tracker=tracker)
+        panel._eval_js = MagicMock()
+        panel._page_loaded = True
+
+        items = [
+            ChooserItem(title="Safari App", item_id="safari"),
+            ChooserItem(title="Safari Tips", item_id="tips"),
+            ChooserItem(title="Safari Guide", item_id="guide"),
+        ]
+        panel.register_source(
+            ChooserSource(
+                name="test",
+                search=lambda q: [i for i in items if q in i.title.lower()],
+            )
+        )
+
+        # Record "guide" as frequently selected for "saf" queries
+        tracker.record("saf", "guide")
+        tracker.record("saf", "guide")
+        tracker.record("saf", "guide")
+
+        # Search — "guide" should be boosted to the top
+        panel._do_search("safari")
+        ids = [item.item_id for item in panel._current_items]
+        assert len(ids) == 3
+        assert ids[0] == "guide"  # Most frequently selected
+
+    def test_execute_records_usage(self):
+        import os
+        import tempfile
+
+        tmpdir = tempfile.mkdtemp()
+        path = os.path.join(tmpdir, "usage.json")
+        tracker = UsageTracker(path=path)
+
+        panel = ChooserPanel(usage_tracker=tracker)
+        panel._eval_js = MagicMock()
+        panel._page_loaded = True
+        panel._last_query = "saf"
+        panel._current_items = [
+            ChooserItem(
+                title="Safari",
+                item_id="app:Safari",
+                action=lambda: None,
+            ),
+        ]
+        panel.close = MagicMock()
+
+        with patch("PyObjCTools.AppHelper.callAfter", side_effect=lambda fn: fn()):
+            panel._execute_item(0)
+
+        assert tracker.score("saf", "app:Safari") == 1
+
+
+class TestModifierActions:
+    def test_modifier_subtitle_message(self):
+        panel = _make_panel()
+        panel._current_items = [
+            ChooserItem(
+                title="Safari",
+                subtitle="Application",
+                modifiers={
+                    "alt": ModifierAction(subtitle="/Applications/Safari.app"),
+                },
+            ),
+        ]
+        panel._handle_js_message({
+            "type": "modifierChange", "index": 0, "modifier": "alt",
+        })
+        call_args = panel._eval_js.call_args[0][0]
+        assert "setModifierSubtitle" in call_args
+        assert "/Applications/Safari.app" in call_args
+
+    def test_modifier_release_restores_subtitle(self):
+        panel = _make_panel()
+        panel._current_items = [
+            ChooserItem(
+                title="Safari",
+                subtitle="Application",
+                modifiers={
+                    "alt": ModifierAction(subtitle="/path"),
+                },
+            ),
+        ]
+        panel._handle_js_message({
+            "type": "modifierChange", "index": 0, "modifier": None,
+        })
+        call_args = panel._eval_js.call_args[0][0]
+        assert "Application" in call_args
+
+    def test_execute_with_modifier(self):
+        import time
+
+        called = []
+        panel = _make_panel()
+        panel._current_items = [
+            ChooserItem(
+                title="Safari",
+                action=lambda: called.append("default"),
+                modifiers={
+                    "alt": ModifierAction(
+                        subtitle="path",
+                        action=lambda: called.append("alt"),
+                    ),
+                },
+            ),
+        ]
+        panel.close = MagicMock()
+        with patch("PyObjCTools.AppHelper.callAfter", side_effect=lambda fn: fn()):
+            panel._execute_item(0, modifier="alt")
+        time.sleep(0.3)
+        assert called == ["alt"]
+
+    def test_execute_without_modifier(self):
+        import time
+
+        called = []
+        panel = _make_panel()
+        panel._current_items = [
+            ChooserItem(
+                title="Safari",
+                action=lambda: called.append("default"),
+                modifiers={
+                    "alt": ModifierAction(
+                        subtitle="path",
+                        action=lambda: called.append("alt"),
+                    ),
+                },
+            ),
+        ]
+        panel.close = MagicMock()
+        with patch("PyObjCTools.AppHelper.callAfter", side_effect=lambda fn: fn()):
+            panel._execute_item(0)
+        time.sleep(0.3)
+        assert called == ["default"]

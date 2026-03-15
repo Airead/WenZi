@@ -147,7 +147,7 @@ class TestClipboardSource:
         source = ClipboardSource(monitor)
         cs = source.as_chooser_source()
         assert cs.name == "clipboard"
-        assert cs.prefix == ">cb"
+        assert cs.prefix == "cb"
         assert cs.priority == 5
         assert cs.search is not None
 

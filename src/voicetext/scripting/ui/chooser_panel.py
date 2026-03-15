@@ -150,7 +150,7 @@ class ChooserPanel:
     _PANEL_WIDTH = 960
     _PANEL_HEIGHT = 400
 
-    def __init__(self) -> None:
+    def __init__(self, usage_tracker=None) -> None:
         self._panel = None
         self._webview = None
         self._message_handler = None
@@ -160,11 +160,12 @@ class ChooserPanel:
         self._pending_js: list[str] = []
 
         self._sources: Dict[str, ChooserSource] = {}
-        self._active_source: Optional[str] = None
         self._current_items: List[ChooserItem] = []
         self._items_version: int = 0  # incremented on every setResults push
         self._closing: bool = False
+        self._last_query: str = ""  # Track query for usage recording
 
+        self._usage_tracker = usage_tracker
         self._on_close: Optional[Callable] = None
 
     # ------------------------------------------------------------------
@@ -260,22 +261,33 @@ class ChooserPanel:
     # Search logic
     # ------------------------------------------------------------------
 
-    def _do_search(self, query: str, source_name: Optional[str] = None) -> None:
-        """Run a search against the active source and push results to JS."""
-        source_name = source_name or self._active_source
-        source = self._sources.get(source_name) if source_name else None
+    def _do_search(self, query: str) -> None:
+        """Run a search against sources and push results to JS.
 
-        # If no specific source, check for prefix match first
-        if source is None:
-            for src in self._sources.values():
-                if src.prefix and query.startswith(src.prefix):
+        Prefix activation: if the query starts with ``<prefix> `` (e.g.
+        ``cb hello``), the matching source is activated and the prefix is
+        stripped.  Otherwise all non-prefix sources are searched.
+        """
+        self._last_query = query
+        source = None
+
+        # Check for prefix activation (Alfred-style: "prefix query")
+        for src in self._sources.values():
+            if src.prefix:
+                trigger = src.prefix + " "
+                if query.startswith(trigger):
                     source = src
-                    query = query[len(src.prefix):].lstrip()
+                    query = query[len(trigger):]
+                    break
+                # Also match bare prefix without trailing text
+                if query == src.prefix:
+                    source = src
+                    query = ""
                     break
 
         # When searching across all non-prefix sources (no specific source),
         # empty query returns nothing. When a specific source is active
-        # (e.g. clipboard via Tab/prefix), let the source decide.
+        # (e.g. clipboard via prefix), let the source decide.
         if source is None:
             if not query.strip():
                 self._current_items = []
@@ -303,7 +315,22 @@ class ChooserPanel:
                 logger.exception("Chooser source %s search error", source.name)
                 self._current_items = []
 
+        # Apply usage-based boosting
+        if self._usage_tracker and self._current_items:
+            self._boost_by_usage(query)
+
         self._push_items_to_js()
+
+    def _boost_by_usage(self, query: str) -> None:
+        """Re-sort items by usage frequency while preserving source order."""
+        tracker = self._usage_tracker
+        scored = []
+        for i, item in enumerate(self._current_items):
+            usage = tracker.score(query, item.item_id) if item.item_id else 0
+            # Stable sort: usage descending, then original order
+            scored.append((-usage, i, item))
+        scored.sort(key=lambda x: (x[0], x[1]))
+        self._current_items = [item for _, _, item in scored]
 
     def _push_items_to_js(self) -> None:
         """Serialize current items and send to the web view."""
@@ -315,7 +342,11 @@ class ChooserPanel:
                 "subtitle": item.subtitle,
                 "icon": item.icon,
                 "badge": "",
-                "hasReveal": item.reveal_path is not None or item.secondary_action is not None,
+                "hasReveal": (
+                    item.reveal_path is not None
+                    or item.secondary_action is not None
+                ),
+                "hasModifiers": bool(item.modifiers),
             }
             if item.preview is not None:
                 js_item["preview"] = item.preview
@@ -340,7 +371,8 @@ class ChooserPanel:
         elif msg_type == "execute":
             index = body.get("index", 0)
             version = body.get("version", self._items_version)
-            self._execute_item(index, version)
+            modifier = body.get("modifier")  # "alt", "ctrl", "shift" or None
+            self._execute_item(index, version, modifier=modifier)
 
         elif msg_type == "reveal":
             index = body.get("index", 0)
@@ -351,24 +383,36 @@ class ChooserPanel:
             from PyObjCTools import AppHelper
             AppHelper.callAfter(self.close)
 
-        elif msg_type == "switchSource":
-            source_name = body.get("source")
-            query = body.get("query", "")
-            self._active_source = source_name
-            self._do_search(query, source_name=source_name)
-
         elif msg_type == "requestPreview":
             index = body.get("index", -1)
             self._send_preview(index)
 
-    def _execute_item(self, index: int, version: int = 0) -> None:
-        """Execute the primary action (Enter): close panel, then act."""
+        elif msg_type == "modifierChange":
+            index = body.get("index", -1)
+            modifier = body.get("modifier")
+            self._send_modifier_subtitle(index, modifier)
+
+    def _execute_item(
+        self, index: int, version: int = 0, modifier: Optional[str] = None,
+    ) -> None:
+        """Execute item action. Uses modifier action if available."""
         if version and version != self._items_version:
             logger.debug("Stale execute (v%d != v%d), ignored", version, self._items_version)
             return
         if 0 <= index < len(self._current_items):
             item = self._current_items[index]
+
+            # Choose action based on modifier key
             action = item.action
+            if modifier and item.modifiers and modifier in item.modifiers:
+                mod_action = item.modifiers[modifier]
+                if mod_action.action is not None:
+                    action = mod_action.action
+
+            # Record usage for learning
+            if self._usage_tracker and item.item_id:
+                self._usage_tracker.record(self._last_query, item.item_id)
+
             from PyObjCTools import AppHelper
             AppHelper.callAfter(self.close)
             if action is not None:
@@ -385,6 +429,22 @@ class ChooserPanel:
                         )
 
                 threading.Thread(target=_deferred, daemon=True).start()
+
+    def _send_modifier_subtitle(
+        self, index: int, modifier: Optional[str],
+    ) -> None:
+        """Send the modifier-specific subtitle to JS for live display."""
+        if 0 <= index < len(self._current_items):
+            item = self._current_items[index]
+            subtitle = item.subtitle
+            if modifier and item.modifiers and modifier in item.modifiers:
+                subtitle = item.modifiers[modifier].subtitle
+            self._eval_js(
+                f"setModifierSubtitle({index},"
+                f"{json.dumps(subtitle, ensure_ascii=False)})"
+            )
+        else:
+            self._eval_js(f"setModifierSubtitle({index},null)")
 
     def _reveal_item(self, index: int, version: int = 0) -> None:
         """Execute the secondary action (Cmd+Enter).
@@ -447,37 +507,17 @@ class ChooserPanel:
             combined = ";".join(pending)
             self._webview.evaluateJavaScript_completionHandler_(combined, None)
 
-        # Push source tabs to JS
-        self._push_sources_to_js()
+        # Push available prefix hints to JS for placeholder display
+        self._push_prefix_hints_to_js()
 
-    def _push_sources_to_js(self) -> None:
-        """Send the list of registered sources to JS for tab rendering."""
-        sorted_sources = sorted(
-            self._sources.values(), key=lambda s: s.priority, reverse=True
-        )
-
-        src_list = []
-        default_name = None
-        for src in sorted_sources:
-            label = src.name.capitalize()
+    def _push_prefix_hints_to_js(self) -> None:
+        """Send prefix hints to JS so the search placeholder shows them."""
+        hints = []
+        for src in self._sources.values():
             if src.prefix:
-                label = f"{src.name.capitalize()} ({src.prefix})"
-            else:
-                # First non-prefix source is the default
-                if default_name is None:
-                    default_name = src.name
-            src_list.append({"name": src.name, "label": label})
-
-        # Fallback: use first source if all have prefixes
-        if default_name is None and src_list:
-            default_name = src_list[0]["name"]
-
-        if self._active_source is None:
-            self._active_source = default_name
-
+                hints.append(f"{src.prefix} {src.name}")
         self._eval_js(
-            f"setSources({json.dumps(src_list, ensure_ascii=False)},"
-            f"{json.dumps(self._active_source)})"
+            f"setPrefixHints({json.dumps(hints, ensure_ascii=False)})"
         )
 
     def _build_panel(self) -> None:
@@ -562,7 +602,6 @@ class ChooserPanel:
         self._page_loaded = False
         self._pending_js = []
         self._current_items = []
-        self._active_source = None
 
         # Load HTML
         from voicetext.scripting.ui.chooser_html import CHOOSER_HTML

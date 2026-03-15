@@ -22,6 +22,10 @@ class ChooserAPI:
         """Access the underlying ChooserPanel."""
         return self._panel
 
+    def _get_panel(self) -> ChooserPanel:
+        """Internal access to the panel instance."""
+        return self._panel
+
     def register_source(self, source: ChooserSource) -> None:
         """Register a data source."""
         self._panel.register_source(source)

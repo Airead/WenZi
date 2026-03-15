@@ -25,6 +25,8 @@ class ScriptEngine:
         self._config = config or {}
         self._registry = ScriptingRegistry()
         self._clipboard_monitor = None
+        self._usage_tracker = None
+        self._snippet_store = None
 
         # Create vt namespace and install as module singleton
         from voicetext.scripting.api import _VTNamespace
@@ -71,8 +73,21 @@ class ScriptEngine:
         logger.info("Scripts reloaded")
 
     def _register_builtin_sources(self) -> None:
-        """Register built-in chooser sources (apps, clipboard)."""
+        """Register built-in chooser sources."""
         chooser_config = self._config.get("chooser", {})
+
+        # Usage learning tracker
+        if chooser_config.get("usage_learning", True):
+            try:
+                from voicetext.scripting.sources.usage_tracker import UsageTracker
+
+                self._usage_tracker = UsageTracker()
+                # Inject tracker into the chooser panel
+                panel = self._vt.chooser._get_panel()
+                panel._usage_tracker = self._usage_tracker
+                logger.info("Usage learning tracker enabled")
+            except Exception:
+                logger.exception("Failed to set up usage tracker")
 
         # App search source
         if chooser_config.get("app_search", True):
@@ -89,7 +104,9 @@ class ScriptEngine:
         if chooser_config.get("clipboard_history", True):
             try:
                 from voicetext.scripting.clipboard_monitor import ClipboardMonitor
-                from voicetext.scripting.sources.clipboard_source import ClipboardSource
+                from voicetext.scripting.sources.clipboard_source import (
+                    ClipboardSource,
+                )
 
                 max_days = chooser_config.get("clipboard_max_days", 7)
                 persist_path = os.path.expanduser(
@@ -107,6 +124,36 @@ class ScriptEngine:
                 logger.info("Built-in clipboard source registered")
             except Exception:
                 logger.exception("Failed to register clipboard source")
+
+        # File search source
+        if chooser_config.get("file_search", True):
+            try:
+                from voicetext.scripting.sources.file_source import FileSource
+
+                file_source = FileSource()
+                self._vt.chooser.register_source(
+                    file_source.as_chooser_source()
+                )
+                logger.info("Built-in file search source registered")
+            except Exception:
+                logger.exception("Failed to register file search source")
+
+        # Snippet source
+        if chooser_config.get("snippets", True):
+            try:
+                from voicetext.scripting.sources.snippet_source import (
+                    SnippetSource,
+                    SnippetStore,
+                )
+
+                self._snippet_store = SnippetStore()
+                snippet_source = SnippetSource(self._snippet_store)
+                self._vt.chooser.register_source(
+                    snippet_source.as_chooser_source()
+                )
+                logger.info("Built-in snippet source registered")
+            except Exception:
+                logger.exception("Failed to register snippet source")
 
     def _bind_chooser_hotkey(self) -> None:
         """Bind the chooser toggle hotkey from config."""

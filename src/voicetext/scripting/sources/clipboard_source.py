@@ -317,7 +317,7 @@ class ClipboardSource:
         """Return a ChooserSource wrapping this ClipboardSource."""
         return ChooserSource(
             name="clipboard",
-            prefix=">cb",
+            prefix="cb",
             search=self.search,
             priority=5,
         )

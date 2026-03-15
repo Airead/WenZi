@@ -14,7 +14,12 @@ import os
 import threading
 from typing import List, Optional
 
-from voicetext.scripting.sources import ChooserItem, ChooserSource
+from voicetext.scripting.sources import (
+    ChooserItem,
+    ChooserSource,
+    ModifierAction,
+    fuzzy_match,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -263,42 +268,53 @@ class AppSource:
         threading.Thread(target=_load, daemon=True).start()
 
     def search(self, query: str) -> List[ChooserItem]:
-        """Search apps by substring matching, running apps first.
+        """Search apps by fuzzy matching, running apps first.
 
         Matches against both the English bundle name and the localized
-        display name so users can search in any language.
+        display name so users can search in any language.  Uses fuzzy
+        matching with CamelCase, initials, substring, and scattered
+        character strategies.
         """
         self._ensure_scanned()
 
         if not query.strip():
             return []
 
-        q = query.lower()
         running = _get_running_app_names()
 
         matches = []
         for app in self._apps:
             name = app["name"]
             display_name = app["display_name"]
-            if q not in name.lower() and q not in display_name.lower():
+            matched_name, score_name = fuzzy_match(query, name)
+            matched_display, score_display = fuzzy_match(query, display_name)
+            if not matched_name and not matched_display:
                 continue
+            score = max(score_name, score_display)
             # Match running status against both English and localized names
             is_running = name in running or display_name in running
             path = app["path"]
-            matches.append((is_running, display_name, path))
+            matches.append((is_running, score, display_name, path))
 
-        # Sort: running apps first, then alphabetical
-        matches.sort(key=lambda x: (not x[0], x[1].lower()))
+        # Sort: running apps first, then by score descending, then alphabetical
+        matches.sort(key=lambda x: (not x[0], -x[1], x[2].lower()))
 
         return [
             ChooserItem(
                 title=display_name,
                 subtitle="Running" if is_running else "Application",
                 icon=self._get_icon(path),
+                item_id=f"app:{path}",
                 action=lambda p=path: _launch_app(p),
                 reveal_path=path,
+                modifiers={
+                    "alt": ModifierAction(
+                        subtitle=path,
+                        action=lambda p=path: _launch_app(p),
+                    ),
+                },
             )
-            for is_running, display_name, path in matches
+            for is_running, _score, display_name, path in matches
         ]
 
     def as_chooser_source(self) -> ChooserSource:

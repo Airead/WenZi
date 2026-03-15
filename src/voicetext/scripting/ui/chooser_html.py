@@ -108,24 +108,6 @@ body { display: flex; flex-direction: column; }
 }
 .search-input::placeholder { color: var(--secondary); }
 
-/* Source tabs */
-.source-tabs {
-    display: flex; gap: 0; padding: 0 14px;
-    border-bottom: 1px solid var(--border);
-    flex-shrink: 0;
-}
-.source-tab {
-    padding: 6px 12px; font-size: 12px;
-    color: var(--secondary); cursor: pointer;
-    border-bottom: 2px solid transparent;
-    transition: color 0.15s, border-color 0.15s;
-}
-.source-tab:hover { color: var(--text); }
-.source-tab.active {
-    color: var(--accent);
-    border-bottom-color: var(--accent);
-}
-
 /* Result list */
 .result-list {
     flex: 1; overflow-y: auto; overflow-x: hidden;
@@ -136,7 +118,7 @@ body { display: flex; flex-direction: column; }
     background: var(--secondary); border-radius: 3px; opacity: 0.5;
 }
 .result-item {
-    display: flex; align-items: center; justify-content: space-between;
+    display: flex; align-items: center;
     padding: 6px 14px; cursor: default;
     transition: background 0.1s;
     gap: 10px;
@@ -161,9 +143,19 @@ body { display: flex; flex-direction: column; }
     font-size: 11px; color: var(--secondary);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+.result-item .right-group {
+    display: flex; align-items: center; gap: 6px;
+    flex-shrink: 0;
+}
 .result-item .badge {
     font-size: 11px; color: var(--secondary);
-    flex-shrink: 0; white-space: nowrap;
+    white-space: nowrap;
+}
+.result-item .shortcut {
+    font-size: 10px; color: var(--secondary);
+    background: var(--input-bg); border: 1px solid var(--border);
+    border-radius: 3px; padding: 1px 4px;
+    white-space: nowrap; opacity: 0.7;
 }
 
 /* Empty state */
@@ -197,8 +189,6 @@ body { display: flex; flex-direction: column; }
            autocorrect="off" autocapitalize="off" spellcheck="false">
 </div>
 
-<div class="source-tabs" id="source-tabs" style="display:none;"></div>
-
 <div class="main-content">
     <div class="left-panel">
         <div class="result-list" id="result-list"></div>
@@ -212,24 +202,25 @@ body { display: flex; flex-direction: column; }
 </div>
 
 <div class="footer" id="footer">
-    <span><kbd>&uarr;&darr;</kbd> Navigate <kbd>&crarr;</kbd> Paste <kbd>&#8984;&crarr;</kbd> Copy <kbd>&#9099;</kbd> Close</span>
-    <span id="footer-right"><kbd>&#8677;</kbd> Switch source</span>
+    <span id="footer-left"></span>
+    <span id="footer-right"></span>
 </div>
 
 <script>
 // --- State ---
 var items = [];
 var selectedIndex = -1;
-var currentSource = null;
-var sources = [];
 var itemsVersion = 0;
+var prefixHints = [];
+var activeModifier = null;  // "alt", "ctrl", "shift" or null
 
 // --- DOM ---
 var searchInput = document.getElementById('search-input');
 var resultList = document.getElementById('result-list');
 var emptyState = document.getElementById('empty-state');
-var sourceTabs = document.getElementById('source-tabs');
 var previewPanel = document.getElementById('preview-panel');
+var footerLeft = document.getElementById('footer-left');
+var footerRight = document.getElementById('footer-right');
 
 // --- Helpers ---
 function post(type, data) {
@@ -242,7 +233,7 @@ function renderItems() {
     resultList.innerHTML = '';
     if (items.length === 0) {
         resultList.style.display = 'none';
-        emptyState.style.display = searchInput.value.trim() ? 'flex' : 'flex';
+        emptyState.style.display = 'flex';
         emptyState.textContent = searchInput.value.trim() ? 'No results' : 'Type to search';
         setPreview(null);
         return;
@@ -279,12 +270,26 @@ function renderItems() {
 
         row.appendChild(left);
 
+        // Right group: badge + shortcut number
+        var rightGroup = document.createElement('div');
+        rightGroup.className = 'right-group';
+
         if (item.badge) {
             var badge = document.createElement('span');
             badge.className = 'badge';
             badge.textContent = item.badge;
-            row.appendChild(badge);
+            rightGroup.appendChild(badge);
         }
+
+        // Show Cmd+N shortcut for first 9 items
+        if (i < 9) {
+            var shortcut = document.createElement('span');
+            shortcut.className = 'shortcut';
+            shortcut.textContent = '\u2318' + (i + 1);
+            rightGroup.appendChild(shortcut);
+        }
+
+        row.appendChild(rightGroup);
 
         row.addEventListener('click', function() {
             selectedIndex = i;
@@ -359,38 +364,6 @@ function updateSelection(newIndex) {
     renderItems();
 }
 
-function renderSourceTabs() {
-    sourceTabs.innerHTML = '';
-    if (sources.length <= 1) {
-        sourceTabs.style.display = 'none';
-        return;
-    }
-    sourceTabs.style.display = 'flex';
-    sources.forEach(function(src) {
-        var tab = document.createElement('div');
-        tab.className = 'source-tab' + (src.name === currentSource ? ' active' : '');
-        tab.textContent = src.label || src.name;
-        tab.addEventListener('click', function() {
-            switchSource(src.name);
-        });
-        sourceTabs.appendChild(tab);
-    });
-}
-
-function switchSource(name) {
-    if (name === currentSource) return;
-    currentSource = name;
-    renderSourceTabs();
-    post('switchSource', { source: name, query: searchInput.value });
-}
-
-function cycleSources() {
-    if (sources.length <= 1) return;
-    var idx = sources.findIndex(function(s) { return s.name === currentSource; });
-    var next = (idx + 1) % sources.length;
-    switchSource(sources[next].name);
-}
-
 // --- Input handling ---
 searchInput.addEventListener('input', function() {
     var query = searchInput.value;
@@ -402,11 +375,6 @@ document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
         e.preventDefault();
         post('close');
-        return;
-    }
-    if (e.key === 'Tab') {
-        e.preventDefault();
-        cycleSources();
         return;
     }
     if (e.key === 'ArrowDown') {
@@ -423,14 +391,67 @@ document.addEventListener('keydown', function(e) {
         e.preventDefault();
         if (selectedIndex >= 0 && selectedIndex < items.length) {
             if (e.metaKey) {
-                post('reveal', { index: selectedIndex, version: itemsVersion });
+                post('reveal', {
+                    index: selectedIndex, version: itemsVersion
+                });
             } else {
-                post('execute', { index: selectedIndex, version: itemsVersion });
+                var mod = activeModifier;
+                var msg = {
+                    index: selectedIndex, version: itemsVersion
+                };
+                if (mod) msg.modifier = mod;
+                post('execute', msg);
             }
         }
         return;
     }
+    // Cmd+1 through Cmd+9: quick select
+    if (e.metaKey && e.key >= '1' && e.key <= '9') {
+        var idx = parseInt(e.key) - 1;
+        if (idx < items.length) {
+            e.preventDefault();
+            selectedIndex = idx;
+            renderItems();
+            post('execute', { index: idx, version: itemsVersion });
+        }
+        return;
+    }
 });
+
+// --- Modifier key tracking ---
+function getModifierName(e) {
+    if (e.altKey && !e.metaKey && !e.ctrlKey) return 'alt';
+    if (e.ctrlKey && !e.metaKey && !e.altKey) return 'ctrl';
+    if (e.shiftKey && !e.metaKey && !e.altKey && !e.ctrlKey) return 'shift';
+    return null;
+}
+
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Alt' || e.key === 'Control' || e.key === 'Shift') {
+        var mod = getModifierName(e);
+        if (mod !== activeModifier) {
+            activeModifier = mod;
+            if (selectedIndex >= 0) {
+                post('modifierChange', {
+                    index: selectedIndex, modifier: mod
+                });
+            }
+        }
+    }
+}, true);
+
+document.addEventListener('keyup', function(e) {
+    if (e.key === 'Alt' || e.key === 'Control' || e.key === 'Shift') {
+        if (activeModifier !== null) {
+            activeModifier = null;
+            if (selectedIndex >= 0) {
+                post('modifierChange', {
+                    index: selectedIndex, modifier: null
+                });
+            }
+        }
+    }
+}, true);
 
 // --- Python -> JS API ---
 
@@ -441,10 +462,33 @@ function setResults(newItems, version) {
     renderItems();
 }
 
-function setSources(srcList, active) {
-    sources = srcList || [];
-    currentSource = active || (sources.length > 0 ? sources[0].name : null);
-    renderSourceTabs();
+function setPrefixHints(hints) {
+    prefixHints = hints || [];
+    if (hints.length > 0) {
+        footerRight.textContent = hints.join('  ');
+    } else {
+        footerRight.textContent = '';
+    }
+    // Update placeholder with prefix hints
+    if (hints.length > 0) {
+        searchInput.placeholder = 'Search...  (' + hints.join(', ') + ')';
+    } else {
+        searchInput.placeholder = 'Search...';
+    }
+}
+
+function setModifierSubtitle(index, subtitle) {
+    if (index < 0 || index >= resultList.children.length) return;
+    var row = resultList.children[index];
+    var sub = row.querySelector('.subtitle-text');
+    if (sub && subtitle !== null) {
+        sub.textContent = subtitle;
+    } else if (sub && subtitle === null) {
+        // Restore original subtitle
+        if (index < items.length) {
+            sub.textContent = items[index].subtitle || '';
+        }
+    }
 }
 
 function focusInput() {
@@ -460,6 +504,12 @@ function clearInput() {
 }
 
 // --- Init ---
+footerLeft.innerHTML =
+    '<kbd>\u2191\u2193</kbd> Navigate ' +
+    '<kbd>\u21b5</kbd> Open ' +
+    '<kbd>\u2318\u21b5</kbd> Reveal ' +
+    '<kbd>\u23181-9</kbd> Select ' +
+    '<kbd>Esc</kbd> Close';
 searchInput.focus();
 </script>
 </body>
