@@ -45,6 +45,7 @@ from .controllers.recording_controller import RecordingController
 from .controllers.settings_controller import SettingsController
 from .controllers.config_controller import ConfigController
 from .controllers.enhance_mode_controller import EnhanceModeController
+from .controllers.update_controller import UpdateController
 from .transcription.base import create_transcriber
 from .ui_helpers import (
     activate_for_dialog,
@@ -468,6 +469,9 @@ class WenZiApp(StatusBarApp):
                 self._restart_item,
             ]
         self.quit_button.set_callback(self._on_quit_click)
+
+        # Update checker
+        self._update_controller = UpdateController(self)
 
     def _setup_logging(self) -> None:
         level = self._config["logging"]["level"]
@@ -911,6 +915,7 @@ class WenZiApp(StatusBarApp):
         self._settings_controller.on_open_settings(_)
 
     def _on_quit_click(self, _) -> None:
+        self._update_controller.stop()
         if hasattr(self, "_script_engine") and self._script_engine:
             self._script_engine.stop()
         if self._hotkey_listener:
@@ -1170,6 +1175,10 @@ class WenZiApp(StatusBarApp):
         from PyObjCTools import AppHelper
 
         AppHelper.callAfter(self._warmup)
+
+        # Start background update checker
+        if not self._config_degraded:
+            AppHelper.callAfter(self._update_controller.start)
 
         # Show config error alert after the event loop starts
         if self._config_error is not None:

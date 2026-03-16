@@ -198,6 +198,10 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "ui": {
         "settings_last_tab": "general",
     },
+    "update_check": {
+        "enabled": True,
+        "interval_hours": 6,
+    },
     "logging": {
         "level": "INFO",
     },

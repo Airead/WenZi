@@ -8,6 +8,7 @@ from .model_controller import ModelController, migrate_asr_config
 from .preview_controller import PreviewController
 from .recording_controller import RecordingController
 from .settings_controller import SettingsController
+from .update_controller import UpdateController
 
 __all__ = [
     "ConfigController",
@@ -19,5 +20,6 @@ __all__ = [
     "PreviewController",
     "RecordingController",
     "SettingsController",
+    "UpdateController",
     "migrate_asr_config",
 ]
