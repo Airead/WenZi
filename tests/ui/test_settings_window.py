@@ -64,7 +64,7 @@ def _make_callbacks():
         "on_thinking_toggle", "on_vocab_toggle", "on_auto_build_toggle",
         "on_history_toggle", "on_vocab_build",
         "on_tab_change",
-        "on_show_config", "on_edit_config", "on_reload_config",
+        "on_reveal_config_folder",
     ]
     return {name: MagicMock(name=name) for name in names}
 
@@ -136,14 +136,13 @@ class TestSettingsCallbacks:
         panel.show(state, callbacks)
         return panel, callbacks
 
-    def test_toolbar_button_calls_callback(self):
+    def test_reveal_config_folder_calls_callback(self):
         panel, cbs = self._make_panel()
 
         sender = MagicMock()
-        panel._set_meta(sender, cb_name="on_show_config")
-        panel.toolbarButtonClicked_(sender)
+        panel.revealConfigFolderClicked_(sender)
 
-        cbs["on_show_config"].assert_called_once()
+        cbs["on_reveal_config_folder"].assert_called_once()
 
     def test_hotkey_check_calls_callback(self):
         panel, cbs = self._make_panel()

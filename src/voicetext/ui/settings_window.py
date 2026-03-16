@@ -159,9 +159,7 @@ class SettingsPanel:
                 - on_auto_build_toggle: (enabled) -> None
                 - on_history_toggle: (enabled) -> None
                 - on_vocab_build: () -> None
-                - on_show_config: () -> None
-                - on_edit_config: () -> None
-                - on_reload_config: () -> None
+                - on_reveal_config_folder: () -> None
         """
         from AppKit import NSApp
 
@@ -244,21 +242,14 @@ class SettingsPanel:
         btn_h = self._TOOLBAR_HEIGHT
         btn_gap = 8
 
-        toolbar_buttons = [
-            ("Show Config", "on_show_config"),
-            ("Edit Config", "on_edit_config"),
-            ("Reload Config", "on_reload_config"),
-        ]
-        bx = pad
-        for title, cb_name in toolbar_buttons:
-            btn = NSButton.alloc().initWithFrame_(NSMakeRect(bx, y, btn_w, btn_h))
-            btn.setTitle_(title)
-            btn.setBezelStyle_(1)  # NSRoundedBezelStyle
-            btn.setTarget_(self)
-            btn.setAction_(b"toolbarButtonClicked:")
-            self._set_meta(btn, cb_name=cb_name)
-            content.addSubview_(btn)
-            bx += btn_w + btn_gap
+        reveal_btn = NSButton.alloc().initWithFrame_(
+            NSMakeRect(pad, y, btn_w * 2 + btn_gap, btn_h)
+        )
+        reveal_btn.setTitle_("Reveal Config Folder")
+        reveal_btn.setBezelStyle_(1)  # NSRoundedBezelStyle
+        reveal_btn.setTarget_(self)
+        reveal_btn.setAction_(b"revealConfigFolderClicked:")
+        content.addSubview_(reveal_btn)
 
         y += btn_h + pad
 
@@ -1414,11 +1405,8 @@ class SettingsPanel:
     # protocol support where setTarget_ accepts any Python object and
     # setAction_ dispatches via Python attribute lookup.
 
-    def toolbarButtonClicked_(self, sender):
-        meta = self._get_meta(sender)
-        cb_name = meta.get("cb_name")
-        if cb_name:
-            self._call(cb_name)
+    def revealConfigFolderClicked_(self, sender):
+        self._call("on_reveal_config_folder")
 
     def hotkeyCheckChanged_(self, sender):
         meta = self._get_meta(sender)

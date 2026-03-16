@@ -159,9 +159,7 @@ class SettingsController:
             "on_history_toggle": self.history_toggle,
             "on_vocab_build": lambda: app._on_vocab_build(None),
             "on_tab_change": self.tab_change,
-            "on_show_config": lambda: app._on_show_config(None),
-            "on_edit_config": lambda: app._on_enhance_edit_config(None),
-            "on_reload_config": lambda: app._on_reload_config(None),
+            "on_reveal_config_folder": self.reveal_config_folder,
             "on_config_dir_browse": self.config_dir_browse,
             "on_config_dir_reset": self.config_dir_reset,
             "on_launcher_toggle": self.launcher_toggle,
@@ -752,6 +750,12 @@ class SettingsController:
         app._config["ai_enhance"]["conversation_history"]["enabled"] = enabled
         self._save_and_reload()
         logger.info("Conversation history set to: %s (from settings)", enabled)
+
+    def reveal_config_folder(self) -> None:
+        """Open the config directory in Finder."""
+        import subprocess
+
+        subprocess.Popen(["open", self._app._config_dir])
 
     def tab_change(self, tab_id: str) -> None:
         """Persist the last active settings tab."""
