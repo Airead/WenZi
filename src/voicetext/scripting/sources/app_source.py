@@ -36,6 +36,18 @@ _APP_DIRS = [
     os.path.expanduser("~/Applications"),
 ]
 
+# Internal system app filters (applied only to /System/Library/CoreServices)
+_CORE_SERVICES_DIR = "/System/Library/CoreServices"
+_CORE_SERVICES_SKIP_SUFFIXES = (
+    "Agent", "Server", "Service", "Helper", "Handler",
+    "Dispatcher", "Forwarder", "Stub", "Trampoline",
+    "Launcher", "Host", "Monitor", "Replayer",
+)
+_CORE_SERVICES_SKIP_NAMES = {
+    "loginwindow", "rcd", "liquiddetectiond",
+    "screencaptureui", "UIKitSystem",
+}
+
 
 def _get_display_name(path: str, fallback: str) -> str:
     """Return the localized display name for an app bundle path."""
@@ -103,6 +115,13 @@ def _cache_key(path: str) -> str:
     return hashlib.md5(path.encode()).hexdigest()
 
 
+def _is_internal_app(name: str) -> bool:
+    """Return True if *name* looks like an internal system component."""
+    if name in _CORE_SERVICES_SKIP_NAMES:
+        return True
+    return any(name.endswith(suffix) for suffix in _CORE_SERVICES_SKIP_SUFFIXES)
+
+
 def _scan_apps() -> list[dict]:
     """Scan application directories and return a list of app info dicts.
 
@@ -122,12 +141,15 @@ def _scan_apps() -> list[dict]:
         except OSError:
             continue
 
+        is_core_services = app_dir == _CORE_SERVICES_DIR
         for entry in entries:
             if not entry.endswith(".app"):
                 continue
             full_path = os.path.join(app_dir, entry)
             name = entry[:-4]  # Strip ".app"
             if name in seen:
+                continue
+            if is_core_services and _is_internal_app(name):
                 continue
             seen.add(name)
             display_name = _get_display_name(full_path, name)
