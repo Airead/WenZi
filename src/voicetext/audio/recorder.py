@@ -58,6 +58,11 @@ class Recorder:
         return self._recording
 
     @property
+    def last_device_name(self) -> Optional[str]:
+        """Return the last known input device name, or None."""
+        return self._last_device_name
+
+    @property
     def current_level(self) -> float:
         """Return current audio level normalized to 0.0-1.0.
 

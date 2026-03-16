@@ -166,6 +166,59 @@ class TestLiveTranscriptionOverlayLifecycle:
         assert overlay._panel is not None
 
 
+class TestLiveTranscriptionOverlayActiveState:
+    def test_show_active_by_default(self):
+        from voicetext.ui.live_transcription_overlay import LiveTranscriptionOverlay
+
+        overlay = LiveTranscriptionOverlay()
+        overlay.show()
+
+        assert overlay._active is True
+        # setAlphaValue_ should NOT have been called (defaults to 1.0)
+        overlay._panel.setAlphaValue_.assert_not_called()
+
+    def test_show_inactive_sets_low_alpha(self):
+        from voicetext.ui.live_transcription_overlay import LiveTranscriptionOverlay
+
+        overlay = LiveTranscriptionOverlay()
+        overlay.show(active=False)
+
+        assert overlay._active is False
+        overlay._panel.setAlphaValue_.assert_called_once_with(
+            LiveTranscriptionOverlay._INACTIVE_ALPHA
+        )
+
+    def test_set_active_restores_full_alpha(self):
+        from voicetext.ui.live_transcription_overlay import LiveTranscriptionOverlay
+
+        overlay = LiveTranscriptionOverlay()
+        overlay.show(active=False)
+        overlay._panel.setAlphaValue_.reset_mock()
+
+        overlay.set_active()
+
+        assert overlay._active is True
+        overlay._panel.setAlphaValue_.assert_called_once_with(1.0)
+
+    def test_set_active_noop_when_already_active(self):
+        from voicetext.ui.live_transcription_overlay import LiveTranscriptionOverlay
+
+        overlay = LiveTranscriptionOverlay()
+        overlay.show()
+
+        overlay.set_active()
+
+        # Should not call setAlphaValue_ at all
+        overlay._panel.setAlphaValue_.assert_not_called()
+
+    def test_set_active_noop_without_panel(self):
+        from voicetext.ui.live_transcription_overlay import LiveTranscriptionOverlay
+
+        overlay = LiveTranscriptionOverlay()
+        # Should not raise
+        overlay.set_active()
+
+
 class TestLiveTranscriptionOverlayDarkMode:
     def test_content_view_is_bg_view(self):
         from voicetext.ui.live_transcription_overlay import LiveTranscriptionOverlay

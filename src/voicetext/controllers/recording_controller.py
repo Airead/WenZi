@@ -64,15 +64,18 @@ class RecordingController:
                 self._start_recording_and_update_indicator()
             app._recording_started.set()
 
-        # Show indicator immediately (without device name) so the user
-        # gets instant visual feedback while the recorder initialises.
-        self.start_recording_indicator(None)
-        self._show_mode_on_indicator()
-
         if app._sound_manager.enabled:
+            # Show indicator immediately in grayscale while sound plays
+            initial_dev = app._recorder.last_device_name if app._recording_indicator.show_device_name else None
+            self.start_recording_indicator(initial_dev)
+            self._show_mode_on_indicator()
+            if app._transcriber.supports_streaming:
+                from PyObjCTools import AppHelper
+                AppHelper.callAfter(self._show_live_overlay, False)
             threading.Thread(target=_delayed_start, daemon=True).start()
         else:
-            self._start_recording_and_update_indicator()
+            # No sound delay — start recording first, then show in active state
+            self._start_recording_and_update_indicator(show_active=True)
             app._recording_started.set()
 
     def _apply_prefer_mode(self, mode: str) -> None:
@@ -197,15 +200,31 @@ class RecordingController:
         """Switch to the next mode while recording."""
         self._navigate_mode(+1)
 
-    def _start_recording_and_update_indicator(self) -> None:
-        """Start the recorder and update the indicator with the device name."""
+    def _start_recording_and_update_indicator(self, show_active: bool = False) -> None:
+        """Start the recorder and update the indicator with the device name.
+
+        Args:
+            show_active: If True, the indicator and live overlay have not been
+                shown yet.  Show them now directly in active (color) state so
+                the user never sees the grayscale phase.
+        """
         from PyObjCTools import AppHelper
 
         app = self._app
         dev_name = app._recorder.start()
         self._start_streaming_if_supported()
-        if dev_name and app._recording_indicator.show_device_name:
-            AppHelper.callAfter(app._recording_indicator.update_device_name, dev_name)
+
+        if show_active:
+            # No sound delay path — show everything in active state at once
+            indicator_dev = dev_name if app._recording_indicator.show_device_name else None
+            self.start_recording_indicator(indicator_dev)
+            self._show_mode_on_indicator()
+            AppHelper.callAfter(app._recording_indicator.set_recording_active)
+        else:
+            # Sound delay path — indicator already visible in grayscale
+            if dev_name and app._recording_indicator.show_device_name:
+                AppHelper.callAfter(app._recording_indicator.update_device_name, dev_name)
+            AppHelper.callAfter(app._recording_indicator.set_recording_active)
 
     def on_restart_recording(self) -> None:
         """Called when restart key (space) is pressed during recording."""
@@ -246,13 +265,16 @@ class RecordingController:
                 self._start_recording_and_update_indicator()
             app._recording_started.set()
 
-        self.start_recording_indicator(None)
-        self._show_mode_on_indicator()
-
         if app._sound_manager.enabled:
+            initial_dev = app._recorder.last_device_name if app._recording_indicator.show_device_name else None
+            self.start_recording_indicator(initial_dev)
+            self._show_mode_on_indicator()
+            if app._transcriber.supports_streaming:
+                from PyObjCTools import AppHelper
+                AppHelper.callAfter(self._show_live_overlay, False)
             threading.Thread(target=_delayed_start, daemon=True).start()
         else:
-            self._start_recording_and_update_indicator()
+            self._start_recording_and_update_indicator(show_active=True)
             app._recording_started.set()
 
     def on_preview_history(self) -> None:
@@ -481,15 +503,23 @@ class RecordingController:
             app._recorder.set_on_audio_chunk(app._transcriber.feed_audio)
             self._streaming_active = True
 
-            # Show live overlay on main thread
-            AppHelper.callAfter(self._show_live_overlay)
+            # Activate the overlay (already shown in faded state),
+            # or show it now if it wasn't pre-created.
+            if self._live_overlay is not None:
+                AppHelper.callAfter(self._live_overlay.set_active)
+            else:
+                AppHelper.callAfter(self._show_live_overlay)
             logger.info("Streaming transcription started")
         except Exception:
             logger.exception("Failed to start streaming, will use batch mode")
             self._streaming_active = False
 
-    def _show_live_overlay(self) -> None:
-        """Show the live transcription overlay (must be called on main thread)."""
+    def _show_live_overlay(self, active: bool = True) -> None:
+        """Show the live transcription overlay (must be called on main thread).
+
+        Args:
+            active: If False, the overlay is shown in a faded state.
+        """
         try:
             app = self._app
             if hasattr(app, "_live_overlay") and app._live_overlay is not None:
@@ -497,8 +527,8 @@ class RecordingController:
             else:
                 from voicetext.ui.live_transcription_overlay import LiveTranscriptionOverlay
                 self._live_overlay = LiveTranscriptionOverlay()
-            self._live_overlay.show()
-            logger.info("Live transcription overlay shown")
+            self._live_overlay.show(active=active)
+            logger.info("Live transcription overlay shown (active=%s)", active)
         except Exception:
             logger.exception("Failed to show live overlay")
 

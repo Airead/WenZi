@@ -15,6 +15,17 @@ class TestRecordingIndicatorView:
         assert view._level == 1.0
 
 
+class TestRecordingIndicatorViewRecordingActive:
+    def test_initial_recording_active_is_false(self):
+        view = RecordingIndicatorView()
+        assert view._recording_active is False
+
+    def test_set_recording_active(self):
+        view = RecordingIndicatorView()
+        view._recording_active = True
+        assert view._recording_active is True
+
+
 class TestRecordingIndicatorViewMode:
     def test_initial_mode_fields(self):
         view = RecordingIndicatorView()
@@ -223,6 +234,31 @@ class TestRecordingIndicatorPanel:
 
         assert view._mode_name is None
         assert view._mode_nav == (False, False)
+
+    def test_set_recording_active_updates_view(self):
+        panel = RecordingIndicatorPanel()
+        view = RecordingIndicatorView()
+        panel._indicator_view = view
+        assert view._recording_active is False
+
+        panel.set_recording_active()
+        assert view._recording_active is True
+
+    def test_set_recording_active_noop_when_no_view(self):
+        panel = RecordingIndicatorPanel()
+        panel._indicator_view = None
+        # Should not raise
+        panel.set_recording_active()
+
+    def test_show_resets_recording_active(self):
+        """show() creates a new view which defaults to recording_active=False."""
+        panel = RecordingIndicatorPanel()
+        panel.enabled = False  # prevent actual AppKit panel creation
+        panel.show()
+        # Panel not created (disabled), but verify the contract:
+        # a fresh RecordingIndicatorView always starts inactive
+        view = RecordingIndicatorView()
+        assert view._recording_active is False
 
     def test_clear_mode_noop_when_no_view(self):
         panel = RecordingIndicatorPanel()

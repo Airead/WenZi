@@ -51,10 +51,14 @@ class RecordingIndicatorView:
         self._view = None
         self._device_name: Optional[str] = device_name
         self._label_attrs: Optional[dict] = None  # cached for draw loop
+        # Whether the recorder is actually capturing audio
+        self._recording_active: bool = False
         # Cached dynamic colors (created once, adapt to light/dark automatically)
         self._bg_color = None
         self._dot_color = None
+        self._dot_color_inactive = None
         self._bar_color = None
+        self._bar_color_inactive = None
         # Mode display fields
         self._mode_name: Optional[str] = None
         self._mode_nav: tuple = (False, False)  # (can_prev, can_next)
@@ -127,18 +131,26 @@ class RecordingIndicatorView:
 
         elapsed = time.monotonic() - self._start_time
 
-        # Pulsing red dot on the left
+        # Pulsing dot on the left (gray when waiting, red when recording)
         dot_x = 18.0
         dot_y = anim_center_y
         pulse = math.sin(elapsed * _DOT_PULSE_SPEED) * _DOT_PULSE_AMPLITUDE
         dot_radius = _DOT_BASE_RADIUS + pulse
 
-        if self._dot_color is None:
-            self._dot_color = self._dynamic_color(
-                light_rgba=(0.85, 0.15, 0.15, 1.0),
-                dark_rgba=(0.95, 0.25, 0.25, 1.0),
-            )
-        self._dot_color.setFill()
+        if self._recording_active:
+            if self._dot_color is None:
+                self._dot_color = self._dynamic_color(
+                    light_rgba=(0.85, 0.15, 0.15, 1.0),
+                    dark_rgba=(0.95, 0.25, 0.25, 1.0),
+                )
+            self._dot_color.setFill()
+        else:
+            if self._dot_color_inactive is None:
+                self._dot_color_inactive = self._dynamic_color(
+                    light_rgba=(0.45, 0.45, 0.45, 1.0),
+                    dark_rgba=(0.55, 0.55, 0.55, 1.0),
+                )
+            self._dot_color_inactive.setFill()
         dot_rect = NSMakeRect(
             dot_x - dot_radius, dot_y - dot_radius,
             dot_radius * 2, dot_radius * 2,
@@ -150,12 +162,20 @@ class RecordingIndicatorView:
         bars_start_x = 38.0
         bar_y_base = anim_center_y - _BAR_MAX_HEIGHT / 2.0
 
-        if self._bar_color is None:
-            self._bar_color = self._dynamic_color(
-                light_rgba=(0.2, 0.65, 0.2, 0.9),
-                dark_rgba=(0.4, 0.9, 0.4, 0.9),
-            )
-        self._bar_color.setFill()
+        if self._recording_active:
+            if self._bar_color is None:
+                self._bar_color = self._dynamic_color(
+                    light_rgba=(0.2, 0.65, 0.2, 0.9),
+                    dark_rgba=(0.4, 0.9, 0.4, 0.9),
+                )
+            self._bar_color.setFill()
+        else:
+            if self._bar_color_inactive is None:
+                self._bar_color_inactive = self._dynamic_color(
+                    light_rgba=(0.55, 0.55, 0.55, 0.9),
+                    dark_rgba=(0.5, 0.5, 0.5, 0.9),
+                )
+            self._bar_color_inactive.setFill()
 
         level = self._level
         for i in range(_NUM_BARS):
@@ -374,6 +394,14 @@ class RecordingIndicatorPanel:
             logger.debug("Recording indicator shown")
         except Exception:
             logger.error("Failed to show recording indicator", exc_info=True)
+
+    def set_recording_active(self) -> None:
+        """Mark that the recorder is actually capturing audio.
+
+        Switches the indicator from grayscale (waiting) to color (recording).
+        """
+        if self._indicator_view is not None:
+            self._indicator_view._recording_active = True
 
     def hide(self) -> None:
         """Hide and clean up the indicator panel."""

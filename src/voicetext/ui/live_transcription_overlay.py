@@ -62,6 +62,9 @@ class LiveTranscriptionOverlay:
     (or via AppHelper.callAfter).
     """
 
+    # Alpha value for the inactive (waiting-for-recording) state
+    _INACTIVE_ALPHA = 0.35
+
     def __init__(self) -> None:
         self._panel: object = None
         self._text_field: object = None
@@ -69,6 +72,7 @@ class LiveTranscriptionOverlay:
         self._screen_center_y: float = 0  # cached for repositioning
         self._last_dark: bool = False
         self._appearance_timer: object = None
+        self._active: bool = True
 
     @staticmethod
     def _dynamic_text_color():
@@ -85,8 +89,14 @@ class LiveTranscriptionOverlay:
 
         return NSColor.colorWithName_dynamicProvider_(None, _provider)
 
-    def show(self) -> None:
-        """Create and show the overlay panel. Must be called on the main thread."""
+    def show(self, active: bool = True) -> None:
+        """Create and show the overlay panel. Must be called on the main thread.
+
+        Args:
+            active: If False, the panel is shown in a faded state (waiting for
+                recording to start). Call ``set_active()`` to switch to full
+                opacity later.
+        """
         try:
             from AppKit import (
                 NSColor,
@@ -146,6 +156,10 @@ class LiveTranscriptionOverlay:
                 )
                 panel.setFrameOrigin_((x, self._screen_center_y))
 
+            self._active = active
+            if not active:
+                panel.setAlphaValue_(self._INACTIVE_ALPHA)
+
             panel.orderFront_(None)
             self._panel = panel
             self._last_dark = _is_dark_mode()
@@ -165,6 +179,17 @@ class LiveTranscriptionOverlay:
     def checkAppearance_(self, timer) -> None:
         """NSTimer callback: check if appearance changed and refresh colors."""
         self._refresh_colors_if_changed()
+
+    def set_active(self) -> None:
+        """Switch the overlay from faded to full opacity.
+
+        Must be called on the main thread.
+        """
+        if self._active:
+            return
+        self._active = True
+        if self._panel is not None:
+            self._panel.setAlphaValue_(1.0)
 
     def hide(self) -> None:
         """Hide and clean up the overlay panel. Must be called on the main thread."""
