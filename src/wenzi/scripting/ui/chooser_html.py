@@ -112,6 +112,7 @@ body { display: flex; flex-direction: column; }
 .result-list {
     flex: 1; overflow-y: auto; overflow-x: hidden;
     padding: 4px 0;
+    position: relative;
 }
 .result-list::-webkit-scrollbar { width: 6px; }
 .result-list::-webkit-scrollbar-thumb {
@@ -122,6 +123,8 @@ body { display: flex; flex-direction: column; }
     padding: 6px 14px; cursor: default;
     transition: background 0.1s;
     gap: 10px;
+    box-sizing: border-box;
+    overflow: hidden;
 }
 .result-item .icon {
     width: 32px; height: 32px; flex-shrink: 0;
@@ -227,6 +230,11 @@ var itemsVersion = 0;
 var prefixHints = [];
 var activeModifier = null;  // "alt", "ctrl", "shift" or null
 
+// --- Virtual scrolling ---
+var ITEM_HEIGHT = 0;  // measured from first rendered row
+var ITEM_HEIGHT_DEFAULT = 45;  // fallback before measurement
+var BUFFER_COUNT = 5;  // extra rows above/below viewport
+
 // --- DOM ---
 var searchInput = document.getElementById('search-input');
 var resultList = document.getElementById('result-list');
@@ -243,6 +251,11 @@ function post(type, data) {
 }
 
 function renderItems() {
+    // Cancel any pending scroll-triggered render
+    if (_scrollRafId) {
+        cancelAnimationFrame(_scrollRafId);
+        _scrollRafId = null;
+    }
     resultList.innerHTML = '';
     if (items.length === 0) {
         resultList.style.display = 'none';
@@ -254,85 +267,137 @@ function renderItems() {
     resultList.style.display = '';
     emptyState.style.display = 'none';
 
-    items.forEach(function(item, i) {
-        var row = document.createElement('div');
-        row.className = 'result-item' + (i === selectedIndex ? ' selected' : '');
-
-        if (item.icon) {
-            var img = document.createElement('img');
-            img.className = 'icon';
-            img.src = item.icon;
-            img.draggable = false;
-            row.appendChild(img);
-        }
-
-        var left = document.createElement('div');
-        left.className = 'left';
-
-        var title = document.createElement('div');
-        title.className = 'title';
-        title.textContent = item.title;
-        left.appendChild(title);
-
-        if (item.subtitle) {
-            var sub = document.createElement('div');
-            sub.className = 'subtitle-text';
-            sub.textContent = item.subtitle;
-            left.appendChild(sub);
-        }
-
-        row.appendChild(left);
-
-        // Right group: badge + shortcut number
-        var rightGroup = document.createElement('div');
-        rightGroup.className = 'right-group';
-
-        if (item.badge) {
-            var badge = document.createElement('span');
-            badge.className = 'badge';
-            badge.textContent = item.badge;
-            rightGroup.appendChild(badge);
-        }
-
-        // Show Cmd+N shortcut for first 9 items
-        if (i < 9) {
-            var shortcut = document.createElement('span');
-            shortcut.className = 'shortcut';
-            shortcut.textContent = '\u2318' + (i + 1);
-            rightGroup.appendChild(shortcut);
-        }
-
-        // Delete button for deletable items
-        if (item.deletable) {
-            var delBtn = document.createElement('button');
-            delBtn.className = 'delete-btn';
-            delBtn.textContent = '\u00d7';
-            delBtn.addEventListener('click', function(e) {
-                e.stopPropagation();
-                post('deleteItem', { index: i, version: itemsVersion });
-            });
-            rightGroup.appendChild(delBtn);
-        }
-
-        row.appendChild(rightGroup);
-
-        row.addEventListener('click', function() {
-            selectedIndex = i;
-            renderItems();
-            post('execute', { index: i, version: itemsVersion });
-        });
-
-        resultList.appendChild(row);
-    });
-
-    // Scroll selected item into view
-    if (selectedIndex >= 0 && selectedIndex < resultList.children.length) {
-        resultList.children[selectedIndex].scrollIntoView({ block: 'nearest' });
+    // Measure actual row height from a sample row if not yet measured
+    if (!ITEM_HEIGHT && items.length > 0) {
+        var sample = _createRow(items[0], 0);
+        sample.style.visibility = 'hidden';
+        sample.style.position = 'absolute';
+        resultList.appendChild(sample);
+        ITEM_HEIGHT = sample.offsetHeight || ITEM_HEIGHT_DEFAULT;
+        resultList.removeChild(sample);
     }
+
+    var h = ITEM_HEIGHT || ITEM_HEIGHT_DEFAULT;
+    // Create spacer for virtual scrolling
+    var totalHeight = items.length * h;
+    var spacer = document.createElement('div');
+    spacer.style.height = totalHeight + 'px';
+    spacer.style.position = 'relative';
+    resultList.appendChild(spacer);
+
+    _renderVisibleRows();
 
     // Update preview for selected item
     updatePreview();
 }
+
+function _renderVisibleRows() {
+    var spacer = resultList.firstChild;
+    if (!spacer) return;
+
+    // Remove old rows from spacer
+    spacer.innerHTML = '';
+
+    var h = ITEM_HEIGHT || ITEM_HEIGHT_DEFAULT;
+    var scrollTop = resultList.scrollTop;
+    var viewportHeight = resultList.clientHeight;
+
+    var startIdx = Math.max(0, Math.floor(scrollTop / h) - BUFFER_COUNT);
+    var endIdx = Math.min(items.length, Math.ceil((scrollTop + viewportHeight) / h) + BUFFER_COUNT);
+
+    var frag = document.createDocumentFragment();
+    for (var i = startIdx; i < endIdx; i++) {
+        var row = _createRow(items[i], i);
+        row.style.position = 'absolute';
+        row.style.top = (i * h) + 'px';
+        row.style.left = '0';
+        row.style.right = '0';
+        row.style.height = h + 'px';
+        frag.appendChild(row);
+    }
+    spacer.appendChild(frag);
+}
+
+function _createRow(item, i) {
+    var row = document.createElement('div');
+    row.className = 'result-item' + (i === selectedIndex ? ' selected' : '');
+
+    if (item.icon) {
+        var img = document.createElement('img');
+        img.className = 'icon';
+        img.src = item.icon;
+        img.draggable = false;
+        row.appendChild(img);
+    }
+
+    var left = document.createElement('div');
+    left.className = 'left';
+
+    var title = document.createElement('div');
+    title.className = 'title';
+    title.textContent = item.title;
+    left.appendChild(title);
+
+    if (item.subtitle) {
+        var sub = document.createElement('div');
+        sub.className = 'subtitle-text';
+        sub.textContent = item.subtitle;
+        left.appendChild(sub);
+    }
+
+    row.appendChild(left);
+
+    // Right group: badge + shortcut number
+    var rightGroup = document.createElement('div');
+    rightGroup.className = 'right-group';
+
+    if (item.badge) {
+        var badge = document.createElement('span');
+        badge.className = 'badge';
+        badge.textContent = item.badge;
+        rightGroup.appendChild(badge);
+    }
+
+    // Show Cmd+N shortcut for first 9 items
+    if (i < 9) {
+        var shortcut = document.createElement('span');
+        shortcut.className = 'shortcut';
+        shortcut.textContent = '\u2318' + (i + 1);
+        rightGroup.appendChild(shortcut);
+    }
+
+    // Delete button for deletable items
+    if (item.deletable) {
+        var delBtn = document.createElement('button');
+        delBtn.className = 'delete-btn';
+        delBtn.textContent = '\u00d7';
+        delBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            post('deleteItem', { index: i, version: itemsVersion });
+        });
+        rightGroup.appendChild(delBtn);
+    }
+
+    row.appendChild(rightGroup);
+
+    row.addEventListener('click', function() {
+        selectedIndex = i;
+        _renderVisibleRows();
+        post('execute', { index: i, version: itemsVersion });
+    });
+
+    return row;
+}
+
+// Virtual scroll handler
+var _scrollRafId = null;
+resultList.addEventListener('scroll', function() {
+    if (_scrollRafId) return;
+    _scrollRafId = requestAnimationFrame(function() {
+        _scrollRafId = null;
+        _renderVisibleRows();
+    });
+});
 
 function updatePreview() {
     if (selectedIndex >= 0 && selectedIndex < items.length) {
@@ -386,7 +451,19 @@ function setPreview(data) {
 function updateSelection(newIndex) {
     if (items.length === 0) return;
     selectedIndex = Math.max(0, Math.min(newIndex, items.length - 1));
-    renderItems();
+    // Scroll selected item into view
+    var h = ITEM_HEIGHT || ITEM_HEIGHT_DEFAULT;
+    var itemTop = selectedIndex * h;
+    var itemBottom = itemTop + h;
+    var scrollTop = resultList.scrollTop;
+    var viewportHeight = resultList.clientHeight;
+    if (itemTop < scrollTop) {
+        resultList.scrollTop = itemTop;
+    } else if (itemBottom > scrollTop + viewportHeight) {
+        resultList.scrollTop = itemBottom - viewportHeight;
+    }
+    _renderVisibleRows();
+    updatePreview();
 }
 
 // --- Input handling (with debounce for longer queries) ---
@@ -494,11 +571,29 @@ function setResults(newItems, version, selectedIdx) {
     items = newItems || [];
     itemsVersion = version || 0;
     if (typeof selectedIdx === 'number') {
+        // Preserve scroll position for delete/refresh operations
         selectedIndex = Math.max(0, Math.min(selectedIdx, items.length - 1));
     } else {
+        // New search results — reset to top
         selectedIndex = items.length > 0 ? 0 : -1;
+        resultList.scrollTop = 0;
     }
     renderItems();
+    // Ensure selected item is visible after delete
+    if (typeof selectedIdx === 'number' && selectedIndex >= 0) {
+        var h = ITEM_HEIGHT || ITEM_HEIGHT_DEFAULT;
+        var itemTop = selectedIndex * h;
+        var itemBottom = itemTop + h;
+        var scrollTop = resultList.scrollTop;
+        var viewportHeight = resultList.clientHeight;
+        if (itemTop < scrollTop) {
+            resultList.scrollTop = itemTop;
+            _renderVisibleRows();
+        } else if (itemBottom > scrollTop + viewportHeight) {
+            resultList.scrollTop = itemBottom - viewportHeight;
+            _renderVisibleRows();
+        }
+    }
 }
 
 function setPrefixHints(hints) {
@@ -517,8 +612,19 @@ function setPrefixHints(hints) {
 }
 
 function setModifierSubtitle(index, subtitle) {
-    if (index < 0 || index >= resultList.children.length) return;
-    var row = resultList.children[index];
+    // Find the rendered row for this index in the virtual list
+    var spacer = resultList.firstChild;
+    if (!spacer) return;
+    var h = ITEM_HEIGHT || ITEM_HEIGHT_DEFAULT;
+    var expectedTop = (index * h) + 'px';
+    var row = null;
+    for (var c = 0; c < spacer.childNodes.length; c++) {
+        if (spacer.childNodes[c].style.top === expectedTop) {
+            row = spacer.childNodes[c];
+            break;
+        }
+    }
+    if (!row) return;
     var sub = row.querySelector('.subtitle-text');
     if (sub && subtitle !== null) {
         sub.textContent = subtitle;

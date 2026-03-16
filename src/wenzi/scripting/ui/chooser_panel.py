@@ -150,6 +150,7 @@ class ChooserPanel:
 
     _PANEL_WIDTH = 960
     _PANEL_HEIGHT = 400
+    _MAX_TOTAL_RESULTS = 50
 
     def __init__(self, usage_tracker=None) -> None:
         self._panel = None
@@ -358,10 +359,11 @@ class ChooserPanel:
                         all_items.extend(src.search(query))
                     except Exception:
                         logger.exception("Chooser source %s search error", src.name)
-            self._current_items = all_items
+            self._current_items = all_items[:self._MAX_TOTAL_RESULTS]
         else:
             try:
-                self._current_items = source.search(query) if source.search else []
+                items = source.search(query) if source.search else []
+                self._current_items = items[:self._MAX_TOTAL_RESULTS]
             except Exception:
                 logger.exception("Chooser source %s search error", source.name)
                 self._current_items = []

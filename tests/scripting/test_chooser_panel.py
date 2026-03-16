@@ -193,6 +193,47 @@ class TestSearchLogic:
         assert panel._current_items == []
 
 
+class TestResultTruncation:
+    """Tests for P0: _MAX_TOTAL_RESULTS truncation in _do_search."""
+
+    def test_non_prefix_results_truncated(self):
+        panel = _make_panel()
+        items = [ChooserItem(title=f"item {i}") for i in range(80)]
+        panel.register_source(
+            ChooserSource(
+                name="many",
+                search=lambda q: [i for i in items if q.lower() in i.title.lower()],
+            )
+        )
+        panel._do_search("item")
+        assert len(panel._current_items) == panel._MAX_TOTAL_RESULTS
+
+    def test_prefix_results_truncated(self):
+        panel = _make_panel()
+        items = [ChooserItem(title=f"entry {i}") for i in range(80)]
+        panel.register_source(
+            ChooserSource(
+                name="clipboard",
+                prefix="cb",
+                search=lambda q: items,
+            )
+        )
+        panel._do_search("cb ")
+        assert len(panel._current_items) == panel._MAX_TOTAL_RESULTS
+
+    def test_fewer_than_max_not_truncated(self):
+        panel = _make_panel()
+        items = [ChooserItem(title=f"item {i}") for i in range(5)]
+        panel.register_source(
+            ChooserSource(
+                name="few",
+                search=lambda q: items,
+            )
+        )
+        panel._do_search("item")
+        assert len(panel._current_items) == 5
+
+
 class TestItemExecution:
     def test_execute_item(self):
         import time

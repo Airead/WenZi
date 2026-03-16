@@ -10,7 +10,7 @@ import base64
 import logging
 import os
 import time
-from typing import List
+from typing import List, Optional
 
 from wenzi.scripting.clipboard_monitor import ClipboardMonitor
 from wenzi.scripting.sources import ChooserItem, ChooserSource
@@ -182,17 +182,40 @@ class ClipboardSource:
     Supports substring filtering and pastes the selected entry on execute.
     """
 
-    def __init__(self, monitor: ClipboardMonitor) -> None:
+    _DEFAULT_MAX_RESULTS = 50
+
+    _CACHE_TTL = 10.0  # seconds before time-ago strings become stale
+
+    def __init__(
+        self, monitor: ClipboardMonitor, max_results: int = _DEFAULT_MAX_RESULTS,
+    ) -> None:
         self._monitor = monitor
+        self._max_results = max_results
+        self._empty_cache: Optional[List[ChooserItem]] = None
+        self._empty_cache_version: int = -1
+        self._empty_cache_time: float = 0.0
 
     def search(self, query: str) -> List[ChooserItem]:
         """Search clipboard history entries."""
+        q = query.strip().lower()
+
+        # Fast path: return cached results for empty queries
+        if not q:
+            ver = self._monitor.version
+            now = time.time()
+            if (
+                self._empty_cache is not None
+                and self._empty_cache_version == ver
+                and (now - self._empty_cache_time) < self._CACHE_TTL
+            ):
+                return list(self._empty_cache)
+
         entries = self._monitor.entries
 
         if not entries:
+            self._empty_cache = None
             return []
 
-        q = query.strip().lower()
         results = []
 
         for entry in entries:
@@ -235,6 +258,8 @@ class ClipboardSource:
                         delete_action=_do_delete_img,
                     )
                 )
+                if len(results) >= self._max_results:
+                    break
             else:
                 # Text entries
                 if q and q not in entry.text.lower():
@@ -273,6 +298,16 @@ class ClipboardSource:
                         delete_action=_do_delete_text,
                     )
                 )
+                if len(results) >= self._max_results:
+                    break
+
+        # Cache empty-query results for reuse on next open.
+        # Use the version read at lookup time (ver) to stay consistent
+        # with the entries snapshot used to build results.
+        if not q:
+            self._empty_cache = list(results)
+            self._empty_cache_version = ver
+            self._empty_cache_time = time.time()
 
         return results
 

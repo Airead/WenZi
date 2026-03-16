@@ -882,3 +882,53 @@ def _run_check(monitor, mock_pb, source_app):
     tiff_data = mock_pb.dataForType_(TIFF)
     if tiff_data is not None:
         monitor._add_image_entry(bytes(tiff_data), "tiff", source_app)
+
+
+class TestVersionProperty:
+    """Tests for P2: version counter on ClipboardMonitor."""
+
+    def test_initial_version_is_zero(self):
+        monitor = ClipboardMonitor()
+        assert monitor.version == 0
+
+    def test_version_increments_on_add_entry(self):
+        monitor = ClipboardMonitor()
+        v0 = monitor.version
+        monitor._add_entry("hello")
+        assert monitor.version == v0 + 1
+
+    def test_version_increments_on_clear(self):
+        monitor = ClipboardMonitor()
+        monitor._add_entry("hello")
+        v1 = monitor.version
+        monitor.clear()
+        assert monitor.version == v1 + 1
+
+    def test_version_increments_on_promote(self):
+        monitor = ClipboardMonitor()
+        monitor._add_entry("first")
+        monitor._add_entry("second")
+        v = monitor.version
+        monitor.promote("first")
+        assert monitor.version == v + 1
+
+    def test_version_increments_on_delete_text(self):
+        monitor = ClipboardMonitor()
+        monitor._add_entry("hello")
+        v = monitor.version
+        monitor.delete_text("hello")
+        assert monitor.version == v + 1
+
+    def test_version_not_incremented_on_no_match_promote(self):
+        monitor = ClipboardMonitor()
+        monitor._add_entry("hello")
+        v = monitor.version
+        monitor.promote("nonexistent")
+        assert monitor.version == v
+
+    def test_version_not_incremented_on_duplicate_add(self):
+        monitor = ClipboardMonitor()
+        monitor._add_entry("hello")
+        v = monitor.version
+        monitor._add_entry("hello")  # duplicate, skipped
+        assert monitor.version == v
