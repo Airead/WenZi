@@ -353,6 +353,56 @@ class TestSnippetStore:
         store = SnippetStore(path="/tmp/nonexistent_snippet_dir_xyz")
         assert store.snippets == []
 
+    def test_mtime_cache_avoids_rescan(self):
+        """Accessing snippets twice without changes should not rescan."""
+        def setup(d):
+            _write_snippet(d, "a", ";;a", "aaa")
+
+        store, _, _ = self._make_store(setup)
+        _ = store.snippets  # first load
+        # Patch _scan_directory to detect if it's called again
+        import unittest.mock as mock
+        with mock.patch.object(store, "_scan_directory") as mock_scan:
+            _ = store.snippets  # second access
+            mock_scan.assert_not_called()
+
+    def test_mtime_cache_invalidated_on_file_change(self):
+        """Modifying a snippet file should trigger rescan."""
+        import time
+
+        def setup(d):
+            _write_snippet(d, "a", ";;a", "aaa")
+
+        store, sdir, _ = self._make_store(setup)
+        _ = store.snippets  # first load
+        assert len(store.snippets) == 1
+
+        # Modify a file — bump mtime to ensure change is detected
+        file_path = os.path.join(sdir, "a.md")
+        time.sleep(0.05)
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(_format_snippet_file(";;a", "updated"))
+
+        result = store.snippets
+        assert len(result) == 1
+        assert result[0]["content"] == "updated"
+
+    def test_mtime_cache_invalidated_on_new_file(self):
+        """Adding a new snippet file should trigger rescan."""
+        import time
+
+        def setup(d):
+            _write_snippet(d, "a", ";;a", "aaa")
+
+        store, sdir, _ = self._make_store(setup)
+        _ = store.snippets
+        assert len(store.snippets) == 1
+
+        time.sleep(0.05)
+        _write_snippet(sdir, "b", ";;b", "bbb")
+
+        assert len(store.snippets) == 2
+
 
 # ---------------------------------------------------------------------------
 # Migration tests

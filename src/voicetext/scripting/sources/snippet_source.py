@@ -167,6 +167,7 @@ class SnippetStore:
         self._dir = path or _DEFAULT_SNIPPETS_DIR
         self._snippets: List[Dict[str, str]] = []
         self._migrated = False
+        self._cached_mtime: float = 0.0  # max mtime across directory tree
 
     @property
     def snippets(self) -> List[Dict[str, str]]:
@@ -175,11 +176,43 @@ class SnippetStore:
 
     # -- loading -------------------------------------------------------------
 
+    def _get_dir_tree_mtime(self) -> float:
+        """Return the max mtime across the snippet directory tree.
+
+        Checks the root directory and all subdirectories so that adding,
+        editing, or deleting any snippet file is detected.
+        """
+        if not os.path.isdir(self._dir):
+            return 0.0
+        max_mtime = os.path.getmtime(self._dir)
+        for dirpath, dirnames, filenames in os.walk(self._dir):
+            dirnames[:] = [d for d in dirnames if not d.startswith(".")]
+            for name in filenames:
+                if name.startswith("."):
+                    continue
+                try:
+                    mt = os.path.getmtime(os.path.join(dirpath, name))
+                    if mt > max_mtime:
+                        max_mtime = mt
+                except OSError:
+                    pass
+            try:
+                mt = os.path.getmtime(dirpath)
+                if mt > max_mtime:
+                    max_mtime = mt
+            except OSError:
+                pass
+        return max_mtime
+
     def _ensure_loaded(self) -> None:
         if not self._migrated:
             self._migrated = True
             self._maybe_migrate()
+        current_mtime = self._get_dir_tree_mtime()
+        if self._snippets and current_mtime == self._cached_mtime:
+            return
         self._scan_directory()
+        self._cached_mtime = current_mtime
 
     def _scan_directory(self) -> None:
         """Recursively scan the snippet directory for .md/.txt files."""
@@ -375,6 +408,7 @@ class SnippetStore:
     def reload(self) -> None:
         """Force reload from disk."""
         self._snippets = []
+        self._cached_mtime = 0.0
         self._ensure_loaded()
 
 
