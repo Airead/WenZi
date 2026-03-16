@@ -20,6 +20,17 @@ When adding new modules, place them in the appropriate subpackage. Subpackage `_
 
 Cross-package imports from controllers/ui should use absolute paths (`from wenzi.config import ...`), not relative imports to parent package.
 
+## Test Safety — Never Use Real User Data Paths
+
+When writing tests that instantiate classes with default paths pointing to real user directories (e.g. `~/.config/WenZi/`), **always override those paths with `tmp_path`** to prevent tests from reading, modifying, or deleting real user data.
+
+Known dangerous defaults:
+- `ClipboardMonitor()` → `image_dir` defaults to `~/.config/WenZi/clipboard_images`. Calling `clear()` will delete all real images.
+- `ClipboardMonitor(persist_path=...)` → connects to real SQLite database.
+- `SnippetStore()` → `path` defaults to `~/.config/WenZi/snippets`.
+
+**Rule:** Always check what default paths a class uses before instantiating it in tests. Pass `tmp_path`-based paths for any file/directory parameters. Follow existing test patterns in the same file.
+
 ## UI Dialogs
 
 This is a macOS statusbar (accessory) app built with pure PyObjC (via `statusbar.py`). Standard modal dialogs will not appear on screen because the app has no foreground presence.
