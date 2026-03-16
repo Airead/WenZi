@@ -767,6 +767,37 @@ class TestExpandPlaceholders:
         result = _expand_placeholders("plain text")
         assert result == "plain text"
 
+    def test_escaped_date(self):
+        result = _expand_placeholders("Use {{date}} for dates")
+        assert result == "Use {date} for dates"
+
+    def test_escaped_time(self):
+        result = _expand_placeholders("{{time}}")
+        assert result == "{time}"
+
+    def test_escaped_datetime(self):
+        result = _expand_placeholders("{{datetime}}")
+        assert result == "{datetime}"
+
+    def test_escaped_clipboard(self):
+        result = _expand_placeholders("{{clipboard}}")
+        assert result == "{clipboard}"
+
+    def test_mixed_escaped_and_real(self):
+        import datetime
+
+        result = _expand_placeholders("today={date} literal={{date}}")
+        expected_date = datetime.datetime.now().strftime("%Y-%m-%d")
+        assert result == f"today={expected_date} literal={{date}}"
+
+    def test_lone_double_braces(self):
+        result = _expand_placeholders("{{ and }}")
+        assert result == "{ and }"
+
+    def test_escaped_unknown_placeholder(self):
+        result = _expand_placeholders("{{unknown}}")
+        assert result == "{unknown}"
+
 
 # ---------------------------------------------------------------------------
 # SnippetSource search tests

@@ -146,11 +146,22 @@ def _expand_placeholders(content: str) -> str:
       {time}      — current time (HH:MM:SS)
       {datetime}  — current date and time
       {clipboard} — current clipboard text
+
+    Use doubled braces to output a literal brace/placeholder:
+      ``{{date}}`` → ``{date}`` (not expanded)
+      ``{{``       → ``{``
+      ``}}``       → ``}``
     """
     import datetime
 
+    # Protect escaped braces with sentinels before expanding placeholders
+    _LBRACE = "\x00LBRACE\x00"
+    _RBRACE = "\x00RBRACE\x00"
+    result = content.replace("{{", _LBRACE)
+    result = result.replace("}}", _RBRACE)
+
     now = datetime.datetime.now()
-    result = content.replace("{date}", now.strftime("%Y-%m-%d"))
+    result = result.replace("{date}", now.strftime("%Y-%m-%d"))
     result = result.replace("{time}", now.strftime("%H:%M:%S"))
     result = result.replace("{datetime}", now.strftime("%Y-%m-%d %H:%M:%S"))
 
@@ -163,6 +174,10 @@ def _expand_placeholders(content: str) -> str:
             result = result.replace("{clipboard}", text or "")
         except Exception:
             result = result.replace("{clipboard}", "")
+
+    # Restore escaped braces
+    result = result.replace(_LBRACE, "{")
+    result = result.replace(_RBRACE, "}")
 
     return result
 
