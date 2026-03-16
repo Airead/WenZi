@@ -115,6 +115,8 @@ class ScriptEngine:
 
         self._snippet_store = None
         self._usage_tracker = None
+        self._vt.pasteboard._set_monitor(None)
+        self._vt.snippets._set_store(None)
 
         # Clear all registered sources
         panel = self._vt.chooser._get_panel()
@@ -145,6 +147,7 @@ class ScriptEngine:
                 persist_path=persist_path,
             )
             self._clipboard_monitor.start()
+            self._vt.pasteboard._set_monitor(self._clipboard_monitor)
 
             cb_source = ClipboardSource(self._clipboard_monitor)
             self._vt.chooser.register_source(
@@ -161,6 +164,7 @@ class ScriptEngine:
         if self._clipboard_monitor is not None:
             self._clipboard_monitor.stop()
             self._clipboard_monitor = None
+        self._vt.pasteboard._set_monitor(None)
         self._vt.chooser.unregister_source("clipboard")
         logger.info("Clipboard monitor disabled at runtime")
 
@@ -201,6 +205,7 @@ class ScriptEngine:
                 self._snippet_expander.stop()
                 self._snippet_expander = None
             self._snippet_store = None
+            self._vt.snippets._set_store(None)
             self._vt.chooser.unregister_source(source_name)
         else:
             self._vt.chooser.unregister_source(source_name)
@@ -236,6 +241,7 @@ class ScriptEngine:
             )
 
             self._snippet_store = SnippetStore()
+            self._vt.snippets._set_store(self._snippet_store)
             snippet_source = SnippetSource(self._snippet_store)
             self._vt.chooser.register_source(
                 snippet_source.as_chooser_source(prefix=prefix)
@@ -342,6 +348,7 @@ class ScriptEngine:
                     persist_path=persist_path,
                 )
                 self._clipboard_monitor.start()
+                self._vt.pasteboard._set_monitor(self._clipboard_monitor)
 
                 cb_source = ClipboardSource(self._clipboard_monitor)
                 self._vt.chooser.register_source(
@@ -377,6 +384,7 @@ class ScriptEngine:
                 )
 
                 self._snippet_store = SnippetStore()
+                self._vt.snippets._set_store(self._snippet_store)
                 snippet_source = SnippetSource(self._snippet_store)
                 self._vt.chooser.register_source(
                     snippet_source.as_chooser_source(

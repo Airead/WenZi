@@ -14,6 +14,7 @@ from .eventtap import keystroke as _keystroke_fn
 from .execute import execute as _execute_fn
 from .notify import notify as _notify_fn
 from .pasteboard import PasteboardAPI
+from .snippets import SnippetsAPI
 from .timer import TimerAPI
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,7 @@ class _VTNamespace:
         self._registry = registry
         self.app = AppAPI()
         self.pasteboard = PasteboardAPI()
+        self.snippets = SnippetsAPI()
         self.timer = TimerAPI(registry)
         # HotkeyAPI and ChooserAPI are created lazily to avoid circular imports
         self._hotkey_api = None

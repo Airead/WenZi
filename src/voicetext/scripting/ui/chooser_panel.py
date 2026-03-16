@@ -168,6 +168,7 @@ class ChooserPanel:
         self._usage_tracker = usage_tracker
         self._on_close: Optional[Callable] = None
         self._pending_initial_query: Optional[str] = None
+        self._event_callback: Optional[Callable] = None  # (event, *args)
 
     # ------------------------------------------------------------------
     # Source management
@@ -181,6 +182,18 @@ class ChooserPanel:
     def unregister_source(self, name: str) -> None:
         """Remove a data source by name."""
         self._sources.pop(name, None)
+
+    # ------------------------------------------------------------------
+    # Event helpers
+    # ------------------------------------------------------------------
+
+    def _fire_event(self, event: str, *args) -> None:
+        """Notify the API layer about a panel event."""
+        if self._event_callback is not None:
+            try:
+                self._event_callback(event, *args)
+            except Exception:
+                logger.exception("Panel event callback error (%s)", event)
 
     # ------------------------------------------------------------------
     # Public API
@@ -225,6 +238,8 @@ class ChooserPanel:
         NSApp.setActivationPolicy_(0)  # Regular (foreground)
         NSApp.activateIgnoringOtherApps_(True)
 
+        self._fire_event("open")
+
     def close(self) -> None:
         """Close the chooser panel."""
         if self._closing:
@@ -261,6 +276,8 @@ class ChooserPanel:
 
         from AppKit import NSApp
         NSApp.setActivationPolicy_(1)  # Accessory (statusbar-only)
+
+        self._fire_event("close")
 
         callback = self._on_close
         self._on_close = None
@@ -424,6 +441,11 @@ class ChooserPanel:
                     logger.exception(
                         "Chooser delete action failed for %r", item.title,
                     )
+                self._fire_event("delete", {
+                    "title": item.title,
+                    "subtitle": item.subtitle,
+                    "item_id": item.item_id,
+                })
                 self._current_items.pop(index)
                 # Keep selection at the same position (clamped by JS)
                 self._push_items_to_js(selected_index=index)
@@ -448,6 +470,12 @@ class ChooserPanel:
             # Record usage for learning
             if self._usage_tracker and item.item_id:
                 self._usage_tracker.record(self._last_query, item.item_id)
+
+            self._fire_event("select", {
+                "title": item.title,
+                "subtitle": item.subtitle,
+                "item_id": item.item_id,
+            })
 
             from PyObjCTools import AppHelper
             AppHelper.callAfter(self.close)
