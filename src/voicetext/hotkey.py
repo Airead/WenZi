@@ -31,6 +31,7 @@ _SPECIAL_VK = {
     "f5": 96, "f6": 97, "f7": 98, "f8": 100,
     "f9": 101, "f10": 109, "f11": 103, "f12": 111,
     "fn": 63, "esc": 53, "space": 49,
+    "return": 36, "delete": 51, "tab": 48,
     "up": 126, "down": 125, "left": 123, "right": 124,
 }
 
@@ -50,6 +51,9 @@ _VK_TO_NAME.update({vk: name for name, (vk, _flag) in _MOD_VK.items()})
 
 # All known key names (for validation)
 _ALL_KEY_NAMES = set(_KEYCODE_MAP) | set(_SPECIAL_VK) | set(_MOD_VK) | {"option", "command"}
+
+# Modifier key names (for combo hotkey recording)
+MODIFIER_KEY_NAMES = set(_MOD_VK.keys())  # {"cmd", "cmd_r", "ctrl", ...}
 
 # Modifier flag constants
 _MOD_FLAGS = {

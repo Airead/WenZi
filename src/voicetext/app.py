@@ -80,6 +80,49 @@ _STATUS_ICONS: Dict[str, str] = {
 # Cache for SF Symbol NSImage objects
 _sf_symbol_cache: Dict[str, Any] = {}
 
+# Canonical order for modifier display
+_MOD_DISPLAY_ORDER = ["ctrl", "alt", "shift", "cmd"]
+# Map left/right variants to canonical names
+_MOD_CANONICAL = {
+    "cmd": "cmd", "cmd_r": "cmd",
+    "ctrl": "ctrl", "ctrl_r": "ctrl",
+    "alt": "alt", "alt_r": "alt",
+    "shift": "shift", "shift_r": "shift",
+}
+
+
+def format_combo_display(modifiers: set[str], trigger: str | None) -> str:
+    """Format a combo hotkey for display in the recording alert.
+
+    Args:
+        modifiers: Set of canonical modifier names (e.g. {"alt", "cmd"}).
+        trigger: Non-modifier trigger key, or None.
+
+    Returns:
+        Human-readable display string like "Alt + Cmd + V".
+    """
+    parts = [m.capitalize() for m in _MOD_DISPLAY_ORDER if m in modifiers]
+    if trigger:
+        parts.append(trigger.upper())
+    else:
+        parts.append("...")
+    return " + ".join(parts)
+
+
+def build_combo_string(modifiers: set[str], trigger: str) -> str:
+    """Build the hotkey config string from modifiers and trigger.
+
+    Args:
+        modifiers: Set of canonical modifier names.
+        trigger: Non-modifier trigger key name.
+
+    Returns:
+        Hotkey string like "alt+cmd+v".
+    """
+    parts = [m for m in _MOD_DISPLAY_ORDER if m in modifiers]
+    parts.append(trigger)
+    return "+".join(parts)
+
 
 class VoiceTextApp(StatusBarApp):
     """Menubar app: hold hotkey to record, release to transcribe and type."""
@@ -632,6 +675,100 @@ class VoiceTextApp(StatusBarApp):
         restore_accessory()
 
         return recorded_key
+
+    def record_combo_hotkey_modal(self) -> str | None:
+        """Show a modal alert to record a hotkey combo (e.g. cmd+alt+v).
+
+        Shows live preview of the current key combination.
+        Enter to confirm, ESC to cancel, Delete to reset.
+
+        Returns:
+            Hotkey string like "cmd+alt+v", or None if cancelled.
+        """
+        from AppKit import NSAlert, NSApp, NSStatusWindowLevel
+        from PyObjCTools import AppHelper
+        from .hotkey import _QuartzAllKeysListener
+
+        activate_for_dialog()
+        alert = NSAlert.alloc().init()
+        alert.setMessageText_("Record Hotkey Combo")
+        alert.setInformativeText_("Press a key combination...\n\n"
+                                  "Enter = confirm | ESC = cancel | Delete = reset")
+        alert.addButtonWithTitle_("Cancel")
+        alert.setAlertStyle_(0)
+        alert.window().setLevel_(NSStatusWindowLevel)
+
+        combo_modifiers: set[str] = set()
+        combo_trigger: list[str | None] = [None]  # mutable container
+        result: list[str | None] = [None]
+
+        def _update_display():
+            """Update alert text on the main thread."""
+            mods = set(combo_modifiers)
+            trigger = combo_trigger[0]
+            if not mods and not trigger:
+                text = "Press a key combination..."
+            elif mods and not trigger:
+                text = format_combo_display(mods, None)
+            else:
+                text = format_combo_display(mods, trigger)
+                text += "\n(Press Enter to confirm)"
+            text += "\n\nEnter = confirm | ESC = cancel | Delete = reset"
+
+            def _do():
+                alert.setInformativeText_(text)
+            AppHelper.callAfter(_do)
+
+        def _on_press(name: str):
+            canonical = _MOD_CANONICAL.get(name)
+            if canonical:
+                combo_modifiers.add(canonical)
+                _update_display()
+                return
+
+            # Enter key (keycode 36 → "return" not in map; use name check)
+            if name == "return" or name == "enter":
+                # Confirm if we have a complete combo
+                if combo_modifiers and combo_trigger[0]:
+                    result[0] = build_combo_string(
+                        set(combo_modifiers), combo_trigger[0]
+                    )
+                    AppHelper.callAfter(lambda: NSApp.abortModal())
+                return
+
+            # ESC → cancel
+            if name == "esc":
+                AppHelper.callAfter(lambda: NSApp.abortModal())
+                return
+
+            # Delete/Backspace → reset
+            if name == "delete" or name == "backspace":
+                combo_modifiers.clear()
+                combo_trigger[0] = None
+                _update_display()
+                return
+
+            # Non-modifier key → set as trigger
+            combo_trigger[0] = name
+            _update_display()
+
+        def _on_release(name: str):
+            canonical = _MOD_CANONICAL.get(name)
+            if canonical:
+                combo_modifiers.discard(canonical)
+                _update_display()
+
+        listener = _QuartzAllKeysListener(
+            on_press=_on_press,
+            on_release=_on_release,
+            listen_only=True,
+        )
+        listener.start()
+        alert.runModal()
+        listener.stop()
+        restore_accessory()
+
+        return result[0]
 
     def _on_record_hotkey(self, _) -> None:
         """Show 'press any key' alert and record a hotkey."""

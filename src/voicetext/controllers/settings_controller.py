@@ -958,9 +958,9 @@ class SettingsController:
         logger.info("Icon cache refresh completed")
 
     def launcher_source_hotkey_record(self, source_key: str) -> None:
-        """Record a hotkey for a specific data source."""
+        """Record a combo hotkey for a specific data source."""
         app = self._app
-        recorded_key = app.record_hotkey_modal()
+        recorded_key = app.record_combo_hotkey_modal()
         if recorded_key:
             chooser_cfg = app._config.setdefault("scripting", {}).setdefault(
                 "chooser", {}
