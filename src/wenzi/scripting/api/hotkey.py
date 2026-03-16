@@ -1,4 +1,4 @@
-"""vt.hotkey — hotkey binding and leader-key system."""
+"""wz.hotkey — hotkey binding and leader-key system."""
 
 from __future__ import annotations
 
@@ -114,6 +114,7 @@ class HotkeyAPI:
                         self._leader_alert.show,
                         leader.trigger_key,
                         leader.mappings,
+                        leader.position,
                     )
                 except Exception:
                     pass

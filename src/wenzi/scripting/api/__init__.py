@@ -57,13 +57,21 @@ class _WZNamespace:
             self._chooser_api = ChooserAPI()
         return self._chooser_api
 
-    def leader(self, trigger_key: str, mappings: List[dict]) -> None:
+    def leader(
+        self,
+        trigger_key: str,
+        mappings: List[dict],
+        position: str | tuple = "center",
+    ) -> None:
         """Register a leader-key configuration.
 
         Args:
             trigger_key: The trigger key name (e.g. "cmd_r", "alt_r").
             mappings: List of dicts, each with "key" and one of
                       "app", "func", "exec", plus optional "desc".
+            position: Panel position — "center", "top", "bottom",
+                      "mouse", or a tuple ``(x%, y%)`` in screen
+                      percentage (origin bottom-left).
 
         Example::
 
@@ -71,7 +79,7 @@ class _WZNamespace:
                 {"key": "w", "app": "WeChat"},
                 {"key": "d", "desc": "date", "func": lambda: wz.notify("hi")},
                 {"key": "i", "exec": "/usr/local/bin/code ~/work"},
-            ])
+            ], position="mouse")
         """
         parsed = []
         for m in mappings:
@@ -84,7 +92,7 @@ class _WZNamespace:
                     exec_cmd=m.get("exec"),
                 )
             )
-        self._registry.register_leader(trigger_key, parsed)
+        self._registry.register_leader(trigger_key, parsed, position=position)
 
     def on(
         self, event_name: str, callback: Optional[Callable] = None

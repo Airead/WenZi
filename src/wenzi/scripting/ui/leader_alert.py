@@ -70,11 +70,17 @@ class LeaderAlertPanel:
     def is_visible(self) -> bool:
         return self._panel is not None
 
-    def show(self, trigger_key: str, mappings: list[LeaderMapping]) -> None:
+    def show(
+        self,
+        trigger_key: str,
+        mappings: list[LeaderMapping],
+        position: str | tuple = "center",
+    ) -> None:
         """Create and display the leader alert. Must run on main thread."""
         from AppKit import (
             NSBackingStoreBuffered,
             NSColor,
+            NSEvent,
             NSFont,
             NSMakeRect,
             NSPanel,
@@ -149,17 +155,54 @@ class LeaderAlertPanel:
             label.setSelectable_(False)
             content.addSubview_(label)
 
-        # Position: center-top of main screen
+        # Position the panel on screen
         screen = NSScreen.mainScreen()
         if screen:
             sf = screen.frame()
-            x = sf.origin.x + (sf.size.width - panel_width) / 2
-            y = sf.origin.y + sf.size.height - panel_height - 100
+            x, y = self._calculate_origin(
+                position, panel_width, panel_height, sf, NSEvent,
+            )
             panel.setFrameOrigin_((x, y))
 
         panel.orderFrontRegardless()
         self._panel = panel
         logger.debug("Leader alert shown for %s", trigger_key)
+
+    @staticmethod
+    def _calculate_origin(position, pw, ph, sf, ns_event_cls):
+        """Return ``(x, y)`` for the panel, clamped to screen bounds.
+
+        Args:
+            position: "center", "top", "bottom", "mouse", or (x%, y%).
+            pw / ph: panel width / height.
+            sf: screen frame (NSRect).
+            ns_event_cls: ``NSEvent`` class (for mouseLocation).
+        """
+        sx, sy = sf.origin.x, sf.origin.y
+        sw, sh = sf.size.width, sf.size.height
+
+        if position == "top":
+            x = sx + (sw - pw) / 2
+            y = sy + sh - ph - 100
+        elif position == "bottom":
+            x = sx + (sw - pw) / 2
+            y = sy + 100
+        elif position == "mouse":
+            loc = ns_event_cls.mouseLocation()
+            x = loc.x - pw / 2
+            y = loc.y - ph / 2
+        elif isinstance(position, (tuple, list)) and len(position) == 2:
+            px, py = float(position[0]), float(position[1])
+            x = sx + sw * px - pw / 2
+            y = sy + sh * py - ph / 2
+        else:  # "center" or unknown
+            x = sx + (sw - pw) / 2
+            y = sy + (sh - ph) / 2
+
+        # Clamp to screen bounds
+        x = max(sx, min(x, sx + sw - pw))
+        y = max(sy, min(y, sy + sh - ph))
+        return x, y
 
     def close(self) -> None:
         """Close the panel. Must run on main thread."""

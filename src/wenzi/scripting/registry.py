@@ -28,6 +28,7 @@ class LeaderConfig:
 
     trigger_key: str
     mappings: List[LeaderMapping] = field(default_factory=list)
+    position: Any = "center"  # "center", "top", "bottom", "mouse", or (x%, y%)
 
 
 @dataclass
@@ -81,10 +82,15 @@ class ScriptingRegistry:
     def chooser_sources(self) -> Dict[str, Any]:
         return self._chooser_sources
 
-    def register_leader(self, trigger_key: str, mappings: List[LeaderMapping]) -> None:
+    def register_leader(
+        self,
+        trigger_key: str,
+        mappings: List[LeaderMapping],
+        position: Any = "center",
+    ) -> None:
         """Register a leader-key configuration."""
         self._leaders[trigger_key] = LeaderConfig(
-            trigger_key=trigger_key, mappings=mappings
+            trigger_key=trigger_key, mappings=mappings, position=position,
         )
         logger.info(
             "Registered leader: %s with %d mappings", trigger_key, len(mappings)

@@ -40,6 +40,24 @@ class TestWZNamespace:
         assert mappings[1].func is not None
         assert mappings[2].exec_cmd == "/usr/local/bin/code ~/work"
 
+    def test_leader_default_position(self):
+        reg = ScriptingRegistry()
+        wz = _WZNamespace(reg)
+        wz.leader("cmd_r", [{"key": "w", "app": "WeChat"}])
+        assert reg.leaders["cmd_r"].position == "center"
+
+    def test_leader_custom_position(self):
+        reg = ScriptingRegistry()
+        wz = _WZNamespace(reg)
+        wz.leader("alt_r", [{"key": "w", "app": "WeChat"}], position="mouse")
+        assert reg.leaders["alt_r"].position == "mouse"
+
+    def test_leader_tuple_position(self):
+        reg = ScriptingRegistry()
+        wz = _WZNamespace(reg)
+        wz.leader("shift_r", [{"key": "w", "app": "WeChat"}], position=(0.5, 0.8))
+        assert reg.leaders["shift_r"].position == (0.5, 0.8)
+
     def test_date_format(self):
         reg = ScriptingRegistry()
         wz = _WZNamespace(reg)
