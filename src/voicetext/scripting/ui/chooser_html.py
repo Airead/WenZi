@@ -480,10 +480,14 @@ document.addEventListener('keyup', function(e) {
 
 // --- Python -> JS API ---
 
-function setResults(newItems, version) {
+function setResults(newItems, version, selectedIdx) {
     items = newItems || [];
     itemsVersion = version || 0;
-    selectedIndex = items.length > 0 ? 0 : -1;
+    if (typeof selectedIdx === 'number') {
+        selectedIndex = Math.max(0, Math.min(selectedIdx, items.length - 1));
+    } else {
+        selectedIndex = items.length > 0 ? 0 : -1;
+    }
     renderItems();
 }
 

@@ -344,7 +344,7 @@ class ChooserPanel:
         scored.sort(key=lambda x: (x[0], x[1]))
         self._current_items = [item for _, _, item in scored]
 
-    def _push_items_to_js(self) -> None:
+    def _push_items_to_js(self, selected_index: Optional[int] = None) -> None:
         """Serialize current items and send to the web view."""
         self._items_version += 1
         js_items = []
@@ -364,9 +364,10 @@ class ChooserPanel:
             if item.preview is not None:
                 js_item["preview"] = item.preview
             js_items.append(js_item)
+        idx_arg = "" if selected_index is None else f",{selected_index}"
         self._eval_js(
             f"setResults({json.dumps(js_items, ensure_ascii=False)},"
-            f"{self._items_version})"
+            f"{self._items_version}{idx_arg})"
         )
 
     # ------------------------------------------------------------------
@@ -411,7 +412,7 @@ class ChooserPanel:
             self._send_modifier_subtitle(index, modifier)
 
     def _delete_item(self, index: int, version: int = 0) -> None:
-        """Delete an item and refresh the list."""
+        """Delete an item and refresh the list, preserving selection position."""
         if version and version != self._items_version:
             return
         if 0 <= index < len(self._current_items):
@@ -424,7 +425,8 @@ class ChooserPanel:
                         "Chooser delete action failed for %r", item.title,
                     )
                 self._current_items.pop(index)
-                self._push_items_to_js()
+                # Keep selection at the same position (clamped by JS)
+                self._push_items_to_js(selected_index=index)
 
     def _execute_item(
         self, index: int, version: int = 0, modifier: Optional[str] = None,
