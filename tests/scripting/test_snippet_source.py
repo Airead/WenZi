@@ -33,9 +33,9 @@ class TestParseFrontmatter:
         assert body == "Hello!"
 
     def test_unquoted_keyword(self):
-        text = "---\nkeyword: @@test\n---\ncontent"
+        text = "---\nkeyword: ;;test\n---\ncontent"
         meta, body = _parse_frontmatter(text)
-        assert meta["keyword"] == "@@test"
+        assert meta["keyword"] == ";;test"
 
     def test_no_frontmatter(self):
         text = "Just plain content"
@@ -61,7 +61,7 @@ class TestParseFrontmatter:
         assert body == "Line 1\nLine 2\nLine 3"
 
     def test_comment_lines_ignored(self):
-        text = "---\n# comment\nkeyword: @@x\n---\nbody"
+        text = '---\n# comment\nkeyword: "@@x"\n---\nbody'
         meta, body = _parse_frontmatter(text)
         assert meta == {"keyword": "@@x"}
 
@@ -386,6 +386,171 @@ class TestSnippetStore:
         result = store.snippets
         assert len(result) == 1
         assert result[0]["content"] == "updated"
+
+    def test_load_multi_snippet_file(self):
+        def setup(d):
+            path = os.path.join(d, "dates.md")
+            with open(path, "w") as f:
+                f.write(
+                    '---\n'
+                    'snippets:\n'
+                    '  - keyword: "ymd "\n'
+                    '    content: "{date}"\n'
+                    '  - keyword: "hms "\n'
+                    '    content: "{time}"\n'
+                    '    name: "current time"\n'
+                    '---\n'
+                )
+
+        store, _, _ = self._make_store(setup)
+        assert len(store.snippets) == 2
+        kws = {s["keyword"] for s in store.snippets}
+        assert kws == {"ymd ", "hms "}
+        # Check name fallback to keyword
+        by_kw = {s["keyword"]: s for s in store.snippets}
+        assert by_kw["ymd "]["name"] == "ymd "
+        assert by_kw["hms "]["name"] == "current time"
+
+    def test_multi_snippet_content(self):
+        def setup(d):
+            path = os.path.join(d, "multi.md")
+            with open(path, "w") as f:
+                f.write(
+                    '---\n'
+                    'snippets:\n'
+                    '  - keyword: "@@email"\n'
+                    '    content: "user@example.com"\n'
+                    '---\n'
+                )
+
+        store, _, _ = self._make_store(setup)
+        assert len(store.snippets) == 1
+        assert store.snippets[0]["content"] == "user@example.com"
+
+    def test_multi_snippet_coexists_with_single(self):
+        def setup(d):
+            # Single-snippet file
+            _write_snippet(d, "email", "@@email", "user@example.com")
+            # Multi-snippet file
+            path = os.path.join(d, "dates.md")
+            with open(path, "w") as f:
+                f.write(
+                    '---\n'
+                    'snippets:\n'
+                    '  - keyword: "ymd "\n'
+                    '    content: "{date}"\n'
+                    '---\n'
+                )
+
+        store, _, _ = self._make_store(setup)
+        assert len(store.snippets) == 2
+        kws = {s["keyword"] for s in store.snippets}
+        assert "@@email" in kws
+        assert "ymd " in kws
+
+    def test_multi_snippet_file_path_shared(self):
+        def setup(d):
+            path = os.path.join(d, "multi.md")
+            with open(path, "w") as f:
+                f.write(
+                    '---\n'
+                    'snippets:\n'
+                    '  - keyword: ";;a"\n'
+                    '    content: "aaa"\n'
+                    '  - keyword: ";;b"\n'
+                    '    content: "bbb"\n'
+                    '---\n'
+                )
+
+        store, _, _ = self._make_store(setup)
+        assert len(store.snippets) == 2
+        # Both snippets point to the same file
+        assert store.snippets[0]["file_path"] == store.snippets[1]["file_path"]
+
+    def test_multi_and_single_in_same_file(self):
+        def setup(d):
+            path = os.path.join(d, "mixed.md")
+            with open(path, "w") as f:
+                f.write(
+                    '---\n'
+                    'keyword: "@@sig"\n'
+                    'snippets:\n'
+                    '  - keyword: "ymd "\n'
+                    '    content: "{date}"\n'
+                    '---\n'
+                    'Best regards,\n'
+                    'Alice\n'
+                )
+
+        store, _, _ = self._make_store(setup)
+        assert len(store.snippets) == 2
+        kws = {s["keyword"] for s in store.snippets}
+        assert kws == {"ymd ", "@@sig"}
+        # The single snippet uses body as content
+        sig = [s for s in store.snippets if s["keyword"] == "@@sig"][0]
+        assert "Best regards" in sig["content"]
+
+    def test_multi_snippet_with_category(self):
+        def setup(d):
+            cat_dir = os.path.join(d, "work")
+            os.makedirs(cat_dir)
+            path = os.path.join(cat_dir, "shortcuts.md")
+            with open(path, "w") as f:
+                f.write(
+                    '---\n'
+                    'snippets:\n'
+                    '  - keyword: ";;sig"\n'
+                    '    content: "Best regards"\n'
+                    '---\n'
+                )
+
+        store, _, _ = self._make_store(setup)
+        assert len(store.snippets) == 1
+        assert store.snippets[0]["category"] == "work"
+
+    def test_raw_flag_single_snippet(self):
+        def setup(d):
+            path = os.path.join(d, "tpl.md")
+            with open(path, "w") as f:
+                f.write(
+                    '---\n'
+                    'keyword: ";;tpl"\n'
+                    'raw: true\n'
+                    '---\n'
+                    'Today is {date}\n'
+                )
+
+        store, _, _ = self._make_store(setup)
+        assert len(store.snippets) == 1
+        assert store.snippets[0]["raw"] is True
+
+    def test_raw_flag_multi_snippet(self):
+        def setup(d):
+            path = os.path.join(d, "multi.md")
+            with open(path, "w") as f:
+                f.write(
+                    '---\n'
+                    'snippets:\n'
+                    '  - keyword: ";;date"\n'
+                    '    content: "{date}"\n'
+                    '  - keyword: ";;tpl"\n'
+                    '    content: "Today is {date}"\n'
+                    '    raw: true\n'
+                    '---\n'
+                )
+
+        store, _, _ = self._make_store(setup)
+        assert len(store.snippets) == 2
+        by_kw = {s["keyword"]: s for s in store.snippets}
+        assert by_kw[";;date"]["raw"] is False
+        assert by_kw[";;tpl"]["raw"] is True
+
+    def test_raw_flag_defaults_to_false(self):
+        def setup(d):
+            _write_snippet(d, "email", "@@email", "user@example.com")
+
+        store, _, _ = self._make_store(setup)
+        assert store.snippets[0]["raw"] is False
 
     def test_mtime_cache_invalidated_on_new_file(self):
         """Adding a new snippet file should trigger rescan."""

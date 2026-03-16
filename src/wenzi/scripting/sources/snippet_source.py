@@ -4,12 +4,23 @@ Manages text snippets stored as individual files in a directory structure.
 Subdirectories serve as categories. Each file uses optional YAML frontmatter
 for the keyword, with the body as snippet content.
 
-File format::
+Single-snippet file format::
 
     ---
     keyword: "@@email"
     ---
     user@example.com
+
+Multi-snippet file format (all snippets defined in frontmatter)::
+
+    ---
+    snippets:
+      - keyword: "ymd "
+        content: "{date}"
+      - keyword: "hms "
+        content: "{time}"
+        name: "current time"
+    ---
 
 Snippets can also be auto-expanded globally when the user types a keyword.
 """
@@ -40,7 +51,7 @@ _UNSAFE_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
 
 def _parse_frontmatter(text: str) -> Tuple[dict, str]:
-    """Parse optional YAML-style frontmatter from *text*.
+    """Parse optional YAML frontmatter from *text*.
 
     Returns ``(metadata_dict, body)``.  If no frontmatter is present,
     returns ``({}, text)``.
@@ -53,25 +64,20 @@ def _parse_frontmatter(text: str) -> Tuple[dict, str]:
     if end == -1:
         return {}, text
 
-    header = text[3:end].strip()
+    header = text[3:end]
     body = text[end + 4:]  # skip past "\n---"
     if body.startswith("\n"):
         body = body[1:]
 
-    meta: dict = {}
-    for line in header.splitlines():
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-        colon = line.find(":")
-        if colon == -1:
-            continue
-        key = line[:colon].strip()
-        val = line[colon + 1:].strip()
-        # Strip surrounding quotes
-        if len(val) >= 2 and val[0] == val[-1] and val[0] in ('"', "'"):
-            val = val[1:-1]
-        meta[key] = val
+    try:
+        import yaml
+
+        meta = yaml.safe_load(header)
+        if not isinstance(meta, dict):
+            meta = {}
+    except Exception:
+        logger.warning("Failed to parse YAML frontmatter, falling back to empty")
+        meta = {}
 
     return meta, body
 
@@ -243,14 +249,37 @@ class SnippetStore:
                     continue
 
                 meta, body = _parse_frontmatter(text)
-                name = os.path.splitext(fname)[0]
-                self._snippets.append({
-                    "name": name,
-                    "keyword": meta.get("keyword", ""),
-                    "content": body,
-                    "category": category,
-                    "file_path": file_path,
-                })
+                base_name = os.path.splitext(fname)[0]
+
+                # Multi-snippet: frontmatter contains a "snippets" list
+                snippets_list = meta.get("snippets")
+                if isinstance(snippets_list, list):
+                    for entry in snippets_list:
+                        if not isinstance(entry, dict):
+                            continue
+                        kw = entry.get("keyword", "")
+                        ct = entry.get("content", "")
+                        nm = entry.get("name", "") or kw or base_name
+                        raw = bool(entry.get("raw", False))
+                        self._snippets.append({
+                            "name": nm,
+                            "keyword": kw,
+                            "content": ct,
+                            "category": category,
+                            "file_path": file_path,
+                            "raw": raw,
+                        })
+
+                # Single-snippet: keyword in frontmatter, body is content
+                if meta.get("keyword") or (body and not snippets_list):
+                    self._snippets.append({
+                        "name": base_name,
+                        "keyword": meta.get("keyword", ""),
+                        "content": body,
+                        "category": category,
+                        "file_path": file_path,
+                        "raw": bool(meta.get("raw", False)),
+                    })
 
         logger.info(
             "Loaded %d snippets from %s", len(self._snippets), self._dir,
@@ -482,16 +511,21 @@ class SnippetSource:
             else:
                 item_id = f"sn:{name}"
 
+            raw = s.get("raw", False)
+
+            def _resolve(c, r):
+                return c if r else _expand_placeholders(c)
+
             items.append(
                 ChooserItem(
                     title=title,
                     subtitle=display_content,
                     item_id=item_id,
-                    action=lambda c=content: _paste_text(
-                        _expand_placeholders(c)
+                    action=lambda c=content, r=raw: _paste_text(
+                        _resolve(c, r)
                     ),
-                    secondary_action=lambda c=content: _copy_to_clipboard(
-                        _expand_placeholders(c)
+                    secondary_action=lambda c=content, r=raw: _copy_to_clipboard(
+                        _resolve(c, r)
                     ),
                     reveal_path=file_path,
                     preview={"type": "text", "content": content},

@@ -55,6 +55,7 @@ class TestBufferAndMatching:
         args = expand_mock.call_args[0]
         assert args[0] == "/lsof/"
         assert "lsof" in args[1]
+        assert args[2] is False  # raw defaults to False
 
     def test_check_expansion_no_match(self):
         def setup(d):
@@ -185,6 +186,23 @@ class TestExpand:
             expander._expand(";;d", "{date}")
 
         mock_ep.assert_called_once_with("{date}")
+
+    def test_expand_raw_skips_placeholder_expansion(self):
+        store = _make_store()
+        expander = SnippetExpander(store)
+
+        with (
+            patch.object(expander, "_send_backspaces"),
+            patch(
+                "wenzi.scripting.sources.snippet_source._expand_placeholders",
+            ) as mock_ep,
+            patch("wenzi.input._set_pasteboard_concealed") as mock_paste,
+            patch("subprocess.run"),
+        ):
+            expander._expand(";;tpl", "Today is {date}", raw=True)
+
+        mock_ep.assert_not_called()
+        mock_paste.assert_called_once_with("Today is {date}")
 
 
 class TestEngineIntegration:

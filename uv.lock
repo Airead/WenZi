@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.13"
 
 [manifest]
@@ -2728,7 +2728,7 @@ wheels = [
 
 [[package]]
 name = "wenzi"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "." }
 dependencies = [
     { name = "fastembed" },
@@ -2744,6 +2744,7 @@ dependencies = [
     { name = "pyobjc-framework-cocoa" },
     { name = "pyobjc-framework-speech" },
     { name = "pyobjc-framework-webkit" },
+    { name = "pyyaml" },
     { name = "sherpa-onnx" },
     { name = "sherpa-onnx-core" },
     { name = "sounddevice" },
@@ -2774,6 +2775,7 @@ requires-dist = [
     { name = "pyobjc-framework-cocoa", specifier = ">=10.0" },
     { name = "pyobjc-framework-speech", specifier = ">=10.0" },
     { name = "pyobjc-framework-webkit", specifier = ">=12.1" },
+    { name = "pyyaml", specifier = ">=6.0" },
     { name = "sherpa-onnx", specifier = ">=1.12.29" },
     { name = "sherpa-onnx-core", specifier = ">=1.12.29" },
     { name = "sounddevice", specifier = ">=0.5.0" },
