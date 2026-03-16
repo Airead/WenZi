@@ -75,6 +75,61 @@ class TestScriptEngine:
 
         engine.stop()
 
+    @patch("voicetext.scripting.api.hotkey.HotkeyAPI.start")
+    @patch("voicetext.scripting.api.hotkey.HotkeyAPI.stop")
+    def test_chooser_disabled_skips_sources_and_hotkeys(self, mock_stop, mock_start):
+        """When chooser.enabled is False, no sources are registered and no hotkeys bound."""
+        config = {
+            "chooser": {
+                "enabled": False,
+                "hotkey": "cmd+space",
+                "app_search": True,
+                "clipboard_history": True,
+            },
+        }
+        engine = ScriptEngine(
+            script_dir="/tmp/nonexistent_vt_scripts",
+            config=config,
+        )
+        engine.start()
+
+        # No sources should be registered on the chooser panel
+        panel = engine.vt.chooser._get_panel()
+        assert len(panel._sources) == 0
+
+        # Clipboard monitor should not be started
+        assert engine._clipboard_monitor is None
+
+        engine.stop()
+
+    @patch("voicetext.scripting.api.hotkey.HotkeyAPI.start")
+    @patch("voicetext.scripting.api.hotkey.HotkeyAPI.stop")
+    def test_chooser_enabled_registers_sources(self, mock_stop, mock_start):
+        """When chooser.enabled is True (default), sources are registered normally."""
+        config = {
+            "chooser": {
+                "enabled": True,
+                "hotkey": "cmd+space",
+                "app_search": True,
+                "clipboard_history": False,
+                "file_search": False,
+                "snippets": False,
+                "bookmarks": False,
+                "usage_learning": False,
+            },
+        }
+        engine = ScriptEngine(
+            script_dir="/tmp/nonexistent_vt_scripts",
+            config=config,
+        )
+        engine.start()
+
+        # App source should be registered
+        panel = engine.vt.chooser._get_panel()
+        assert len(panel._sources) > 0
+
+        engine.stop()
+
     def test_vt_module_singleton(self):
         engine = ScriptEngine(script_dir="/tmp/vt_test_scripts")
         import voicetext.scripting.api as api_mod

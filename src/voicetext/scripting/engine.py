@@ -81,6 +81,9 @@ class ScriptEngine:
     def _register_builtin_sources(self) -> None:
         """Register built-in chooser sources."""
         chooser_config = self._config.get("chooser", {})
+        if not chooser_config.get("enabled", True):
+            logger.info("Chooser disabled via config, skipping source registration")
+            return
 
         # Usage learning tracker
         if chooser_config.get("usage_learning", True):
@@ -202,6 +205,8 @@ class ScriptEngine:
     def _bind_chooser_hotkey(self) -> None:
         """Bind the chooser toggle hotkey from config."""
         chooser_config = self._config.get("chooser", {})
+        if not chooser_config.get("enabled", True):
+            return
         hotkey_str = chooser_config.get("hotkey")
         if hotkey_str:
             self._vt.hotkey.bind(hotkey_str, lambda: self._vt.chooser.toggle())
@@ -210,6 +215,8 @@ class ScriptEngine:
     def _bind_source_hotkeys(self) -> None:
         """Bind per-source direct hotkeys from config."""
         chooser_config = self._config.get("chooser", {})
+        if not chooser_config.get("enabled", True):
+            return
         source_hotkeys = chooser_config.get("source_hotkeys", {})
         prefixes = chooser_config.get("prefixes", {})
         for source_key, hotkey_str in source_hotkeys.items():

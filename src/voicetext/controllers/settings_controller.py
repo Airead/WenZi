@@ -151,6 +151,7 @@ class SettingsController:
             "on_reload_config": lambda: app._on_reload_config(None),
             "on_config_dir_browse": self.config_dir_browse,
             "on_config_dir_reset": self.config_dir_reset,
+            "on_launcher_toggle": self.launcher_toggle,
             "on_launcher_hotkey_change": self.launcher_hotkey_change,
             "on_launcher_source_toggle": self.launcher_source_toggle,
             "on_launcher_prefix_change": self.launcher_prefix_change,
@@ -849,6 +850,7 @@ class SettingsController:
         app = self._app
         chooser_cfg = app._config.get("scripting", {}).get("chooser", {})
         return {
+            "enabled": chooser_cfg.get("enabled", True),
             "hotkey": chooser_cfg.get("hotkey", "cmd+space"),
             "app_search": chooser_cfg.get("app_search", True),
             "clipboard_history": chooser_cfg.get("clipboard_history", True),
@@ -869,6 +871,18 @@ class SettingsController:
                 "bookmarks": "",
             }),
         }
+
+    def launcher_toggle(self, enabled: bool) -> None:
+        """Handle launcher enable/disable toggle from Settings panel."""
+        app = self._app
+        chooser_cfg = app._config.setdefault("scripting", {}).setdefault(
+            "chooser", {}
+        )
+        chooser_cfg["enabled"] = enabled
+        save_config(app._config, app._config_path)
+        logger.info(
+            "Launcher set to: %s (requires restart)", enabled
+        )
 
     def launcher_hotkey_change(self, hotkey: str) -> None:
         """Handle launcher hotkey change from Settings panel."""

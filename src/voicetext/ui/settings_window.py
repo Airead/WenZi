@@ -995,6 +995,20 @@ class SettingsPanel:
         launcher_state = state.get("launcher", {})
         prefixes = launcher_state.get("prefixes", {})
 
+        # --- Enable Launcher toggle ---
+        y -= (self._CONTROL_HEIGHT + self._ROW_GAP)
+        self._launcher_enabled_check = self._make_switch(
+            "Enable Launcher", pad, y, content_w - 24,
+            launcher_state.get("enabled", True), label_font,
+            b"launcherEnabledToggled:", doc_view,
+        )
+        y = self._add_hint(
+            "Disable to skip launcher registration and hotkey binding (requires restart)",
+            pad + 12, y, content_w - 24, doc_view,
+        )
+
+        y -= self._SECTION_GAP
+
         # --- Hotkey section ---
         y -= self._LABEL_HEIGHT
         doc_view.addSubview_(
@@ -1507,6 +1521,10 @@ class SettingsPanel:
 
     def configDirResetClicked_(self, sender):
         self._call("on_config_dir_reset")
+
+    def launcherEnabledToggled_(self, sender):
+        enabled = sender.state() == 1
+        self._call("on_launcher_toggle", enabled)
 
     def launcherHotkeyChanged_(self, sender):
         value = str(sender.stringValue()).strip()
