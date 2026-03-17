@@ -2,8 +2,47 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional, Tuple
+
+_logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Shared clipboard/paste helpers used by multiple sources
+# ---------------------------------------------------------------------------
+
+
+def paste_text(text: str) -> None:
+    """Write *text* to clipboard and simulate Cmd+V to paste at cursor."""
+    try:
+        from wenzi.input import _set_pasteboard_concealed
+
+        import subprocess
+        import time
+
+        _set_pasteboard_concealed(text)
+        time.sleep(0.05)
+        subprocess.run(
+            [
+                "osascript", "-e",
+                'tell application "System Events" to keystroke "v" using command down',
+            ],
+            capture_output=True, timeout=5,
+        )
+    except Exception:
+        _logger.exception("Failed to paste text")
+
+
+def copy_to_clipboard(text: str) -> None:
+    """Write *text* to the system clipboard without pasting."""
+    try:
+        from wenzi.input import _set_pasteboard_concealed
+
+        _set_pasteboard_concealed(text)
+    except Exception:
+        _logger.exception("Failed to copy to clipboard")
 
 
 @dataclass
@@ -31,6 +70,7 @@ class ChooserItem:
         default=None, repr=False,
     )  # key: "cmd", "alt", "ctrl", "shift"
     delete_action: Optional[Callable] = field(default=None, repr=False)
+    confirm_delete: bool = False  # Two-step delete confirmation
 
 
 @dataclass
@@ -54,6 +94,9 @@ class ChooserSource:
     complete: Optional[Callable[[str, "ChooserItem"], Optional[str]]] = field(
         default=None, repr=False,
     )  # Tab completion: (query, selected_item) -> completed query (without prefix) or None
+    create_action: Optional[Callable[[str], None]] = field(
+        default=None, repr=False,
+    )  # Optional "create new" action; receives stripped query
 
 
 # ---------------------------------------------------------------------------

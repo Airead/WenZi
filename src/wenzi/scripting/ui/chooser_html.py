@@ -110,6 +110,28 @@ body { display: flex; flex-direction: column; }
 }
 .search-input::placeholder { color: var(--secondary); }
 
+/* Create button (shown for sources that support creation) */
+.create-group {
+    display: none; flex-shrink: 0;
+    align-items: center; gap: 4px;
+}
+.create-group.visible { display: flex; }
+.create-btn {
+    width: 24px; height: 24px;
+    border: 1px solid var(--border); border-radius: 6px;
+    background: var(--input-bg); color: var(--secondary);
+    font-size: 18px; line-height: 22px; text-align: center;
+    cursor: pointer; transition: all 0.15s;
+    padding: 0;
+}
+.create-btn:hover { color: var(--accent); border-color: var(--accent); }
+.create-hint {
+    font-size: 10px; color: var(--secondary);
+    background: var(--input-bg); border: 1px solid var(--border);
+    border-radius: 3px; padding: 1px 4px;
+    white-space: nowrap; opacity: 0.7;
+}
+
 /* Result list */
 .result-list {
     flex: 1; overflow-y: auto; overflow-x: hidden;
@@ -170,16 +192,20 @@ body { display: flex; flex-direction: column; }
     white-space: nowrap; opacity: 0.7;
 }
 .result-item .delete-btn {
-    width: 18px; height: 18px; flex-shrink: 0;
-    border: none; border-radius: 50%;
+    flex-shrink: 0; height: 18px; min-width: 18px;
+    border: none; border-radius: 9px;
     background: transparent; color: var(--secondary);
     font-size: 13px; line-height: 18px; text-align: center;
-    cursor: pointer; opacity: 0; transition: opacity 0.15s;
+    cursor: pointer; opacity: 0; transition: opacity 0.15s, background 0.15s, color 0.15s;
     padding: 0;
 }
 .result-item.selected .delete-btn { opacity: 0.6; }
 .result-item .delete-btn:hover {
     opacity: 1; background: var(--item-hover); color: var(--text);
+}
+.result-item .delete-btn.confirm {
+    opacity: 1; background: #ff3b30; color: #fff;
+    font-size: 10px; padding: 0 6px; font-weight: 500;
 }
 
 /* Empty state */
@@ -211,6 +237,10 @@ body { display: flex; flex-direction: column; }
     <input class="search-input" id="search-input"
            type="text" placeholder="Search..." autocomplete="off"
            autocorrect="off" autocapitalize="off" spellcheck="false">
+    <span class="create-group" id="create-group">
+        <button class="create-btn" id="create-btn" title="New...">+</button>
+        <span class="create-hint">&#8984;N</span>
+    </span>
 </div>
 
 <div class="main-content">
@@ -267,6 +297,8 @@ var emptyState = document.getElementById('empty-state');
 var previewPanel = document.getElementById('preview-panel');
 var footerLeft = document.getElementById('footer-left');
 var footerRight = document.getElementById('footer-right');
+var createGroup = document.getElementById('create-group');
+var createBtn = document.getElementById('create-btn');
 
 // --- Helpers ---
 function post(type, data) {
@@ -410,7 +442,11 @@ resultList.addEventListener('click', function(e) {
         if (row) {
             var idx = parseInt(row.getAttribute('data-idx'), 10);
             if (!isNaN(idx)) {
-                post('deleteItem', { index: idx, version: itemsVersion });
+                if (items[idx] && items[idx].confirmDelete) {
+                    triggerDelete(idx, e.target);
+                } else {
+                    post('deleteItem', { index: idx, version: itemsVersion });
+                }
             }
         }
         return;
@@ -425,6 +461,19 @@ resultList.addEventListener('click', function(e) {
         }
     }
 }, false);
+
+function _findRenderedRow(index) {
+    var spacer = resultList.firstChild;
+    if (!spacer) return null;
+    var h = ITEM_HEIGHT || ITEM_HEIGHT_DEFAULT;
+    var expectedTop = (index * h) + 'px';
+    for (var c = 0; c < spacer.childNodes.length; c++) {
+        if (spacer.childNodes[c].style.top === expectedTop) {
+            return spacer.childNodes[c];
+        }
+    }
+    return null;
+}
 
 // Virtual scroll handler
 var _scrollRafId = null;
@@ -615,14 +664,30 @@ document.addEventListener('keydown', function(e) {
         }
         return;
     }
-    // Delete/Backspace (not in search input): delete selected item
+    // Cmd+N: create new item (when create button is visible)
+    if (e.metaKey && (e.key === 'n' || e.key === 'N') && !e.shiftKey) {
+        if (createGroup.classList.contains('visible')) {
+            e.preventDefault();
+            createBtn.click();
+        }
+        return;
+    }
+    // Delete/Backspace: delete selected item
     if ((e.key === 'Delete' || e.key === 'Backspace') && e.metaKey) {
         if (selectedIndex >= 0 && selectedIndex < items.length
             && items[selectedIndex].deletable) {
             e.preventDefault();
-            post('deleteItem', {
-                index: selectedIndex, version: itemsVersion
-            });
+            if (items[selectedIndex].confirmDelete) {
+                var row = _findRenderedRow(selectedIndex);
+                if (row) {
+                    var btn = row.querySelector('.delete-btn');
+                    if (btn) triggerDelete(selectedIndex, btn);
+                }
+            } else {
+                post('deleteItem', {
+                    index: selectedIndex, version: itemsVersion
+                });
+            }
         }
         return;
     }
@@ -714,21 +779,18 @@ function setResults(newItems, version, selectedIdx) {
 
 function setPrefixHints(hints) {
     prefixHints = hints || [];
+    if (hints.length > 0) {
+        footerRight.innerHTML = hints.map(function(h) {
+            var parts = h.split(' ', 2);
+            return '<kbd>' + parts[0] + '</kbd> ' + (parts[1] || '');
+        }).join('  ');
+    } else {
+        footerRight.innerHTML = '';
+    }
 }
 
 function setModifierSubtitle(index, subtitle) {
-    // Find the rendered row for this index in the virtual list
-    var spacer = resultList.firstChild;
-    if (!spacer) return;
-    var h = ITEM_HEIGHT || ITEM_HEIGHT_DEFAULT;
-    var expectedTop = (index * h) + 'px';
-    var row = null;
-    for (var c = 0; c < spacer.childNodes.length; c++) {
-        if (spacer.childNodes[c].style.top === expectedTop) {
-            row = spacer.childNodes[c];
-            break;
-        }
-    }
+    var row = _findRenderedRow(index);
     if (!row) return;
     var sub = row.querySelector('.subtitle-text');
     if (sub && subtitle !== null) {
@@ -811,6 +873,54 @@ function setPreviewVisible(visible) {
     } else {
         previewPanel.classList.add('hidden');
         leftPanel.classList.add('full-width');
+    }
+}
+
+// --- Delete confirmation (two-step) ---
+var _deleteConfirmTimer = null;
+var _deleteConfirmIndex = -1;
+
+function triggerDelete(index, btn) {
+    if (_deleteConfirmIndex === index && btn.classList.contains('confirm')) {
+        // Second click/press — actually delete
+        clearDeleteConfirm();
+        post('deleteItem', { index: index, version: itemsVersion });
+        return;
+    }
+    // First click/press — enter confirm state
+    clearDeleteConfirm();
+    _deleteConfirmIndex = index;
+    btn.classList.add('confirm');
+    btn.textContent = 'Delete?';
+    _deleteConfirmTimer = setTimeout(function() {
+        clearDeleteConfirm();
+        _renderVisibleRows();
+    }, 3000);
+}
+
+function clearDeleteConfirm() {
+    if (_deleteConfirmTimer) {
+        clearTimeout(_deleteConfirmTimer);
+        _deleteConfirmTimer = null;
+    }
+    _deleteConfirmIndex = -1;
+}
+
+// --- Create button ---
+createBtn.addEventListener('click', function(e) {
+    e.preventDefault();
+    // Strip prefix from query (e.g. "sn hello" -> "hello")
+    var q = searchInput.value.trim();
+    var spaceIdx = q.indexOf(' ');
+    var stripped = spaceIdx >= 0 ? q.substring(spaceIdx + 1).trim() : '';
+    post('createItem', { query: stripped });
+});
+
+function setCreateButton(visible) {
+    if (visible) {
+        createGroup.classList.add('visible');
+    } else {
+        createGroup.classList.remove('visible');
     }
 }
 

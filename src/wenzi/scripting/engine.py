@@ -31,6 +31,7 @@ class ScriptEngine:
         self._usage_tracker = None
         self._query_history = None
         self._snippet_store = None
+        self._snippet_source = None
         self._snippet_expander = None
         self._reloading = False
 
@@ -53,6 +54,7 @@ class ScriptEngine:
         self._load_scripts()
         self._bind_chooser_hotkey()
         self._bind_source_hotkeys()
+        self._bind_new_snippet_hotkey()
         # Start hotkey/leader listeners after scripts register their bindings
         self._wz.hotkey.start()
         logger.info("Script engine started (script_dir=%s)", self._script_dir)
@@ -91,6 +93,7 @@ class ScriptEngine:
             self._load_scripts()
             self._bind_chooser_hotkey()
             self._bind_source_hotkeys()
+            self._bind_new_snippet_hotkey()
             self._wz.hotkey.start()
             logger.info("Scripts reloaded")
         finally:
@@ -105,6 +108,7 @@ class ScriptEngine:
         self._wz.chooser._ensure_command_source()
         self._bind_chooser_hotkey()
         self._bind_source_hotkeys()
+        self._bind_new_snippet_hotkey()
         self._wz.hotkey.start()
         logger.info("Chooser enabled at runtime")
 
@@ -281,6 +285,7 @@ class ScriptEngine:
             self._snippet_store = SnippetStore()
             self._wz.snippets._set_store(self._snippet_store)
             snippet_source = SnippetSource(self._snippet_store)
+            self._snippet_source = snippet_source
             self._wz.chooser.register_source(
                 snippet_source.as_chooser_source(prefix=prefix)
             )
@@ -474,6 +479,7 @@ class ScriptEngine:
                 self._snippet_store = SnippetStore()
                 self._wz.snippets._set_store(self._snippet_store)
                 snippet_source = SnippetSource(self._snippet_store)
+                self._snippet_source = snippet_source
                 self._wz.chooser.register_source(
                     snippet_source.as_chooser_source(
                         prefix=prefixes.get("snippets", "sn"),
@@ -540,6 +546,30 @@ class ScriptEngine:
                 logger.info(
                     "Source hotkey bound: %s -> %s", hotkey_str, source_key,
                 )
+
+    def _bind_new_snippet_hotkey(self) -> None:
+        """Bind the 'New Snippet' hotkey from config."""
+        chooser_config = self._config.get("chooser", {})
+        hotkey_str = chooser_config.get("new_snippet_hotkey", "")
+        if hotkey_str and self._snippet_source:
+            self._wz.hotkey.bind(
+                hotkey_str,
+                lambda: self._snippet_source.create_snippet(""),
+            )
+            logger.info("New snippet hotkey bound: %s", hotkey_str)
+
+    def rebind_new_snippet_hotkey(
+        self, old_hotkey: str, new_hotkey: str,
+    ) -> None:
+        """Unbind old new-snippet hotkey and bind the new one at runtime."""
+        if old_hotkey:
+            self._wz.hotkey.unbind(old_hotkey)
+        if new_hotkey and self._snippet_source:
+            self._wz.hotkey.bind(
+                new_hotkey,
+                lambda: self._snippet_source.create_snippet(""),
+            )
+            self._wz.hotkey.start()
 
     def _purge_user_modules(self) -> None:
         """Remove cached user script modules so reload picks up file changes."""

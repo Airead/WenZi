@@ -79,6 +79,7 @@ a = Analysis(
         'wenzi.ui.live_transcription_overlay',
         'wenzi.ui.streaming_overlay',
         'wenzi.ui.stats_panel',
+        'wenzi.ui.hud',
         'wenzi.ui.translate_webview',
         'wenzi.ui.vocab_build_window',
         # wenzi.controllers
@@ -129,6 +130,7 @@ a = Analysis(
         'wenzi.scripting.ui.chooser_panel',
         'wenzi.scripting.ui.leader_alert',
         'wenzi.scripting.ui.quicklook_panel',
+        'wenzi.scripting.ui.snippet_editor_panel',
         # third-party
         'sounddevice',
         'soundfile',

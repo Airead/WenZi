@@ -15,7 +15,9 @@ from wenzi.scripting.clipboard_monitor import (
     ClipboardMonitor,
     _icon_cache_path,
 )
-from wenzi.scripting.sources import ChooserItem, ChooserSource
+from wenzi.scripting.sources import (
+    ChooserItem, ChooserSource, copy_to_clipboard, paste_text,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -34,40 +36,6 @@ def _format_time_ago(timestamp: float) -> str:
     days = int(delta / 86400)
     return f"{days}d ago"
 
-
-def _paste_text(text: str) -> None:
-    """Write text to clipboard and simulate Cmd+V to paste at cursor."""
-    try:
-        from wenzi.input import _set_pasteboard_concealed
-
-        import subprocess
-        import time as _time
-
-        _set_pasteboard_concealed(text)
-        _time.sleep(0.05)
-        subprocess.run(
-            [
-                "osascript", "-e",
-                'tell application "System Events" to keystroke "v" using command down',
-            ],
-            capture_output=True, timeout=5,
-        )
-    except Exception:
-        logger.exception("Failed to paste clipboard text")
-
-
-def _copy_to_clipboard(text: str) -> None:
-    """Write text to the system clipboard (without pasting).
-
-    Uses concealed marker so the clipboard monitor does not re-record it,
-    but moves the entry to the top of history for freshness.
-    """
-    try:
-        from wenzi.input import _set_pasteboard_concealed
-
-        _set_pasteboard_concealed(text)
-    except Exception:
-        logger.exception("Failed to copy to clipboard")
 
 
 def _format_file_size(size_bytes: int) -> str:
@@ -278,11 +246,11 @@ class ClipboardSource:
 
                 def _do_paste(t=text, m=monitor):
                     m.promote(t)
-                    _paste_text(t)
+                    paste_text(t)
 
                 def _do_copy(t=text, m=monitor):
                     m.promote(t)
-                    _copy_to_clipboard(t)
+                    copy_to_clipboard(t)
 
                 def _do_delete_text(t=text, m=monitor):
                     m.delete_text(t)

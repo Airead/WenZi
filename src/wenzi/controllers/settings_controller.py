@@ -179,6 +179,8 @@ class SettingsController:
             "on_launcher_refresh_icons": self.launcher_refresh_icons,
             "on_launcher_source_hotkey_record": self.launcher_source_hotkey_record,
             "on_launcher_source_hotkey_clear": self.launcher_source_hotkey_clear,
+            "on_new_snippet_hotkey_record": self.new_snippet_hotkey_record,
+            "on_new_snippet_hotkey_clear": self.new_snippet_hotkey_clear,
             "_reopen": lambda: self.on_open_settings(None),
         }
 
@@ -907,6 +909,7 @@ class SettingsController:
                 "snippets": "",
                 "bookmarks": "",
             }),
+            "new_snippet_hotkey": chooser_cfg.get("new_snippet_hotkey", ""),
         }
 
     def launcher_toggle(self, enabled: bool) -> None:
@@ -1107,6 +1110,42 @@ class SettingsController:
 
         app._settings_panel.update_source_hotkey(source_key, "")
         logger.info("Source hotkey cleared: %s", source_key)
+
+    def new_snippet_hotkey_record(self) -> None:
+        """Record a combo hotkey for New Snippet."""
+        app = self._app
+        recorded_key = app.record_combo_hotkey_modal()
+        if recorded_key:
+            chooser_cfg = app._config.setdefault("scripting", {}).setdefault(
+                "chooser", {}
+            )
+            old_hotkey = chooser_cfg.get("new_snippet_hotkey", "")
+            chooser_cfg["new_snippet_hotkey"] = recorded_key
+            self._save_and_reload()
+
+            if hasattr(app, "_script_engine"):
+                app._script_engine.rebind_new_snippet_hotkey(
+                    old_hotkey, recorded_key,
+                )
+
+            app._settings_panel.update_new_snippet_hotkey(recorded_key)
+            logger.info("New snippet hotkey recorded: %s", recorded_key)
+
+    def new_snippet_hotkey_clear(self) -> None:
+        """Clear the New Snippet hotkey."""
+        app = self._app
+        chooser_cfg = app._config.setdefault("scripting", {}).setdefault(
+            "chooser", {}
+        )
+        old_hotkey = chooser_cfg.get("new_snippet_hotkey", "")
+        chooser_cfg["new_snippet_hotkey"] = ""
+        self._save_and_reload()
+
+        if old_hotkey and hasattr(app, "_script_engine"):
+            app._script_engine.wz.hotkey.unbind(old_hotkey)
+
+        app._settings_panel.update_new_snippet_hotkey("")
+        logger.info("New snippet hotkey cleared")
 
     def launcher_usage_learning_toggle(self, enabled: bool) -> None:
         """Handle launcher usage learning toggle from Settings panel."""
