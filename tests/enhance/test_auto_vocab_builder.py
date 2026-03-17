@@ -343,3 +343,80 @@ class TestInitCounterFromDisk:
 
         builder.on_correction_logged()
         mock_build.assert_called_once()
+
+
+class TestStatusUpdate:
+    @patch("wenzi.enhance.auto_vocab_builder.send_notification")
+    def test_status_updates_during_build(self, mock_notify, config):
+        """on_status_update should be called with progress and then empty to restore."""
+        # Simulate a build that streams "term|cat|var|ctx\nPython|tech||lang\n"
+        async def fake_build(callbacks=None, **kwargs):
+            if callbacks and callbacks.on_batch_start:
+                callbacks.on_batch_start(1, 1)
+            if callbacks and callbacks.on_stream_chunk:
+                callbacks.on_stream_chunk("term|cat|var|ctx\n")
+                callbacks.on_stream_chunk("Python|tech||lang\n")
+                callbacks.on_stream_chunk("Java|tech||lang\n")
+            return {"new_entries": 2, "total_entries": 2}
+
+        mock_builder = MagicMock()
+        mock_builder.build = fake_build
+
+        status_calls = []
+        builder = AutoVocabBuilder(
+            config, enabled=True, threshold=1,
+            on_status_update=lambda s: status_calls.append(s),
+        )
+        builder._building = True
+
+        with patch(
+            "wenzi.enhance.vocabulary_builder.VocabularyBuilder",
+            return_value=mock_builder,
+        ):
+            builder._build()
+
+        # Should have: "VB ..." (start), "VB +1/0" (Python), "VB +2/0" (Java), "" (restore)
+        assert status_calls[0] == "VB ..."
+        assert "VB 1/0" in status_calls
+        assert "VB 2/0" in status_calls
+        assert status_calls[-1] == ""
+
+    @patch("wenzi.enhance.auto_vocab_builder.send_notification")
+    def test_status_restored_on_failure(self, mock_notify, config):
+        """on_status_update should send empty string even when build fails."""
+        status_calls = []
+        builder = AutoVocabBuilder(
+            config, enabled=True, threshold=1,
+            on_status_update=lambda s: status_calls.append(s),
+        )
+        builder._building = True
+
+        with patch(
+            "wenzi.enhance.vocabulary_builder.VocabularyBuilder",
+            side_effect=Exception("fail"),
+        ):
+            builder._build()
+
+        # Should still restore status
+        assert status_calls[-1] == ""
+
+    def test_no_status_update_without_callback(self, config):
+        """Build should work fine without on_status_update callback."""
+        async def fake_build(**kwargs):
+            return {"new_entries": 0, "total_entries": 0}
+
+        mock_builder = MagicMock()
+        mock_builder.build = fake_build
+
+        builder = AutoVocabBuilder(config, enabled=True, threshold=1)
+        builder._building = True
+
+        with patch(
+            "wenzi.enhance.auto_vocab_builder.send_notification",
+        ), patch(
+            "wenzi.enhance.vocabulary_builder.VocabularyBuilder",
+            return_value=mock_builder,
+        ):
+            builder._build()
+
+        assert builder._building is False

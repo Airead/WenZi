@@ -23,6 +23,7 @@ class AutoVocabBuilder:
         enabled: bool = True,
         threshold: int = 10,
         on_build_done: Optional[Callable[[], None]] = None,
+        on_status_update: Optional[Callable[[str], None]] = None,
         conversation_history: Any = None,
         config_dir: str | None = None,
     ) -> None:
@@ -34,6 +35,7 @@ class AutoVocabBuilder:
         self._lock = threading.Lock()
         self._enhancer = None
         self._on_build_done = on_build_done
+        self._on_status_update = on_status_update
         self._conversation_history = conversation_history
         self._config_dir = config_dir
         self._init_counter_from_disk()
@@ -98,8 +100,11 @@ class AutoVocabBuilder:
 
     def _build(self) -> None:
         """Execute incremental vocabulary build, reload index, and notify."""
+        if self._on_status_update:
+            self._on_status_update("VB ...")
         try:
-            from .vocabulary_builder import VocabularyBuilder
+            from .vocabulary_builder import BuildCallbacks, VocabularyBuilder
+            from .vocabulary import get_vocab_entry_count
 
             ai_cfg = self._config.get("ai_enhance", {})
             kwargs = {}
@@ -110,8 +115,37 @@ class AutoVocabBuilder:
                 **kwargs,
             )
 
+            # Track extracted entry lines in real-time via stream chunks
+            entry_count = 0
+            got_header = False
+            existing_count = get_vocab_entry_count(
+                self._config_dir or ""
+            )
+
+            def _on_stream_chunk(chunk: str) -> None:
+                nonlocal entry_count, got_header
+                for ch in chunk:
+                    if ch == "\n":
+                        if not got_header:
+                            got_header = True  # skip header line
+                        else:
+                            entry_count += 1
+                            if self._on_status_update:
+                                self._on_status_update(
+                                    f"VB {entry_count}/{existing_count}"
+                                )
+
+            def _on_batch_start(batch_idx: int, total: int) -> None:
+                nonlocal got_header
+                got_header = False  # reset header detection for each batch
+
+            callbacks = BuildCallbacks(
+                on_batch_start=_on_batch_start,
+                on_stream_chunk=_on_stream_chunk,
+            )
+
             loop = asyncio.new_event_loop()
-            summary = loop.run_until_complete(builder.build())
+            summary = loop.run_until_complete(builder.build(callbacks=callbacks))
             loop.run_until_complete(loop.shutdown_asyncgens())
             loop.close()
 
@@ -147,3 +181,5 @@ class AutoVocabBuilder:
         finally:
             with self._lock:
                 self._building = False
+            if self._on_status_update:
+                self._on_status_update("")

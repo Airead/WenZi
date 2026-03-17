@@ -290,11 +290,13 @@ class WenZiApp(StatusBarApp):
 
         # Auto vocabulary builder
         vocab_cfg = ai_cfg.get("vocabulary", {})
+        self._auto_vocab_build_old_status: str | None = None
         self._auto_vocab_builder = AutoVocabBuilder(
             config=self._config,
             enabled=vocab_cfg.get("auto_build", True),
             threshold=vocab_cfg.get("auto_build_threshold", 10),
             on_build_done=self._update_vocab_title,
+            on_status_update=self._on_auto_vocab_status,
             conversation_history=self._conversation_history,
             config_dir=self._config_dir,
         )
@@ -536,6 +538,9 @@ class WenZiApp(StatusBarApp):
             if text.startswith("DL "):
                 symbol_name = "arrow.down.circle"
                 bar_title = text[3:]  # show "X%" next to icon
+            elif text.startswith("VB "):
+                symbol_name = "book.fill"
+                bar_title = text[3:]  # show "+N" next to icon
             else:
                 symbol_name = "mic.fill"  # safe fallback
 
@@ -847,6 +852,18 @@ class WenZiApp(StatusBarApp):
 
     def _on_enhance_thinking_toggle(self, sender) -> None:
         self._enhance_mode_controller.on_enhance_thinking_toggle(sender)
+
+    def _on_auto_vocab_status(self, status: str) -> None:
+        """Handle status updates from auto vocabulary builder."""
+        if status:
+            if self._auto_vocab_build_old_status is None:
+                self._auto_vocab_build_old_status = self._current_status
+            self._set_status(status)
+        else:
+            # Build finished — restore previous status
+            old = self._auto_vocab_build_old_status or "WZ"
+            self._auto_vocab_build_old_status = None
+            self._set_status(old)
 
     def _update_vocab_title(self) -> None:
         self._enhance_mode_controller.update_vocab_title()
