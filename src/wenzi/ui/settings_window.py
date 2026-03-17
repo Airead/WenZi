@@ -104,6 +104,7 @@ class SettingsPanel:
         self._restart_key_popup = None
         self._cancel_key_popup = None
         self._auto_build_check = None
+        self._vocab_build_model_popup = None
         self._history_check = None
         self._config_dir_field = None
 
@@ -912,6 +913,29 @@ class SettingsPanel:
             pad + 12, y, content_w - 24, doc_view,
         )
 
+        # Vocab build model popup
+        y -= (self._CONTROL_HEIGHT + self._ROW_GAP)
+        bm_label = self._make_label(
+            "Build Model", pad + 28, y, 90, small_font,
+        )
+        doc_view.addSubview_(bm_label)
+
+        llm_models = state.get("llm_models", [])
+        current_build_model = state.get("vocab_build_model")  # (provider, model) or None
+        bm_items = [(("", ""), "Default")]
+        for provider, model, display_name in sorted(llm_models, key=lambda x: x[2]):
+            bm_items.append(((provider, model), display_name))
+
+        self._vocab_build_model_popup = self._make_popup(
+            bm_items, current_build_model or ("", ""),
+            pad + 28 + 90, y, content_w - 28 - 90 - 12, small_font,
+            b"vocabBuildModelChanged:", doc_view,
+        )
+        y = self._add_hint(
+            "LLM used for vocabulary extraction (Default = same as AI enhance)",
+            pad + 28, y, content_w - 40, doc_view,
+        )
+
         y -= (self._CONTROL_HEIGHT + self._ROW_GAP)
         self._history_check = self._make_switch(
             "Conversation History", pad + 12, y, content_w - 24,
@@ -1672,6 +1696,13 @@ class SettingsPanel:
 
     def autoBuildCheckChanged_(self, sender):
         self._call("on_auto_build_toggle", bool(sender.state()))
+
+    def vocabBuildModelChanged_(self, sender):
+        value = sender.selectedItem().representedObject()
+        if value is None:
+            value = ("", "")
+        provider, model = value
+        self._call("on_vocab_build_model_select", provider, model)
 
     def historyCheckChanged_(self, sender):
         self._call("on_history_toggle", bool(sender.state()))

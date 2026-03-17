@@ -318,9 +318,31 @@ class VocabularyBuilder:
 
         return self._parse_llm_response(content), usage
 
+    def _resolve_provider_and_model(self) -> tuple[str, str]:
+        """Resolve the effective provider name and model for vocab building.
+
+        Checks vocabulary-specific build_provider/build_model first (treated
+        as a pair — both must be set), then falls back to default_provider/
+        default_model.
+        """
+        vocab_cfg = self._config.get("vocabulary", {})
+        build_provider = vocab_cfg.get("build_provider", "")
+        build_model = vocab_cfg.get("build_model", "")
+
+        # Treat as a pair: only use vocab-specific if both are set
+        if build_provider and build_model:
+            providers = self._config.get("providers", {})
+            if build_provider in providers:
+                return build_provider, build_model
+
+        return (
+            self._config.get("default_provider", ""),
+            self._config.get("default_model", ""),
+        )
+
     def _get_active_provider_name(self) -> str:
         """Get the name of the active provider."""
-        provider_name = self._config.get("default_provider", "")
+        provider_name, _ = self._resolve_provider_and_model()
         providers = self._config.get("providers", {})
         if provider_name and provider_name in providers:
             return provider_name
@@ -330,7 +352,7 @@ class VocabularyBuilder:
 
     def _get_provider_config(self) -> Optional[Dict[str, Any]]:
         """Get the active provider config for LLM calls."""
-        provider_name = self._config.get("default_provider", "")
+        provider_name, model = self._resolve_provider_and_model()
         providers = self._config.get("providers", {})
         pcfg = providers.get(provider_name, {})
         if not pcfg:
@@ -342,7 +364,6 @@ class VocabularyBuilder:
                 return None
 
         models = pcfg.get("models", [])
-        model = self._config.get("default_model", "")
         if model not in models and models:
             model = models[0]
 

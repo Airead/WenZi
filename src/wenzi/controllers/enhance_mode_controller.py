@@ -269,14 +269,21 @@ Output only the processed text without any explanation."""
         from wenzi.ui.vocab_build_window import VocabBuildProgressPanel
 
         # Build enhance info string for the progress panel
-        enhance_info = ""
-        if app._enhancer:
+        # Use vocab-specific build model if configured, else fall back to enhance default
+        vocab_cfg = app._config.get("ai_enhance", {}).get("vocabulary", {})
+        bp = vocab_cfg.get("build_provider", "")
+        bm = vocab_cfg.get("build_model", "")
+        if bp and bm:
+            enhance_info = f"{bp} / {bm}"
+        elif app._enhancer:
             parts = []
             if app._enhancer.provider_name:
                 parts.append(app._enhancer.provider_name)
             if app._enhancer.model_name:
                 parts.append(app._enhancer.model_name)
             enhance_info = " / ".join(parts)
+        else:
+            enhance_info = ""
 
         progress_panel = VocabBuildProgressPanel()
         # _on_vocab_build runs on the main thread (rumps callback), so show directly

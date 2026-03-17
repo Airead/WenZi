@@ -930,3 +930,88 @@ class TestBuildRetryAndAbort:
         assert len(retry_calls) == 1
         assert retry_calls[0] == (1, 1)
         assert result["new_entries"] == 1
+
+
+class TestBuildModelSelection:
+    def _make_multi_provider_config(self, **vocab_overrides):
+        cfg = {
+            "default_provider": "ollama",
+            "default_model": "qwen2.5:7b",
+            "providers": {
+                "ollama": {
+                    "base_url": "http://localhost:11434/v1",
+                    "api_key": "ollama",
+                    "models": ["qwen2.5:7b"],
+                },
+                "openai": {
+                    "base_url": "https://api.openai.com/v1",
+                    "api_key": "sk-test",
+                    "models": ["gpt-4o", "gpt-4o-mini"],
+                },
+            },
+            "vocabulary": vocab_overrides,
+        }
+        return cfg
+
+    def test_default_uses_enhance_model(self):
+        """Without build_provider/model, uses default_provider/model."""
+        cfg = self._make_multi_provider_config()
+        builder = VocabularyBuilder(cfg)
+        pcfg = builder._get_provider_config()
+        assert pcfg["model"] == "qwen2.5:7b"
+        assert pcfg["base_url"] == "http://localhost:11434/v1"
+        assert builder._get_active_provider_name() == "ollama"
+
+    def test_build_model_overrides_default(self):
+        """build_provider/model overrides the default."""
+        cfg = self._make_multi_provider_config(
+            build_provider="openai", build_model="gpt-4o",
+        )
+        builder = VocabularyBuilder(cfg)
+        pcfg = builder._get_provider_config()
+        assert pcfg["model"] == "gpt-4o"
+        assert pcfg["base_url"] == "https://api.openai.com/v1"
+        assert pcfg["api_key"] == "sk-test"
+        assert builder._get_active_provider_name() == "openai"
+
+    def test_empty_build_model_falls_back(self):
+        """Empty build_provider/model falls back to default."""
+        cfg = self._make_multi_provider_config(
+            build_provider="", build_model="",
+        )
+        builder = VocabularyBuilder(cfg)
+        pcfg = builder._get_provider_config()
+        assert pcfg["model"] == "qwen2.5:7b"
+        assert builder._get_active_provider_name() == "ollama"
+
+    def test_partial_build_config_falls_back(self):
+        """Only build_provider set (no build_model) falls back to default."""
+        cfg = self._make_multi_provider_config(
+            build_provider="openai", build_model="",
+        )
+        builder = VocabularyBuilder(cfg)
+        pcfg = builder._get_provider_config()
+        # Should fall back to default, not use openai with wrong model
+        assert pcfg["model"] == "qwen2.5:7b"
+        assert builder._get_active_provider_name() == "ollama"
+
+    def test_removed_provider_falls_back(self):
+        """build_provider pointing to non-existent provider falls back."""
+        cfg = self._make_multi_provider_config(
+            build_provider="removed", build_model="some-model",
+        )
+        builder = VocabularyBuilder(cfg)
+        pcfg = builder._get_provider_config()
+        assert pcfg["model"] == "qwen2.5:7b"
+        assert builder._get_active_provider_name() == "ollama"
+
+    def test_build_model_not_in_provider_list(self):
+        """build_model not in provider's model list falls back to first model."""
+        cfg = self._make_multi_provider_config(
+            build_provider="openai", build_model="nonexistent-model",
+        )
+        builder = VocabularyBuilder(cfg)
+        pcfg = builder._get_provider_config()
+        # Provider is openai (valid), but model falls back to first in list
+        assert pcfg["base_url"] == "https://api.openai.com/v1"
+        assert pcfg["model"] == "gpt-4o"

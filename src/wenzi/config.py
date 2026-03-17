@@ -185,6 +185,8 @@ DEFAULT_CONFIG: Dict[str, Any] = {
             "build_timeout": 600,
             "auto_build": True,
             "auto_build_threshold": 10,
+            "build_provider": "",
+            "build_model": "",
         },
         "conversation_history": {
             "enabled": False,
