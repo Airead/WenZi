@@ -80,14 +80,21 @@ echo "==> Verifying signature..."
 codesign --verify --verbose "$APP_PATH"
 
 echo "==> Creating DMG..."
-DMG_DIR=$(mktemp -d)
-cp -R "$APP_PATH" "$DMG_DIR/"
-ln -s /Applications "$DMG_DIR/Applications"
-hdiutil create -volname "WenZi" \
-    -srcfolder "$DMG_DIR" \
-    -ov -format UDZO \
-    "$DMG_PATH"
-rm -rf "$DMG_DIR"
+# Remove previous DMG if exists (create-dmg won't overwrite)
+rm -f "$DMG_PATH"
+create-dmg \
+    --volname "WenZi" \
+    --volicon "$PROJECT_DIR/resources/dmg-volume.icns" \
+    --background "$PROJECT_DIR/resources/dmg-background.png" \
+    --window-pos 200 120 \
+    --window-size 600 400 \
+    --icon-size 128 \
+    --icon "WenZi.app" 175 190 \
+    --app-drop-link 425 190 \
+    --hide-extension "WenZi.app" \
+    --no-internet-enable \
+    "$DMG_PATH" \
+    "$APP_PATH"
 
 APP_SIZE=$(du -sh "$APP_PATH" | cut -f1)
 DMG_SIZE=$(du -sh "$DMG_PATH" | cut -f1)

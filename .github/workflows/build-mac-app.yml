@@ -94,17 +94,25 @@ jobs:
           echo "==> Verifying signature..."
           codesign --verify --verbose "$APP_PATH"
 
+      - name: Install create-dmg
+        run: brew install create-dmg
+
       - name: Create DMG
         run: |
-          DMG_DIR="$RUNNER_TEMP/dmg_contents"
           DMG_PATH="dist/WenZi-${{ steps.version.outputs.VERSION }}-arm64.dmg"
-          mkdir -p "$DMG_DIR"
-          cp -R dist/WenZi.app "$DMG_DIR/"
-          ln -s /Applications "$DMG_DIR/Applications"
-          hdiutil create -volname "WenZi" \
-            -srcfolder "$DMG_DIR" \
-            -ov -format UDZO \
-            "$DMG_PATH"
+          create-dmg \
+            --volname "WenZi" \
+            --volicon "resources/dmg-volume.icns" \
+            --background "resources/dmg-background.png" \
+            --window-pos 200 120 \
+            --window-size 600 400 \
+            --icon-size 128 \
+            --icon "WenZi.app" 175 190 \
+            --app-drop-link 425 190 \
+            --hide-extension "WenZi.app" \
+            --no-internet-enable \
+            "$DMG_PATH" \
+            "dist/WenZi.app"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
