@@ -173,7 +173,7 @@ class CalculatorSource:
             try:
                 import pint
 
-                self._ureg = pint.UnitRegistry(cache_folder=":auto:")
+                self._ureg = pint.UnitRegistry()
                 logger.info("Pint UnitRegistry initialized")
             except Exception:
                 logger.exception("Failed to initialize pint")

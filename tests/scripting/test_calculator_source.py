@@ -22,7 +22,7 @@ def calc_with_pint(calc):
     """Ensure Pint is fully initialized before running tests."""
     import pint
 
-    calc._ureg = pint.UnitRegistry(cache_folder=":auto:")
+    calc._ureg = pint.UnitRegistry()
     calc._ureg_ready = True
     return calc
 
