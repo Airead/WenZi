@@ -91,16 +91,33 @@ class PreviewController:
     ) -> str | None:
         """Log enhancement result to conversation history.
 
-        Chain modes (identified by ``is_chain`` flag in *result_holder*)
-        skip logging entirely — the user cannot verify intermediate step
-        results, so recording them as confirmed history could mislead the
-        LLM.  Chain modes only *read* from each step's per-mode history
-        during execution.
-
         Returns:
             The timestamp of the logged record, or ``None`` for chain modes.
         """
         if result_holder.get("is_chain"):
+            # Design decision: chain modes do NOT write to conversation history.
+            #
+            # Why:
+            #   In a chain like "proofread → translate", the user only sees and
+            #   can edit the final output (translation).  Intermediate results
+            #   (e.g. the proofread text) are never shown to the user for
+            #   verification.  If we logged these unverified intermediate
+            #   results as "confirmed" conversation history, the LLM would
+            #   treat them as ground-truth correction examples in future
+            #   requests — potentially reinforcing errors the user never
+            #   approved.
+            #
+            # What chain modes DO:
+            #   During execution, each step *reads* from its own mode's
+            #   per-mode history (built from standalone usage of that mode).
+            #   This gives each step useful context without polluting the
+            #   history with unverified data.
+            #
+            # If this needs to change:
+            #   The key constraint is user verification.  If the UI is updated
+            #   to let users review/edit intermediate step results before
+            #   confirming, then those verified results CAN be logged under
+            #   each step's enhance_mode.
             return None
 
         return app._conversation_history.log(
