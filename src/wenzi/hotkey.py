@@ -187,8 +187,16 @@ class _QuartzAllKeysListener:
         self._tap = None
         self._loop = None
         self._thread: Optional[threading.Thread] = None
-        # Track modifier key states to detect press vs release
-        self._mod_flags_prev = 0
+        # Track modifier key states to detect press vs release.
+        # Snapshot current flags so a modifier held across listener
+        # restart is not misinterpreted as a new press.
+        try:
+            import Quartz as _Q
+            self._mod_flags_prev = _Q.CGEventSourceFlagsState(
+                _Q.kCGEventSourceStateCombinedSessionState
+            )
+        except Exception:
+            self._mod_flags_prev = 0
 
     def _callback(self, proxy, event_type, event, refcon):
         try:
@@ -299,6 +307,8 @@ class _QuartzAllKeysListener:
     def stop(self) -> None:
         import Quartz
 
+        if self._tap is not None:
+            Quartz.CGEventTapEnable(self._tap, False)
         if self._loop is not None:
             Quartz.CFRunLoopStop(self._loop)
             self._loop = None
@@ -403,6 +413,8 @@ class TapHotkeyListener:
     def stop(self) -> None:
         import Quartz
 
+        if self._tap is not None:
+            Quartz.CGEventTapEnable(self._tap, False)
         if self._loop is not None:
             Quartz.CFRunLoopStop(self._loop)
             self._loop = None

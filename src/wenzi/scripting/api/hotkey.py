@@ -48,6 +48,13 @@ class HotkeyAPI:
         with self._lock:
             self._active_leader = None
             self._leader_triggered = False
+        # Close leader alert panel (may be called from background thread)
+        try:
+            from PyObjCTools import AppHelper
+
+            AppHelper.callAfter(self._leader_alert.close)
+        except Exception:
+            pass
         logger.info("Hotkey API stopped")
 
     def _start_leader_listener(self) -> None:

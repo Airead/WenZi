@@ -31,6 +31,7 @@ class ScriptEngine:
         self._usage_tracker = None
         self._snippet_store = None
         self._snippet_expander = None
+        self._reloading = False
 
         # Create wz namespace and install as module singleton
         from wenzi.scripting.api import _WZNamespace
@@ -72,18 +73,25 @@ class ScriptEngine:
 
     def reload(self) -> None:
         """Reload all scripts: stop, clear, re-load, start."""
-        logger.info("Reloading scripts...")
-        self.stop()
-        self._purge_user_modules()
-        # Reset APIs so they create fresh instances
-        self._wz._hotkey_api = None
-        self._wz._chooser_api = None
-        self._register_builtin_sources()
-        self._load_scripts()
-        self._bind_chooser_hotkey()
-        self._bind_source_hotkeys()
-        self._wz.hotkey.start()
-        logger.info("Scripts reloaded")
+        if self._reloading:
+            logger.debug("Reload already in progress, skipping")
+            return
+        self._reloading = True
+        try:
+            logger.info("Reloading scripts...")
+            self.stop()
+            self._purge_user_modules()
+            # Reset APIs so they create fresh instances
+            self._wz._hotkey_api = None
+            self._wz._chooser_api = None
+            self._register_builtin_sources()
+            self._load_scripts()
+            self._bind_chooser_hotkey()
+            self._bind_source_hotkeys()
+            self._wz.hotkey.start()
+            logger.info("Scripts reloaded")
+        finally:
+            self._reloading = False
 
     # ── Runtime chooser on/off ─────────────────────────────────────
 

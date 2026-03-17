@@ -99,3 +99,11 @@ class TestHotkeyAPI:
         mapping = LeaderMapping(key="i", exec_cmd="echo hello")
         api._execute_mapping(mapping)
         mock_sp.run.assert_called_once()
+
+    @patch("PyObjCTools.AppHelper.callAfter")
+    def test_stop_closes_leader_alert(self, mock_call_after):
+        """stop() should close the leader alert panel to prevent orphaned panels."""
+        _, api = self._make_api()
+        api._leader_alert = MagicMock()
+        api.stop()
+        mock_call_after.assert_called_with(api._leader_alert.close)

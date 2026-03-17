@@ -80,6 +80,27 @@ class TestScriptEngine:
 
     @patch("wenzi.scripting.api.hotkey.HotkeyAPI.start")
     @patch("wenzi.scripting.api.hotkey.HotkeyAPI.stop")
+    def test_reload_skips_when_already_reloading(self, mock_stop, mock_start, tmp_path):
+        """Concurrent reload calls should be skipped to prevent race conditions."""
+        script_dir = tmp_path / "scripts"
+        script_dir.mkdir()
+        init_py = script_dir / "init.py"
+        init_py.write_text("")
+
+        engine = ScriptEngine(script_dir=str(script_dir))
+        engine.start()
+
+        # Simulate reload already in progress
+        engine._reloading = True
+        engine.reload()
+        # stop() is only called once (from start), not again from reload
+        mock_stop.assert_not_called()
+
+        engine._reloading = False
+        engine.stop()
+
+    @patch("wenzi.scripting.api.hotkey.HotkeyAPI.start")
+    @patch("wenzi.scripting.api.hotkey.HotkeyAPI.stop")
     def test_chooser_disabled_skips_sources_and_hotkeys(self, mock_stop, mock_start):
         """When chooser.enabled is False, no sources are registered and no hotkeys bound."""
         config = {

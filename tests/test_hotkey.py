@@ -153,6 +153,48 @@ class TestParseHotkeyForQuartz:
             _parse_hotkey_for_quartz("ctrl+nonsense")
 
 
+class TestQuartzAllKeysListener:
+    def test_init_snapshots_current_modifier_flags(self):
+        """_mod_flags_prev should reflect currently-held modifiers to avoid
+        false press events after listener restart (e.g. during script reload)."""
+        from wenzi.hotkey import _QuartzAllKeysListener
+
+        listener = _QuartzAllKeysListener(
+            on_press=MagicMock(), on_release=MagicMock()
+        )
+        # Should be an int (snapshot of current flags), not necessarily 0
+        assert isinstance(listener._mod_flags_prev, int)
+
+    def test_stop_disables_tap_before_stopping_runloop(self):
+        """stop() must disable the CGEventTap so it stops intercepting events
+        immediately, preventing queued/swallowed keystrokes."""
+        from wenzi.hotkey import _QuartzAllKeysListener
+        import Quartz
+
+        listener = _QuartzAllKeysListener(
+            on_press=MagicMock(), on_release=MagicMock()
+        )
+        fake_tap = MagicMock()
+        fake_loop = MagicMock()
+        listener._tap = fake_tap
+        listener._loop = fake_loop
+
+        with (
+            pytest.MonkeyPatch.context() as mp,
+        ):
+            calls = []
+            mp.setattr(Quartz, "CGEventTapEnable",
+                        lambda tap, en: calls.append(("disable", tap, en)))
+            mp.setattr(Quartz, "CFRunLoopStop",
+                        lambda loop: calls.append(("stop", loop)))
+            listener.stop()
+
+        assert calls[0] == ("disable", fake_tap, False)
+        assert calls[1] == ("stop", fake_loop)
+        assert listener._tap is None
+        assert listener._loop is None
+
+
 class TestTapHotkeyListener:
     def test_creation(self):
         cb = MagicMock()
@@ -164,6 +206,29 @@ class TestTapHotkeyListener:
     def test_stop_when_not_started(self):
         listener = TapHotkeyListener("ctrl+v", MagicMock())
         listener.stop()
+
+    def test_stop_disables_tap_before_stopping_runloop(self):
+        """stop() must disable the CGEventTap to avoid swallowing events."""
+        import Quartz
+
+        listener = TapHotkeyListener("ctrl+v", MagicMock())
+        fake_tap = MagicMock()
+        fake_loop = MagicMock()
+        listener._tap = fake_tap
+        listener._loop = fake_loop
+
+        with pytest.MonkeyPatch.context() as mp:
+            calls = []
+            mp.setattr(Quartz, "CGEventTapEnable",
+                        lambda tap, en: calls.append(("disable", tap, en)))
+            mp.setattr(Quartz, "CFRunLoopStop",
+                        lambda loop: calls.append(("stop", loop)))
+            listener.stop()
+
+        assert calls[0] == ("disable", fake_tap, False)
+        assert calls[1] == ("stop", fake_loop)
+        assert listener._tap is None
+        assert listener._loop is None
         assert listener._tap is None
 
 
