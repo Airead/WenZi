@@ -755,4 +755,5 @@ class SnippetSource:
                 "enter": "Paste",
                 "cmd_enter": "Copy",
             },
+            show_preview=True,
         )

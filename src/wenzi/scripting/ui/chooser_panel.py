@@ -157,7 +157,8 @@ class ChooserPanel:
     registered ChooserSource instances, and executes item actions.
     """
 
-    _PANEL_WIDTH = 960
+    _PANEL_WIDTH_WIDE = 960  # With preview panel
+    _PANEL_WIDTH_NARROW = 600  # Without preview panel
     _PANEL_HEIGHT_EXPANDED = 400
     _PANEL_HEIGHT_COLLAPSED = 48
     _MAX_TOTAL_RESULTS = 50
@@ -191,16 +192,27 @@ class ChooserPanel:
         self._esc_tap = None  # CGEventTap for global ESC
         self._esc_source = None  # CFRunLoopSource for ESC tap
         self._is_expanded: bool = False  # Panel height state
+        self._show_preview: bool = False  # Preview panel visibility
 
     # ------------------------------------------------------------------
-    # Panel resize (collapsed ↔ expanded)
+    # Panel resize (collapsed ↔ expanded, narrow ↔ wide)
     # ------------------------------------------------------------------
 
-    def _resize_panel(self, expanded: bool) -> None:
-        """Switch panel between collapsed (search bar only) and expanded."""
-        if self._panel is None or self._is_expanded == expanded:
+    def _resize_panel(
+        self, expanded: bool, show_preview: Optional[bool] = None,
+    ) -> None:
+        """Resize the panel in one step (height and/or width)."""
+        if self._panel is None:
             return
+        if show_preview is None:
+            show_preview = self._show_preview
+
+        if self._is_expanded == expanded and self._show_preview == show_preview:
+            return
+
         self._is_expanded = expanded
+        self._show_preview = show_preview
+
         from Foundation import NSMakeRect
 
         old = self._panel.frame()
@@ -208,11 +220,15 @@ class ChooserPanel:
             self._PANEL_HEIGHT_EXPANDED if expanded
             else self._PANEL_HEIGHT_COLLAPSED
         )
+        new_width = (
+            self._PANEL_WIDTH_WIDE if show_preview
+            else self._PANEL_WIDTH_NARROW
+        )
         # Keep the top edge fixed (macOS coords: origin is bottom-left)
         new_y = old.origin.y + old.size.height - new_height
-        new_frame = NSMakeRect(
-            old.origin.x, new_y, old.size.width, new_height,
-        )
+        # Keep horizontally centered
+        new_x = old.origin.x + (old.size.width - new_width) / 2
+        new_frame = NSMakeRect(new_x, new_y, new_width, new_height)
         self._panel.setFrame_display_(new_frame, True)
 
     # ------------------------------------------------------------------
@@ -502,6 +518,7 @@ class ChooserPanel:
         self._current_items = []
         self._history_index = -1
         self._is_expanded = False
+        self._show_preview = False
         self._closing = False
 
         # Reactivate the previous app's focused window, then restore accessory mode.
@@ -565,7 +582,9 @@ class ChooserPanel:
             if not query.strip():
                 self._current_items = []
                 self._calc_sticky = False
-                self._eval_js("setResults([])")
+                if self._show_preview:
+                    self._resize_panel(self._is_expanded, show_preview=False)
+                self._eval_js("setResults([]);setPreviewVisible(false)")
                 self._update_hides_on_deactivate()
                 return
             all_items = []
@@ -602,6 +621,12 @@ class ChooserPanel:
             self._calc_sticky = False
 
         self._update_hides_on_deactivate()
+
+        # Determine preview mode from active source
+        show_preview = source.show_preview if source is not None else False
+        if self._show_preview != show_preview:
+            self._resize_panel(self._is_expanded, show_preview=show_preview)
+
         self._push_items_to_js(source=source)
 
     def _boost_by_usage(self, query: str) -> None:
@@ -680,6 +705,9 @@ class ChooserPanel:
         parts.append(
             f"setActionHints({json.dumps(hints, ensure_ascii=False)})"
         )
+
+        show = "true" if self._show_preview else "false"
+        parts.append(f"setPreviewVisible({show})")
 
         self._eval_js(";".join(parts))
 
@@ -1042,12 +1070,14 @@ class ChooserPanel:
         PanelClass = _get_keyable_panel_class()
         initial_expanded = self._pending_initial_query is not None
         self._is_expanded = initial_expanded
+        self._show_preview = False  # Always start without preview
         initial_height = (
             self._PANEL_HEIGHT_EXPANDED if initial_expanded
             else self._PANEL_HEIGHT_COLLAPSED
         )
+        initial_width = self._PANEL_WIDTH_NARROW
         panel = PanelClass.alloc().initWithContentRect_styleMask_backing_defer_(
-            NSMakeRect(0, 0, self._PANEL_WIDTH, initial_height),
+            NSMakeRect(0, 0, initial_width, initial_height),
             0,  # Borderless
             NSBackingStoreBuffered,
             False,
@@ -1087,7 +1117,7 @@ class ChooserPanel:
         screen = NSScreen.mainScreen()
         if screen:
             sf = screen.frame()
-            x = sf.origin.x + (sf.size.width - self._PANEL_WIDTH) / 2
+            x = sf.origin.x + (sf.size.width - initial_width) / 2
             y = sf.origin.y + sf.size.height - initial_height - 200
             panel.setFrameOrigin_((x, y))
         else:
@@ -1104,7 +1134,7 @@ class ChooserPanel:
         wk_config.setUserContentController_(content_controller)
 
         webview = WKWebView.alloc().initWithFrame_configuration_(
-            NSMakeRect(0, 0, self._PANEL_WIDTH, initial_height),
+            NSMakeRect(0, 0, initial_width, initial_height),
             wk_config,
         )
         webview.setAutoresizingMask_(0x12)  # Width + Height sizable

@@ -361,4 +361,5 @@ class ClipboardSource:
                 "cmd_enter": "Copy",
                 "delete": "Delete",
             },
+            show_preview=True,
         )

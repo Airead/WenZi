@@ -49,6 +49,7 @@ class ChooserSource:
     action_hints: Optional[Dict[str, str]] = field(default=None, repr=False)
     # action_hints keys: "enter", "cmd_enter", "delete"
     # e.g. {"enter": "Paste", "cmd_enter": "Copy", "delete": "Delete"}
+    show_preview: bool = False  # Show the preview panel when this source is active
 
 
 # ---------------------------------------------------------------------------

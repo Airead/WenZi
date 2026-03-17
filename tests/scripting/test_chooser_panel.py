@@ -1281,8 +1281,8 @@ class TestPanelResize:
         panel = _make_panel()
         mock_panel = MagicMock()
         mock_panel.frame.return_value = MagicMock(
-            origin=MagicMock(x=100, y=500),
-            size=MagicMock(width=960, height=48),
+            origin=MagicMock(x=200, y=500),
+            size=MagicMock(width=600, height=48),
         )
         panel._panel = mock_panel
         panel._is_expanded = False
@@ -1294,6 +1294,8 @@ class TestPanelResize:
         frame_arg = mock_panel.setFrame_display_.call_args[0][0]
         # Height should be expanded (400)
         assert frame_arg[1][1] == panel._PANEL_HEIGHT_EXPANDED
+        # Width stays narrow (600) since show_preview is False
+        assert frame_arg[1][0] == panel._PANEL_WIDTH_NARROW
         # Top edge preserved: new_y = 500 + 48 - 400 = 148
         assert frame_arg[0][1] == 148
 
@@ -1302,8 +1304,8 @@ class TestPanelResize:
         panel = _make_panel()
         mock_panel = MagicMock()
         mock_panel.frame.return_value = MagicMock(
-            origin=MagicMock(x=100, y=148),
-            size=MagicMock(width=960, height=400),
+            origin=MagicMock(x=200, y=148),
+            size=MagicMock(width=600, height=400),
         )
         panel._panel = mock_panel
         panel._is_expanded = True
@@ -1353,3 +1355,143 @@ class TestPanelResize:
              patch("wenzi.scripting.ui.chooser_panel.restore_accessory"):
             panel.close()
         assert panel._is_expanded is False
+
+
+# ---------------------------------------------------------------------------
+# Panel width (narrow ↔ wide for preview)
+# ---------------------------------------------------------------------------
+
+
+class TestPanelPreviewWidth:
+    def test_initial_show_preview_is_false(self):
+        panel = _make_panel()
+        assert panel._show_preview is False
+
+    def test_search_with_preview_source_widens_panel(self):
+        """Prefix source with show_preview=True should widen the panel."""
+        panel = _make_panel()
+        mock_panel = MagicMock()
+        mock_panel.frame.return_value = MagicMock(
+            origin=MagicMock(x=200, y=148),
+            size=MagicMock(width=600, height=400),
+        )
+        panel._panel = mock_panel
+        panel._is_expanded = True
+        items = [ChooserItem(title="clip1")]
+        src = _make_source("clipboard", prefix="cb", items=items)
+        src.show_preview = True
+        panel.register_source(src)
+
+        panel._do_search("cb ")
+
+        assert panel._show_preview is True
+        mock_panel.setFrame_display_.assert_called_once()
+        frame_arg = mock_panel.setFrame_display_.call_args[0][0]
+        assert frame_arg[1][0] == panel._PANEL_WIDTH_WIDE
+
+    def test_search_without_preview_source_stays_narrow(self):
+        """General search should keep panel narrow."""
+        panel = _make_panel()
+        mock_panel = MagicMock()
+        panel._panel = mock_panel
+        panel._is_expanded = True
+        panel.register_source(
+            _make_source("apps", items=[ChooserItem(title="Safari")])
+        )
+
+        panel._do_search("Safari")
+
+        assert panel._show_preview is False
+        # No resize needed since already narrow
+        mock_panel.setFrame_display_.assert_not_called()
+
+    def test_switch_from_preview_to_no_preview(self):
+        """Switching from preview source to general search should narrow."""
+        panel = _make_panel()
+        mock_panel = MagicMock()
+        mock_panel.frame.return_value = MagicMock(
+            origin=MagicMock(x=100, y=148),
+            size=MagicMock(width=960, height=400),
+        )
+        panel._panel = mock_panel
+        panel._is_expanded = True
+        panel._show_preview = True  # Was in preview mode
+
+        panel.register_source(
+            _make_source("apps", items=[ChooserItem(title="Safari")])
+        )
+        panel._do_search("Safari")
+
+        assert panel._show_preview is False
+        mock_panel.setFrame_display_.assert_called_once()
+        frame_arg = mock_panel.setFrame_display_.call_args[0][0]
+        assert frame_arg[1][0] == panel._PANEL_WIDTH_NARROW
+
+    def test_push_items_includes_setPreviewVisible(self):
+        """_push_items_to_js should include setPreviewVisible call."""
+        panel = _make_panel()
+        panel._show_preview = True
+        panel._current_items = [ChooserItem(title="item")]
+        src = _make_source("clipboard", prefix="cb")
+        src.show_preview = True
+        panel._push_items_to_js(source=src)
+
+        js_call = panel._eval_js.call_args[0][0]
+        assert "setPreviewVisible(true)" in js_call
+
+    def test_push_items_preview_false(self):
+        """_push_items_to_js should send setPreviewVisible(false) for non-preview sources."""
+        panel = _make_panel()
+        panel._show_preview = False
+        panel._current_items = [ChooserItem(title="item")]
+        panel._push_items_to_js(source=None)
+
+        js_call = panel._eval_js.call_args[0][0]
+        assert "setPreviewVisible(false)" in js_call
+
+    def test_empty_query_resets_preview(self):
+        """Empty query should reset preview mode and narrow the panel."""
+        panel = _make_panel()
+        mock_panel = MagicMock()
+        mock_panel.frame.return_value = MagicMock(
+            origin=MagicMock(x=100, y=148),
+            size=MagicMock(width=960, height=400),
+        )
+        panel._panel = mock_panel
+        panel._is_expanded = True
+        panel._show_preview = True
+
+        panel._do_search("")
+
+        assert panel._show_preview is False
+
+    def test_close_resets_show_preview(self):
+        """close() should reset _show_preview to False."""
+        panel = _make_panel()
+        panel._show_preview = True
+        with patch("PyObjCTools.AppHelper.callAfter", side_effect=lambda fn, *a, **kw: fn(*a, **kw)), \
+             patch("wenzi.scripting.ui.chooser_panel.reactivate_app"), \
+             patch("wenzi.scripting.ui.chooser_panel.restore_accessory"):
+            panel.close()
+        assert panel._show_preview is False
+
+    def test_resize_width_keeps_centered(self):
+        """Width change should keep panel horizontally centered."""
+        panel = _make_panel()
+        mock_panel = MagicMock()
+        # Panel at x=200, width=600 → center at x=500
+        mock_panel.frame.return_value = MagicMock(
+            origin=MagicMock(x=200, y=148),
+            size=MagicMock(width=600, height=400),
+        )
+        panel._panel = mock_panel
+        panel._is_expanded = True
+        panel._show_preview = False
+
+        panel._resize_panel(True, show_preview=True)
+
+        frame_arg = mock_panel.setFrame_display_.call_args[0][0]
+        # Center preserved: old_center = 200 + 600/2 = 500
+        # new_x = 200 + (600 - 960)/2 = 200 - 180 = 20
+        assert frame_arg[0][0] == 20
+        assert frame_arg[1][0] == panel._PANEL_WIDTH_WIDE

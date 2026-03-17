@@ -52,6 +52,7 @@ body { display: flex; flex-direction: column; }
     display: flex; flex-direction: column;
     min-height: 0;
 }
+.left-panel.full-width { width: 100%; }
 .preview-panel {
     flex: 1; display: flex; flex-direction: column;
     align-items: center; justify-content: center;
@@ -59,6 +60,7 @@ body { display: flex; flex-direction: column; }
     padding: 16px; overflow: hidden;
     min-height: 0;
 }
+.preview-panel.hidden { display: none; }
 .preview-panel.empty {
     color: var(--secondary); font-size: 13px;
 }
@@ -212,13 +214,13 @@ body { display: flex; flex-direction: column; }
 </div>
 
 <div class="main-content">
-    <div class="left-panel">
+    <div class="left-panel full-width">
         <div class="result-list" id="result-list"></div>
         <div class="empty-state" id="empty-state" style="display:none;">
             Type to search
         </div>
     </div>
-    <div class="preview-panel empty" id="preview-panel">
+    <div class="preview-panel empty hidden" id="preview-panel">
         Select an item to preview
     </div>
 </div>
@@ -789,6 +791,17 @@ function setActionHints(hints) {
     }
     parts.push('<kbd>Esc</kbd> Close');
     footerLeft.innerHTML = parts.join('  ');
+}
+
+function setPreviewVisible(visible) {
+    var leftPanel = document.querySelector('.left-panel');
+    if (visible) {
+        previewPanel.classList.remove('hidden');
+        leftPanel.classList.remove('full-width');
+    } else {
+        previewPanel.classList.add('hidden');
+        leftPanel.classList.add('full-width');
+    }
 }
 
 // --- Init ---
