@@ -203,7 +203,7 @@ select {
                 <input type="checkbox" id="punc-cb" checked>
                 <span>Punc</span>
             </label>
-            <button class="btn hidden" id="play-btn" onclick="postAction('playAudio')">Play ▶</button>
+            <button class="btn hidden" id="play-btn" onclick="postAction('toggleAudio')">Play ▶</button>
             <button class="btn hidden" id="save-btn" onclick="postAction('saveAudio')">Save</button>
         </div>
     </div>
@@ -868,6 +868,7 @@ class ResultPreviewPanel:
         self._thinking_text: str = ""
         self._loading_timer = None
         self._loading_seconds: int = 0
+        self._playback_timer = None
         self._translate_webview = None
         self._page_loaded: bool = False
         self._pending_js: list[str] = []
@@ -977,6 +978,7 @@ class ResultPreviewPanel:
         animate_from_frame: object = None,
     ) -> None:
         """Show the preview panel with ASR text."""
+        self._stop_playback()
         self._on_confirm = on_confirm
         self._on_cancel = on_cancel
         self._on_mode_change = on_mode_change
@@ -1463,9 +1465,12 @@ class ResultPreviewPanel:
             if self._system_prompt:
                 self._show_info_panel("System Prompt", self._system_prompt)
 
-        elif msg_type == "playAudio":
+        elif msg_type == "toggleAudio":
             if self._asr_wav_data:
-                self._play_wav(self._asr_wav_data)
+                if self._asr_sound is not None and self._asr_sound.isPlaying():
+                    self._stop_playback()
+                else:
+                    self._play_wav(self._asr_wav_data)
 
         elif msg_type == "saveAudio":
             if self._asr_wav_data:
@@ -1687,16 +1692,24 @@ class ResultPreviewPanel:
             self._loading_timer = None
 
     def _stop_playback(self) -> None:
+        had_playback = self._playback_timer is not None or self._asr_sound is not None
+        if self._playback_timer is not None:
+            self._playback_timer.invalidate()
+            self._playback_timer = None
         if self._asr_sound is not None:
             try:
                 self._asr_sound.stop()
             except Exception:
                 pass
             self._asr_sound = None
+        if had_playback:
+            self._eval_js(
+                "document.getElementById('play-btn').textContent = 'Play \\u25b6'"
+            )
 
     def _play_wav(self, wav_data: bytes) -> None:
         from AppKit import NSSound
-        from Foundation import NSData
+        from Foundation import NSData, NSTimer
 
         self._stop_playback()
         ns_data = NSData.dataWithBytes_length_(wav_data, len(wav_data))
@@ -1704,6 +1717,19 @@ class ResultPreviewPanel:
         if sound:
             sound.play()
             self._asr_sound = sound
+            self._eval_js(
+                "document.getElementById('play-btn').textContent = 'Stop \\u25a0'"
+            )
+            self._playback_timer = (
+                NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
+                    0.3, self, b"tickPlaybackTimer:", None, True,
+                )
+            )
+
+    def tickPlaybackTimer_(self, timer) -> None:
+        """NSTimer callback: check if audio playback has finished."""
+        if self._asr_sound is None or not self._asr_sound.isPlaying():
+            self._stop_playback()
 
     def _save_wav(self, wav_data: bytes) -> None:
         from AppKit import NSSavePanel

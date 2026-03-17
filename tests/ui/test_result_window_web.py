@@ -963,3 +963,142 @@ class TestJsCallQueue:
         panel._webview.evaluateJavaScript_completionHandler_.assert_called_once()
         combined = panel._webview.evaluateJavaScript_completionHandler_.call_args[0][0]
         assert combined == "first();second();third()"
+
+
+# ---------------------------------------------------------------------------
+# Playback toggle tests
+# ---------------------------------------------------------------------------
+
+
+class TestPlaybackToggle:
+    """Tests for Play/Stop toggle button behaviour."""
+
+    def test_toggle_audio_starts_playback_when_not_playing(self):
+        from wenzi.ui.result_window_web import ResultPreviewPanel
+
+        panel = _build_panel(ResultPreviewPanel())
+        panel._asr_wav_data = b"fake-wav"
+        panel._play_wav = MagicMock()
+
+        panel._handle_js_message({"type": "toggleAudio"})
+
+        panel._play_wav.assert_called_once_with(b"fake-wav")
+
+    def test_toggle_audio_stops_playback_when_playing(self):
+        from wenzi.ui.result_window_web import ResultPreviewPanel
+
+        panel = _build_panel(ResultPreviewPanel())
+        panel._asr_wav_data = b"fake-wav"
+        mock_sound = MagicMock()
+        mock_sound.isPlaying.return_value = True
+        panel._asr_sound = mock_sound
+        panel._stop_playback = MagicMock()
+
+        panel._handle_js_message({"type": "toggleAudio"})
+
+        panel._stop_playback.assert_called_once()
+
+    def test_toggle_audio_noop_when_no_wav_data(self):
+        from wenzi.ui.result_window_web import ResultPreviewPanel
+
+        panel = _build_panel(ResultPreviewPanel())
+        panel._asr_wav_data = None
+
+        # Should not raise
+        panel._handle_js_message({"type": "toggleAudio"})
+
+    def test_stop_playback_clears_sound_and_timer(self):
+        from wenzi.ui.result_window_web import ResultPreviewPanel
+
+        panel = _build_panel(ResultPreviewPanel())
+        mock_sound = MagicMock()
+        mock_timer = MagicMock()
+        panel._asr_sound = mock_sound
+        panel._playback_timer = mock_timer
+
+        panel._stop_playback()
+
+        mock_sound.stop.assert_called_once()
+        mock_timer.invalidate.assert_called_once()
+        assert panel._asr_sound is None
+        assert panel._playback_timer is None
+
+    def test_stop_playback_handles_no_sound(self):
+        from wenzi.ui.result_window_web import ResultPreviewPanel
+
+        panel = _build_panel(ResultPreviewPanel())
+        panel._asr_sound = None
+        panel._playback_timer = None
+
+        # Should not raise
+        panel._stop_playback()
+
+    def test_tick_playback_timer_stops_when_finished(self):
+        from wenzi.ui.result_window_web import ResultPreviewPanel
+
+        panel = _build_panel(ResultPreviewPanel())
+        mock_sound = MagicMock()
+        mock_sound.isPlaying.return_value = False
+        panel._asr_sound = mock_sound
+        mock_timer = MagicMock()
+        panel._playback_timer = mock_timer
+
+        panel.tickPlaybackTimer_(None)
+
+        mock_timer.invalidate.assert_called_once()
+        assert panel._asr_sound is None
+
+    def test_tick_playback_timer_noop_when_still_playing(self):
+        from wenzi.ui.result_window_web import ResultPreviewPanel
+
+        panel = _build_panel(ResultPreviewPanel())
+        mock_sound = MagicMock()
+        mock_sound.isPlaying.return_value = True
+        panel._asr_sound = mock_sound
+        mock_timer = MagicMock()
+        panel._playback_timer = mock_timer
+
+        panel.tickPlaybackTimer_(None)
+
+        # Should not stop
+        mock_timer.invalidate.assert_not_called()
+        assert panel._asr_sound is mock_sound
+
+    def test_close_stops_playback(self):
+        from wenzi.ui.result_window_web import ResultPreviewPanel
+
+        panel = _build_panel(ResultPreviewPanel())
+        mock_sound = MagicMock()
+        mock_timer = MagicMock()
+        panel._asr_sound = mock_sound
+        panel._playback_timer = mock_timer
+
+        panel.close()
+
+        mock_sound.stop.assert_called_once()
+        mock_timer.invalidate.assert_called_once()
+        assert panel._asr_sound is None
+        assert panel._playback_timer is None
+
+    def test_show_stops_existing_playback(self):
+        from wenzi.ui.result_window_web import ResultPreviewPanel
+
+        panel = _build_panel(ResultPreviewPanel())
+        mock_sound = MagicMock()
+        mock_timer = MagicMock()
+        panel._asr_sound = mock_sound
+        panel._playback_timer = mock_timer
+
+        panel.show(
+            asr_text="text", show_enhance=False,
+            on_confirm=MagicMock(), on_cancel=MagicMock(),
+        )
+
+        mock_sound.stop.assert_called_once()
+        mock_timer.invalidate.assert_called_once()
+
+    def test_playback_timer_initialized_in_init(self):
+        from wenzi.ui.result_window_web import ResultPreviewPanel
+
+        panel = ResultPreviewPanel()
+        assert panel._playback_timer is None
