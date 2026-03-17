@@ -138,7 +138,6 @@ body { display: flex; flex-direction: column; }
     -webkit-mask-position: center;
     opacity: 0.35;
 }
-.result-item:hover { background: var(--item-hover); }
 .result-item.selected { background: var(--item-selected); }
 .result-item .left {
     display: flex; flex-direction: column; gap: 1px;
@@ -175,7 +174,6 @@ body { display: flex; flex-direction: column; }
     cursor: pointer; opacity: 0; transition: opacity 0.15s;
     padding: 0;
 }
-.result-item:hover .delete-btn,
 .result-item.selected .delete-btn { opacity: 0.6; }
 .result-item .delete-btn:hover {
     opacity: 1; background: var(--item-hover); color: var(--text);
@@ -235,6 +233,7 @@ var items = [];
 var selectedIndex = -1;
 var itemsVersion = 0;
 var hasAnyIcon = false;  // true when at least one item has an icon
+var _lastMouseX = -1, _lastMouseY = -1;  // suppress scroll-induced hover
 var _PLACEHOLDER_SVG = "data:image/svg+xml,"
     + "%3Csvg xmlns='http://www.w3.org/2000/svg' "
     + "viewBox='0 0 24 24' fill='none' stroke='black' "
@@ -402,6 +401,18 @@ function _createRow(item, i) {
     }
 
     row.appendChild(rightGroup);
+
+    row.addEventListener('mousemove', function(e) {
+        // Only react when the mouse physically moved (ignore scroll-induced)
+        if (e.clientX === _lastMouseX && e.clientY === _lastMouseY) return;
+        _lastMouseX = e.clientX;
+        _lastMouseY = e.clientY;
+        if (selectedIndex !== i) {
+            selectedIndex = i;
+            _renderVisibleRows();
+            updatePreview();
+        }
+    });
 
     row.addEventListener('click', function() {
         selectedIndex = i;
