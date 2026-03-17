@@ -28,6 +28,7 @@ class _ModeHistoryCache:
     entry_lines: List[str] = field(default_factory=list)
     last_ts: str = ""
     total_chars: int = 0
+    last_log_count: int = 0
 
 
 # Appended to system prompt when thinking mode is enabled to keep reasoning concise
@@ -266,7 +267,6 @@ class TextEnhancer:
         # Each enhancement mode maintains its own history cache so that
         # switching modes does not invalidate another mode's cache prefix.
         self._history_caches: Dict[str, _ModeHistoryCache] = {}
-        self._history_last_log_count: int = 0  # global, for fast-path detection
         self._history_refresh_threshold: int = history_cfg.get(
             "refresh_threshold", 50
         )
@@ -655,15 +655,17 @@ class TextEnhancer:
         ch = self._conversation_history
         mc = self._get_mode_cache()
 
-        # Fast path: no new log() calls since last build — return cached
+        # Fast path: no new log() calls since last build — return cached.
+        # last_log_count is per-mode so that one mode's update does not
+        # cause another mode to skip its own new entries.
         lc = ch.log_count
-        if lc == self._history_last_log_count and mc.entry_lines:
+        if lc == mc.last_log_count and mc.entry_lines:
             return self._format_history_section()
 
         # Fetch up to threshold entries for the current mode.
-        # NOTE: _history_last_log_count is updated only AFTER successful
-        # processing, so that an exception here does not cause future
-        # calls to skip new entries via the fast path.
+        # NOTE: last_log_count is updated only AFTER successful processing,
+        # so that an exception here does not cause future calls to skip
+        # new entries via the fast path.
         entries = ch.get_recent(
             max_entries=self._history_refresh_threshold,
             enhance_mode=self._mode,
@@ -672,20 +674,20 @@ class TextEnhancer:
             mc.entry_lines = []
             mc.total_chars = 0
             mc.last_ts = ""
-            self._history_last_log_count = lc
+            mc.last_log_count = lc
             return ""
 
         latest_ts = entries[-1].get("timestamp", "")
 
         # No qualifying entries were added for this mode
         if latest_ts == mc.last_ts and mc.entry_lines:
-            self._history_last_log_count = lc
+            mc.last_log_count = lc
             return self._format_history_section()
 
         # First build
         if not mc.entry_lines:
             result = self._full_rebuild_history(entries)
-            self._history_last_log_count = lc
+            mc.last_log_count = lc
             return result
 
         # Find new entries by walking backwards from the end
@@ -698,11 +700,11 @@ class TextEnhancer:
             # Anchor not found — structural change (rotation, deletion)
             logger.info("History anchor not found, performing full rebuild")
             result = self._full_rebuild_history(entries)
-            self._history_last_log_count = lc
+            mc.last_log_count = lc
             return result
 
         if not new_entries:
-            self._history_last_log_count = lc
+            mc.last_log_count = lc
             return self._format_history_section()
 
         new_entries.reverse()
@@ -724,14 +726,14 @@ class TextEnhancer:
                 projected_chars,
             )
             result = self._full_rebuild_history(entries)
-            self._history_last_log_count = lc
+            mc.last_log_count = lc
             return result
 
         # Safe to append
         mc.entry_lines.extend(new_lines)
         mc.total_chars = projected_chars
         mc.last_ts = latest_ts
-        self._history_last_log_count = lc
+        mc.last_log_count = lc
         logger.info(
             "History cache [%s] appended %d entries (total %d, chars %d)",
             self._mode,

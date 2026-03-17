@@ -1600,14 +1600,53 @@ class TestIncrementalHistoryContext:
         # Proofread cache preserved
         assert len(enhancer._history_caches["proofread"].entry_lines) == 3
 
-        # Switch back to proofread — should use cached result (fast path)
+        # Switch back to proofread — cache preserved, returns same content
         enhancer._mode = "proofread"
-        mock_h.get_recent.reset_mock()
+        mock_h.get_recent.return_value = proofread_entries
         result = enhancer._build_history_context()
 
         assert "asr_0" in result
-        # Fast path: log_count unchanged, no get_recent call needed
-        mock_h.get_recent.assert_not_called()
+        # Proofread cache still has the original 3 entries
+        assert len(enhancer._history_caches["proofread"].entry_lines) == 3
+
+    def test_per_mode_log_count_no_cross_mode_fast_path(self):
+        """Updating one mode's cache must not cause another mode to skip new entries.
+
+        Reproduces the chain-mode bug where step 1 (proofread) updated a
+        global last_log_count, causing step 2 (translate) to hit the fast
+        path and miss its new entries.
+        """
+        enhancer = self._make_enhancer()
+
+        # Initial build for both modes
+        proofread_entries = [self._make_entry(0, mode="proofread")]
+        mock_h = self._make_mock_history(proofread_entries, log_count=1)
+        enhancer._conversation_history = mock_h
+        enhancer._build_history_context()  # proofread cache built
+
+        enhancer._mode = "translate_en"
+        translate_entries = [self._make_entry(10, mode="translate_en")]
+        mock_h.log_count = 2
+        mock_h.get_recent.return_value = translate_entries
+        enhancer._build_history_context()  # translate cache built
+
+        # Simulate user confirm → 2 new log() calls (one per mode)
+        mock_h.log_count = 4
+
+        # Step 1: proofread sees new entry
+        enhancer._mode = "proofread"
+        updated_proofread = proofread_entries + [self._make_entry(1, mode="proofread")]
+        mock_h.get_recent.return_value = updated_proofread
+        enhancer._build_history_context()
+        assert len(self._mode_cache(enhancer).entry_lines) == 2  # was 1, now 2
+
+        # Step 2: translate must ALSO see its new entry (not hit fast path)
+        enhancer._mode = "translate_en"
+        updated_translate = translate_entries + [self._make_entry(11, mode="translate_en")]
+        mock_h.get_recent.return_value = updated_translate
+        enhancer._build_history_context()
+        cache = enhancer._history_caches["translate_en"]
+        assert len(cache.entry_lines) == 2  # was 1, must be 2 (not stuck at 1)
 
     def test_system_prompt_ordering(self):
         """System prompt should order: mode → thinking → history → vocab."""
