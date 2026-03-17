@@ -511,17 +511,6 @@ class SettingsPanel:
             pad + 12, y, content_w - 24, doc_view,
         )
 
-        y -= (self._CONTROL_HEIGHT + self._ROW_GAP)
-        self._web_preview_check = self._make_switch(
-            "Web Preview", pad + 12, y, content_w - 24,
-            state.get("preview_type", "web") == "web", small_font,
-            b"webPreviewCheckChanged:", doc_view,
-        )
-        y = self._add_hint(
-            "Use web-based preview (HTML/CSS); disable for native AppKit preview",
-            pad + 12, y, content_w - 24, doc_view,
-        )
-
         y -= self._SECTION_GAP
 
         # --- Scripting section ---
@@ -1626,9 +1615,6 @@ class SettingsPanel:
 
     def previewCheckChanged_(self, sender):
         self._call("on_preview_toggle", bool(sender.state()))
-
-    def webPreviewCheckChanged_(self, sender):
-        self._call("on_preview_type_toggle", bool(sender.state()))
 
     def sttModelSelected_(self, sender):
         meta = self._get_meta(sender)

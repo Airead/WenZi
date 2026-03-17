@@ -289,11 +289,7 @@ class ConfigController:
         """Open the conversation history browser panel."""
         app = self._app
         if app._history_browser is None:
-            preview_type = app._config["output"].get("preview_type", "web")
-            if preview_type == "web":
-                from wenzi.ui.history_browser_window_web import HistoryBrowserPanel
-            else:
-                from wenzi.ui.history_browser_window import HistoryBrowserPanel
+            from wenzi.ui.history_browser_window_web import HistoryBrowserPanel
             app._history_browser = HistoryBrowserPanel()
 
         def _on_history_save(timestamp: str, new_final_text: str) -> None:

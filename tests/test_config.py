@@ -347,17 +347,6 @@ class TestValidateConfig:
             validate_config(config)
             assert config["output"]["method"] == method
 
-    def test_invalid_preview_type(self):
-        config = self._make_config({"output.preview_type": "unknown"})
-        validate_config(config)
-        assert config["output"]["preview_type"] == "web"
-
-    def test_valid_preview_types(self):
-        for pt in ("web", "native"):
-            config = self._make_config({"output.preview_type": pt})
-            validate_config(config)
-            assert config["output"]["preview_type"] == pt
-
     def test_invalid_asr_backend(self):
         config = self._make_config({"asr.backend": "unknown"})
         validate_config(config)

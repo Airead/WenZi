@@ -58,34 +58,39 @@ def _build_cache_key(app):
 
 
 class TestSameModeGuard:
-    """Tests for the same-mode re-click guard in _on_segment_changed."""
+    """Tests for the same-mode re-click guard in modeChange handler."""
+
+    def _make_panel(self):
+        from wenzi.ui.result_window_web import ResultPreviewPanel
+
+        panel = ResultPreviewPanel()
+        panel._build_panel = MagicMock()
+        panel._panel = MagicMock()
+        panel._webview = MagicMock()
+        panel._page_loaded = True
+        return panel
 
     def test_same_mode_reclick_noop(self):
         """Clicking the already-selected mode should not fire the callback."""
         callback = MagicMock()
-        panel = MagicMock()
+        panel = self._make_panel()
         panel._available_modes = [("off", "Off"), ("proofread", "Proofread")]
         panel._current_mode = "proofread"
         panel._on_mode_change = callback
 
-        # Import the real method and bind it
-        from wenzi.ui.result_window import ResultPreviewPanel
-
-        ResultPreviewPanel._on_segment_changed(panel, 1)  # index 1 = proofread
+        panel._handle_js_message({"type": "modeChange", "index": 1})
 
         callback.assert_not_called()
 
     def test_different_mode_fires_callback(self):
         """Switching to a different mode should fire the callback."""
         callback = MagicMock()
-        panel = MagicMock()
+        panel = self._make_panel()
         panel._available_modes = [("off", "Off"), ("proofread", "Proofread")]
         panel._current_mode = "off"
         panel._on_mode_change = callback
 
-        from wenzi.ui.result_window import ResultPreviewPanel
-
-        ResultPreviewPanel._on_segment_changed(panel, 1)
+        panel._handle_js_message({"type": "modeChange", "index": 1})
 
         callback.assert_called_once_with("proofread")
         assert panel._current_mode == "proofread"
@@ -193,26 +198,22 @@ class TestCacheClear:
 
 class TestReplayCachedResult:
     def _make_panel(self, user_edited=False):
-        panel = MagicMock()
-        panel._enhance_text_view = MagicMock()
-        panel._enhance_label = MagicMock()
-        panel._prompt_button = MagicMock()
-        panel._thinking_button = MagicMock()
-        panel._thinking_text = ""
-        panel._system_prompt = ""
+        from wenzi.ui.result_window_web import ResultPreviewPanel
+
+        panel = ResultPreviewPanel()
+        panel._build_panel = MagicMock()
+        panel._panel = MagicMock()
+        panel._webview = MagicMock()
+        panel._page_loaded = True
         panel._user_edited = user_edited
-        panel._final_text_field = MagicMock()
-        panel._llm_models = None
+        panel._loading_timer = None
         return panel
 
     def test_replay_sets_panel_state(self, mock_appkit_modules):
-        """replay_cached_result should set text view, labels, and buttons."""
+        """replay_cached_result should store system_prompt and thinking_text."""
         panel = self._make_panel()
 
-        from wenzi.ui.result_window import ResultPreviewPanel
-
-        ResultPreviewPanel.replay_cached_result(
-            panel,
+        panel.replay_cached_result(
             display_text="cached text",
             usage={"total_tokens": 100, "prompt_tokens": 60, "completion_tokens": 40},
             system_prompt="sys prompt",
@@ -220,19 +221,15 @@ class TestReplayCachedResult:
             final_text="final",
         )
 
-        panel._enhance_text_view.setString_.assert_called_once_with("cached text")
         assert panel._system_prompt == "sys prompt"
         assert panel._thinking_text == "think"
-        panel._final_text_field.setStringValue_.assert_called_once_with("final")
 
-    def test_replay_uses_display_text_when_no_final(self, mock_appkit_modules):
-        """When final_text is None, display_text should be used for final field."""
+    def test_replay_calls_eval_js(self, mock_appkit_modules):
+        """replay_cached_result should call _eval_js to update the web UI."""
         panel = self._make_panel()
+        panel._eval_js = MagicMock()
 
-        from wenzi.ui.result_window import ResultPreviewPanel
-
-        ResultPreviewPanel.replay_cached_result(
-            panel,
+        panel.replay_cached_result(
             display_text="display text",
             usage=None,
             system_prompt="",
@@ -240,24 +237,10 @@ class TestReplayCachedResult:
             final_text=None,
         )
 
-        panel._final_text_field.setStringValue_.assert_called_once_with("display text")
-
-    def test_replay_skipped_when_user_edited(self, mock_appkit_modules):
-        """When user has edited final field, replay should not overwrite it."""
-        panel = self._make_panel(user_edited=True)
-
-        from wenzi.ui.result_window import ResultPreviewPanel
-
-        ResultPreviewPanel.replay_cached_result(
-            panel,
-            display_text="cached",
-            usage=None,
-            system_prompt="",
-            thinking_text="",
-            final_text="final",
-        )
-
-        panel._final_text_field.setStringValue_.assert_not_called()
+        # Should have called _eval_js with replayCachedResult(...)
+        assert panel._eval_js.call_count >= 1
+        js_call = panel._eval_js.call_args_list[0][0][0]
+        assert "replayCachedResult" in js_call
 
 
 # ---------------------------------------------------------------------------

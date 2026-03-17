@@ -18,8 +18,7 @@ from .controllers.enhance_controller import EnhanceController
 from .enhance.conversation_history import ConversationHistory
 from .usage_stats import UsageStats
 from .enhance.enhancer import MODE_OFF, create_enhancer
-from .ui.result_window import ResultPreviewPanel as NativeResultPreviewPanel
-from .ui.result_window_web import ResultPreviewPanel as WebResultPreviewPanel
+from .ui.result_window_web import ResultPreviewPanel
 from .ui.settings_window import SettingsPanel
 from .hotkey import MultiHotkeyListener, TapHotkeyListener, _is_fn_key
 from .transcription.model_registry import (
@@ -205,13 +204,9 @@ class WenZiApp(StatusBarApp):
         self._output_method = self._config["output"]["method"]
         self._append_newline = self._config["output"]["append_newline"]
         self._preview_enabled = self._config["output"].get("preview", True)
-        self._preview_type = self._config["output"].get("preview_type", "web")
         self._hotkey_listener: Optional[MultiHotkeyListener] = None
         self._busy = False
-        self._preview_panel = (
-            WebResultPreviewPanel() if self._preview_type == "web"
-            else NativeResultPreviewPanel()
-        )
+        self._preview_panel = ResultPreviewPanel()
         self._conversation_history = ConversationHistory(config_dir=self._config_dir)
         self._usage_stats = UsageStats(stats_dir=self._config_dir)
 

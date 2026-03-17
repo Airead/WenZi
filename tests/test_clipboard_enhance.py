@@ -276,12 +276,13 @@ class TestPreviewPanelClipboardSource:
     """Test Preview panel behavior with source='clipboard'."""
 
     def _setup_panel(self):
-        from wenzi.ui.result_window import ResultPreviewPanel
+        from wenzi.ui.result_window_web import ResultPreviewPanel
 
         panel = ResultPreviewPanel()
         panel._build_panel = MagicMock()
         panel._panel = MagicMock()
-        panel._final_text_field = MagicMock()
+        panel._webview = MagicMock()
+        panel._page_loaded = True
         return panel
 
     def test_source_defaults_to_voice(self):

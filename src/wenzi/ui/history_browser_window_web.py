@@ -1167,7 +1167,7 @@ class HistoryBrowserPanel:
         from Foundation import NSMakeRect, NSMakeSize, NSURL
         from WebKit import WKUserContentController, WKWebView, WKWebViewConfiguration
 
-        from wenzi.ui.result_window import _ensure_edit_menu
+        from wenzi.ui.result_window_web import _ensure_edit_menu
 
         _ensure_edit_menu()
 

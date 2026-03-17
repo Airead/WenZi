@@ -160,7 +160,6 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "method": "auto",
         "append_newline": False,
         "preview": True,
-        "preview_type": "web",
     },
     "ai_enhance": {
         "enabled": False,
@@ -394,8 +393,6 @@ def validate_config(config: Dict[str, Any]) -> Dict[str, Any]:
         ("feedback.show_device_name", bool, None, DEFAULT_CONFIG["feedback"]["show_device_name"]),
         ("output.method", str, lambda v: v in {"auto", "paste", "clipboard"}, DEFAULT_CONFIG["output"]["method"]),
         ("output.append_newline", bool, None, DEFAULT_CONFIG["output"]["append_newline"]),
-        ("output.preview_type", str, lambda v: v in {"web", "native"},
-         DEFAULT_CONFIG["output"]["preview_type"]),
         ("asr.backend", str,
          lambda v: v in {"funasr", "mlx-whisper", "mlx_whisper", "whisper-api", "apple", "sherpa-onnx"},
          DEFAULT_CONFIG["asr"]["backend"]),
