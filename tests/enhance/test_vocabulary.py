@@ -299,6 +299,45 @@ class TestVocabularyIndexFormatForPrompt:
         assert "- FastAPI" in result
 
 
+class TestVocabularyFormatEntryLines:
+    def test_entries_with_context(self):
+        entries = [
+            VocabularyEntry(term="Python", context="编程语言"),
+            VocabularyEntry(term="Kubernetes", context="容器编排"),
+        ]
+        result = VocabularyIndex.format_entry_lines(entries)
+        assert result == "- Python（编程语言）\n- Kubernetes（容器编排）"
+
+    def test_entries_without_context(self):
+        entries = [VocabularyEntry(term="Python")]
+        result = VocabularyIndex.format_entry_lines(entries)
+        assert result == "- Python"
+
+    def test_empty_entries(self):
+        assert VocabularyIndex.format_entry_lines([]) == ""
+
+    def test_mixed_entries(self):
+        entries = [
+            VocabularyEntry(term="Python", context="编程语言"),
+            VocabularyEntry(term="FastAPI"),
+        ]
+        result = VocabularyIndex.format_entry_lines(entries)
+        assert "- Python（编程语言）" in result
+        assert "- FastAPI" in result
+        assert "- FastAPI（" not in result
+
+    def test_consistency_with_format_for_prompt(self):
+        """format_entry_lines output should appear in format_for_prompt output."""
+        entries = [
+            VocabularyEntry(term="API", context="接口"),
+            VocabularyEntry(term="SDK"),
+        ]
+        idx = VocabularyIndex({})
+        entry_lines = VocabularyIndex.format_entry_lines(entries)
+        full_prompt = idx.format_for_prompt(entries)
+        assert entry_lines in full_prompt
+
+
 class TestVocabularyIndexStaleness:
     def test_stale_when_vocab_newer(self, tmp_path):
         vocab_path = tmp_path / "vocabulary.json"

@@ -119,24 +119,42 @@ class VocabularyIndex:
             logger.warning("Vocabulary retrieval failed: %s", e)
             return []
 
-    def format_for_prompt(self, entries: List[VocabularyEntry]) -> str:
-        """Format vocabulary entries for injection into LLM prompt."""
+    @staticmethod
+    def format_entry_lines(entries: List["VocabularyEntry"]) -> str:
+        """Format vocabulary entries as plain lines (no header/footer).
+
+        Returns a newline-joined string like::
+
+            - term1（context1）
+            - term2
+
+        Used by :class:`TextEnhancer` inside the combined context section.
+        """
         if not entries:
             return ""
-
-        lines = [
-            "---",
-            "以下是用户词库中与本次输入相关的专有名词，ASR 常将其误写为同音近音词。",
-            "仅当输入中确实存在对应误写时才替换，不要强行套用：",
-            "",
-        ]
+        lines: list[str] = []
         for entry in entries:
             if entry.context:
                 lines.append(f"- {entry.term}（{entry.context}）")
             else:
                 lines.append(f"- {entry.term}")
-        lines.append("---")
         return "\n".join(lines)
+
+    def format_for_prompt(self, entries: List[VocabularyEntry]) -> str:
+        """Format vocabulary entries for injection into LLM prompt.
+
+        Returns a self-contained section with header and footer.
+        """
+        if not entries:
+            return ""
+
+        header = (
+            "---\n"
+            "以下是用户词库中与本次输入相关的专有名词，ASR 常将其误写为同音近音词。\n"
+            "仅当输入中确实存在对应误写时才替换，不要强行套用：\n"
+            "\n"
+        )
+        return header + self.format_entry_lines(entries) + "\n---"
 
     def _lazy_load_model(self) -> None:
         """Load the embedding model on first use."""

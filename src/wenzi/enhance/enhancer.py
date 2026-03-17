@@ -600,10 +600,7 @@ class TextEnhancer:
                     text.strip(), top_k=self._vocab_top_k
                 )
                 if entries:
-                    vocab_lines = "\n".join(
-                        f"- {e.term}（{e.context}）" if e.context else f"- {e.term}"
-                        for e in entries
-                    )
+                    vocab_lines = self._vocab_index.format_entry_lines(entries)
                     logger.info(
                         "Vocabulary matched: %s",
                         ", ".join(e.term for e in entries),
@@ -614,8 +611,11 @@ class TextEnhancer:
         if not history_context and not vocab_lines:
             return ""
 
-        # Build the combined section
-        parts = [self._context_section_header()]
+        # Build the combined section — header reflects actual content
+        parts = [self._context_section_header(
+            has_history=bool(history_context),
+            has_vocab=bool(vocab_lines),
+        )]
 
         if history_context:
             parts.append(f"对话记录：\n{history_context}")
@@ -688,7 +688,8 @@ class TextEnhancer:
 
         # Pre-check: would appending exceed thresholds?
         new_lines = [ch.format_entry_line(e) for e in new_entries]
-        new_chars = sum(len(line) + 1 for line in new_lines)  # +1 for \n
+        # Each new line adds: 1 separator (\n) + line length
+        new_chars = sum(len(line) + 1 for line in new_lines)
         projected_count = len(self._history_entry_lines) + len(new_lines)
         projected_chars = self._history_total_chars + new_chars
 
@@ -723,8 +724,11 @@ class TextEnhancer:
         ch = self._conversation_history
         base = entries[-self._history_max_entries:]
         self._history_entry_lines = [ch.format_entry_line(e) for e in base]
-        self._history_total_chars = sum(
-            len(line) + 1 for line in self._history_entry_lines
+        # Total chars of "\n".join(lines): sum of line lengths + (N-1) separators
+        n = len(self._history_entry_lines)
+        self._history_total_chars = (
+            sum(len(line) for line in self._history_entry_lines)
+            + max(n - 1, 0)
         )
         self._history_last_ts = (
             entries[-1].get("timestamp", "") if entries else ""
@@ -751,22 +755,27 @@ class TextEnhancer:
             return ""
         return "\n".join(self._history_entry_lines)
 
-    def _context_section_header(self) -> str:
+    def _context_section_header(
+        self, *, has_history: bool, has_vocab: bool
+    ) -> str:
         """Build the combined instruction header for the context section.
 
-        Includes history and/or vocabulary instructions depending on which
-        features are enabled.  This text is static within a session, so it
-        contributes to the cacheable prompt prefix.
+        Only includes instructions for sections that actually have content,
+        so the LLM never sees instructions for absent data.
+
+        Within a typical session (where both features stay enabled and
+        produce content), this text is static and contributes to the
+        cacheable prompt prefix.
         """
         lines = ["---", "以下是辅助纠错的参考上下文："]
 
-        if self._history_enabled:
+        if has_history:
             lines.append(
                 "- 对话记录：若 ASR 识别与最终确认不同则用→分隔（识别→确认），"
                 "相同则表示无需纠错。"
             )
 
-        if self._vocab_enabled:
+        if has_vocab:
             lines.append(
                 "- 词库：以下专有名词 ASR 常误写为同音近音词，"
                 "仅当输入中确实存在对应误写时才替换，不要强行套用。"

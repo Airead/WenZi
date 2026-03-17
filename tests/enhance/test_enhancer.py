@@ -1037,11 +1037,7 @@ class TestVocabularyIntegration:
         mock_vocab.retrieve.return_value = [
             VocabularyEntry(term="Python", context="编程语言"),
         ]
-        mock_vocab.format_for_prompt.return_value = (
-            "---\n用户词库中与本次输入相关的专有名词，ASR 常将其误写为同音近音词。\n"
-            "仅当输入中确实存在对应误写时才替换，不要强行套用：\n\n"
-            "- Python（编程语言）\n---"
-        )
+        mock_vocab.format_entry_lines = VocabularyIndex.format_entry_lines
 
         cfg = _make_config(enabled=True, vocabulary={"enabled": True, "top_k": 5})
         with patch("wenzi.enhance.enhancer.TextEnhancer._init_providers"):
@@ -1609,6 +1605,7 @@ class TestIncrementalHistoryContext:
         mock_vocab.retrieve.return_value = [
             VocabularyEntry(term="WenZi", context="app name"),
         ]
+        mock_vocab.format_entry_lines = VocabularyIndex.format_entry_lines
         enhancer._vocab_index = mock_vocab
 
         mode_def = _TEST_MODES["proofread"]
@@ -1639,6 +1636,7 @@ class TestIncrementalHistoryContext:
         mock_vocab.retrieve.return_value = [
             VocabularyEntry(term="API"),
         ]
+        mock_vocab.format_entry_lines = VocabularyIndex.format_entry_lines
         enhancer._vocab_index = mock_vocab
 
         mode_def = _TEST_MODES["proofread"]
@@ -1647,6 +1645,33 @@ class TestIncrementalHistoryContext:
         assert "词库" in result
         assert "API" in result
         # No history instruction in header
+        assert "对话记录：若 ASR" not in result
+
+    def test_context_section_history_enabled_but_empty(self):
+        """When history enabled but empty, header should not mention history."""
+        enhancer = self._make_enhancer()
+        enhancer._vocab_enabled = True
+
+        # Empty history
+        mock_h = self._make_mock_history([], log_count=0)
+        enhancer._conversation_history = mock_h
+
+        # Vocab with matches
+        mock_vocab = MagicMock(spec=VocabularyIndex)
+        mock_vocab.is_loaded = True
+        mock_vocab.retrieve.return_value = [
+            VocabularyEntry(term="WenZi"),
+        ]
+        mock_vocab.format_entry_lines = VocabularyIndex.format_entry_lines
+        enhancer._vocab_index = mock_vocab
+
+        mode_def = _TEST_MODES["proofread"]
+        result = enhancer._build_system_content("test WenZi", mode_def)
+
+        # Vocab should be present
+        assert "WenZi" in result
+        assert "词库：以下专有名词" in result
+        # History instruction should NOT be in header (no history content)
         assert "对话记录：若 ASR" not in result
 
 
@@ -1678,6 +1703,7 @@ class TestLastSystemPrompt:
         mock_vocab.is_loaded = True
         entries = [VocabularyEntry(term="API", context="Application Programming Interface")]
         mock_vocab.retrieve.return_value = entries
+        mock_vocab.format_entry_lines = VocabularyIndex.format_entry_lines
 
         with patch("wenzi.enhance.enhancer.TextEnhancer._init_providers"):
             enhancer = TextEnhancer(_make_config(

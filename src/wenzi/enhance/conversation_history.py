@@ -672,8 +672,9 @@ class ConversationHistory:
     # Prompt formatting
     # ------------------------------------------------------------------
 
-    # Header used by both format_for_prompt and the incremental builder
-    # in TextEnhancer.
+    # Header and footer used by format_for_prompt (standalone formatting).
+    # The incremental builder in TextEnhancer uses its own combined header
+    # via _context_section_header().
     HISTORY_PROMPT_HEADER = (
         "---\n"
         "以下是用户近期的对话记录，用于学习纠错偏好和话题上下文。\n"
