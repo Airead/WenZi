@@ -327,7 +327,11 @@ class TextEnhancer:
             logger.warning("Failed to initialize AI provider %s: %s", name, e)
 
     async def close(self) -> None:
-        """Close all cached provider clients to release connection pools."""
+        """Close all cached provider clients to release connection pools.
+
+        This is a teardown method — after calling close(), the enhancer
+        can no longer make API calls. Only call during application shutdown.
+        """
         for name, (client, _, _) in list(self._providers.items()):
             try:
                 await client.close()
@@ -568,16 +572,16 @@ class TextEnhancer:
         client, _, _ = self._providers.pop(name)
         try:
             import asyncio
-            loop = asyncio.get_running_loop()
-            loop.create_task(client.close())
-        except RuntimeError:
-            # No running event loop — close synchronously via a new loop
-            import asyncio as _asyncio
-            _loop = _asyncio.new_event_loop()
             try:
-                _loop.run_until_complete(client.close())
-            finally:
-                _loop.close()
+                loop = asyncio.get_running_loop()
+                loop.create_task(client.close())
+            except RuntimeError:
+                # No running event loop — close synchronously via a new loop
+                _loop = asyncio.new_event_loop()
+                try:
+                    _loop.run_until_complete(client.close())
+                finally:
+                    _loop.close()
         except Exception:
             pass
         self._providers_config.pop(name, None)
