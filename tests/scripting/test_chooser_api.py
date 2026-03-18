@@ -611,3 +611,97 @@ class TestHelpCommand:
         items = pick_calls[0]
         titles = [i["title"] for i in items]
         assert "my-source" in titles
+
+
+class TestQuitAllCommand:
+    def test_quit_all_registered_on_ensure(self):
+        api = ChooserAPI()
+        api._ensure_command_source()
+        assert "quit-all" in api._command_source._commands
+        entry = api._command_source._commands["quit-all"]
+        assert entry.promoted is True
+
+    def test_quit_all_not_re_registered(self):
+        """Calling _ensure_command_source twice should not trigger overwrite."""
+        api = ChooserAPI()
+        api._ensure_command_source()
+        entry1 = api._command_source._commands["quit-all"]
+        api._ensure_command_source()
+        entry2 = api._command_source._commands["quit-all"]
+        assert entry1 is entry2
+
+    def test_quit_all_visible_in_promoted_search(self):
+        api = ChooserAPI()
+        api._ensure_command_source()
+        promoted_src = api.panel._sources["commands-promoted"]
+        items = promoted_src.search("quit")
+        assert len(items) >= 1
+        assert any(i.title == "Quit All Applications" for i in items)
+
+    def test_quit_all_visible_in_prefixed_search(self):
+        api = ChooserAPI()
+        api._ensure_command_source()
+        cmd_src = api.panel._sources["commands"]
+        items = cmd_src.search("quit")
+        assert any(i.title == "Quit All Applications" for i in items)
+
+    def test_quit_all_action_terminates_regular_apps(self):
+        """Action should terminate regular apps, skip Finder and self."""
+        api = ChooserAPI()
+        api._ensure_command_source()
+
+        own_pid = __import__("os").getpid()
+
+        class FakeApp:
+            def __init__(self, pid, bundle, policy):
+                self._pid = pid
+                self._bundle = bundle
+                self._policy = policy
+                self.terminated = False
+
+            def activationPolicy(self):
+                return self._policy
+
+            def processIdentifier(self):
+                return self._pid
+
+            def bundleIdentifier(self):
+                return self._bundle
+
+            def terminate(self):
+                self.terminated = True
+
+        REGULAR = 0
+        ACCESSORY = 1
+        PROHIBITED = 2
+
+        safari = FakeApp(1001, "com.apple.Safari", REGULAR)
+        finder = FakeApp(1002, "com.apple.finder", REGULAR)
+        self_app = FakeApp(own_pid, "com.wenzi.app", REGULAR)
+        bg_service = FakeApp(1003, "com.example.daemon", PROHIBITED)
+        menubar = FakeApp(1004, "com.example.menubar", ACCESSORY)
+        notes = FakeApp(1005, "com.apple.Notes", REGULAR)
+
+        fake_apps = [safari, finder, self_app, bg_service, menubar, notes]
+
+        class FakeWorkspace:
+            def runningApplications(self):
+                return fake_apps
+
+        with patch.dict("sys.modules", {"AppKit": __import__("types").SimpleNamespace(
+            NSWorkspace=type("NSWorkspace", (), {
+                "sharedWorkspace": staticmethod(lambda: FakeWorkspace()),
+            }),
+            NSApplicationActivationPolicyRegular=REGULAR,
+        )}):
+            entry = api._command_source._commands["quit-all"]
+            entry.action("")
+
+        # Regular apps (not Finder, not self) should be terminated
+        assert safari.terminated is True
+        assert notes.terminated is True
+        # Finder, self, background, menubar should NOT be terminated
+        assert finder.terminated is False
+        assert self_app.terminated is False
+        assert bg_service.terminated is False
+        assert menubar.terminated is False

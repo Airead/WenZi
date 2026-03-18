@@ -80,6 +80,8 @@ class ChooserAPI:
             )
         if "help" not in self._command_source._commands:
             self._register_help_command()
+        if "quit-all" not in self._command_source._commands:
+            self._register_quit_all_command()
 
     def _register_help_command(self) -> None:
         """Register the built-in help command."""
@@ -118,6 +120,32 @@ class ChooserAPI:
             title="Help",
             subtitle="Show available prefixes",
             action=_help_action,
+            promoted=True,
+        ))
+
+    def _register_quit_all_command(self) -> None:
+        """Register the built-in quit-all command."""
+
+        def _quit_all_action(args: str) -> None:
+            from AppKit import NSApplicationActivationPolicyRegular, NSWorkspace
+
+            workspace = NSWorkspace.sharedWorkspace()
+            own_pid = __import__("os").getpid()
+            for app in workspace.runningApplications():
+                if app.activationPolicy() != NSApplicationActivationPolicyRegular:
+                    continue
+                if app.processIdentifier() == own_pid:
+                    continue
+                bundle = app.bundleIdentifier() or ""
+                if bundle == "com.apple.finder":
+                    continue
+                app.terminate()
+
+        self._command_source.register(CommandEntry(
+            name="quit-all",
+            title="Quit All Applications",
+            subtitle="Quit all running applications",
+            action=_quit_all_action,
             promoted=True,
         ))
 
