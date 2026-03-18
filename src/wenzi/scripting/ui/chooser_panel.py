@@ -186,6 +186,7 @@ class ChooserPanel:
         self._pending_initial_query: Optional[str] = None
         self._pending_placeholder: Optional[str] = None
         self._event_callback: Optional[Callable] = None  # (event, *args)
+        self._snippet_expander = None  # SnippetExpander to suppress on show
         self._previous_app = None  # NSRunningApplication saved on show()
         self._ql_panel = None  # Quick Look preview panel
         self._calc_mode: bool = False  # Calculator pin mode
@@ -195,6 +196,7 @@ class ChooserPanel:
         self._is_expanded: bool = False  # Panel height state
         self._show_preview: bool = False  # Preview panel visibility
         self._compact_results: bool = False  # Compact height for calc-only results
+        self._active_source: Optional[ChooserSource] = None  # currently prefix-activated source
 
     # ------------------------------------------------------------------
     # Panel resize (collapsed ↔ expanded, narrow ↔ wide)
@@ -490,6 +492,9 @@ class ChooserPanel:
         NSApp.setActivationPolicy_(0)  # Regular (foreground)
         NSApp.activateIgnoringOtherApps_(True)
 
+        if self._snippet_expander is not None:
+            self._snippet_expander.suppress()
+
         self._fire_event("open")
 
     def close(self) -> None:
@@ -497,6 +502,9 @@ class ChooserPanel:
         if self._closing:
             return
         self._closing = True
+
+        if self._snippet_expander is not None:
+            self._snippet_expander.resume()
         self._calc_sticky = False
         self._exit_calc_mode()
 
@@ -589,6 +597,18 @@ class ChooserPanel:
                     source = src
                     query = query[len(trigger):]
                     break
+
+        # Track active source and toggle create button in JS
+        prev_source = self._active_source
+        self._active_source = source
+        if source != prev_source:
+            has_create = (
+                source is not None
+                and source.create_action is not None
+            )
+            self._eval_js(
+                f"setCreateButton({'true' if has_create else 'false'})"
+            )
 
         # When searching across all non-prefix sources (no specific source),
         # empty query returns nothing. When a specific source is active
@@ -705,6 +725,7 @@ class ChooserPanel:
                 ),
                 "hasModifiers": bool(item.modifiers),
                 "deletable": item.delete_action is not None,
+                "confirmDelete": item.confirm_delete,
             }
             # Include preview only for the selected item to keep payload
             # small while avoiding an extra bridge round-trip.
@@ -788,6 +809,10 @@ class ChooserPanel:
             index = body.get("index", -1)
             version = body.get("version", self._items_version)
             self._delete_item(index, version)
+
+        elif msg_type == "createItem":
+            query = body.get("query", "")
+            self._handle_create_item(query)
 
         elif msg_type == "modifierChange":
             index = body.get("index", -1)
@@ -881,6 +906,26 @@ class ChooserPanel:
 
         new_query = prefix_str + completed
         self._eval_js(f"setInputValue({json.dumps(new_query, ensure_ascii=False)})")
+
+    def _handle_create_item(self, query: str) -> None:
+        """Dispatch the create action for the active source."""
+        source = self._active_source
+        if source is None or source.create_action is None:
+            return
+
+        self.close()
+
+        from PyObjCTools import AppHelper
+
+        def _run_create():
+            try:
+                source.create_action(query)
+            except Exception:
+                logger.exception(
+                    "Chooser create action failed for source %r", source.name,
+                )
+
+        AppHelper.callAfter(_run_create)
 
     def _delete_item(self, index: int, version: int = 0) -> None:
         """Delete an item and refresh the list, preserving selection position."""

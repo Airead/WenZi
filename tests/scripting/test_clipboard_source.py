@@ -12,6 +12,28 @@ from wenzi.scripting.sources.clipboard_source import (
 )
 
 
+def _make_mock_monitor(entries, version=None):
+    """Create a mock ClipboardMonitor with given entries."""
+    monitor = MagicMock(spec=ClipboardMonitor)
+    monitor.entries = [
+        ClipboardEntry(
+            text=e.get("text", ""),
+            timestamp=e.get("timestamp", time.time()),
+            source_app=e.get("source_app", ""),
+            source_bundle_id=e.get("source_bundle_id", ""),
+            image_path=e.get("image_path", ""),
+            image_width=e.get("image_width", 0),
+            image_height=e.get("image_height", 0),
+            image_size=e.get("image_size", 0),
+        )
+        for e in entries
+    ]
+    monitor.image_dir = "/tmp/test_images"
+    if version is not None:
+        monitor.version = version
+    return monitor
+
+
 class TestFormatTimeAgo:
     def test_just_now(self):
         assert _format_time_ago(time.time() - 10) == "just now"
@@ -345,6 +367,45 @@ class TestImageEntries:
             result = source.search("")
         result[0].delete_action()
         monitor.delete_image.assert_called_once_with("test.png")
+
+
+class TestAltModifier:
+    """Tests for ⌥Enter quick-edit modifier on text items."""
+
+    def test_text_item_has_alt_modifier(self):
+        now = time.time()
+        monitor = _make_mock_monitor([
+            {"text": "hello", "timestamp": now},
+        ])
+        source = ClipboardSource(monitor)
+        result = source.search("")
+        assert result[0].modifiers is not None
+        assert "alt" in result[0].modifiers
+        assert result[0].modifiers["alt"].subtitle == "Quick Edit"
+        assert callable(result[0].modifiers["alt"].action)
+
+    def test_image_item_has_no_alt_modifier(self):
+        now = time.time()
+        monitor = _make_mock_monitor([
+            {
+                "image_path": "test.png",
+                "image_width": 100,
+                "image_height": 100,
+                "image_size": 1000,
+                "timestamp": now,
+            },
+        ])
+        source = ClipboardSource(monitor)
+        with patch("os.path.isfile", return_value=False):
+            result = source.search("")
+        assert result[0].modifiers is None
+
+    def test_action_hints_include_alt_enter(self):
+        monitor = _make_mock_monitor([])
+        source = ClipboardSource(monitor)
+        cs = source.as_chooser_source()
+        assert cs.action_hints is not None
+        assert cs.action_hints.get("alt_enter") == "Edit"
 
 
 class TestMaxResults:

@@ -51,7 +51,10 @@ import re
 from typing import Dict, List, Optional, Tuple
 
 from wenzi.config import DEFAULT_SNIPPETS_DIR as _CFG_SNIPPETS_DIR
-from wenzi.scripting.sources import ChooserItem, ChooserSource, fuzzy_match
+from wenzi.scripting.sources import (
+    ChooserItem, ChooserSource, ModifierAction,
+    copy_to_clipboard, fuzzy_match, paste_text,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -183,35 +186,39 @@ def _sanitize_filename(name: str) -> str:
     return result or "snippet"
 
 
-def _paste_text(text: str) -> None:
-    """Write text to clipboard and simulate Cmd+V to paste at cursor."""
+def _trash_file(path: str) -> None:
+    """Move a file to the macOS Trash, falling back to os.remove."""
     try:
-        from wenzi.input import _set_pasteboard_concealed
+        from Foundation import NSURL, NSFileManager
 
-        import subprocess
-        import time
-
-        _set_pasteboard_concealed(text)
-        time.sleep(0.05)
-        subprocess.run(
-            [
-                "osascript", "-e",
-                'tell application "System Events" to keystroke "v" using command down',
-            ],
-            capture_output=True, timeout=5,
-        )
-    except Exception:
-        logger.exception("Failed to paste snippet text")
+        url = NSURL.fileURLWithPath_(path)
+        fm = NSFileManager.defaultManager()
+        ok, _, err = fm.trashItemAtURL_resultingItemURL_error_(url, None, None)
+        if not ok:
+            raise OSError(str(err) if err else "trashItemAtURL failed")
+    except ImportError:
+        os.remove(path)
 
 
-def _copy_to_clipboard(text: str) -> None:
-    """Write text to the system clipboard without pasting."""
-    try:
-        from wenzi.input import _set_pasteboard_concealed
+def _delete_and_notify(store, name: str, category: str) -> None:
+    """Remove a snippet and show a HUD notification."""
+    path = store.snippet_path(name, category)
+    ok = store.remove(name, category)
+    if ok:
+        try:
+            from PyObjCTools import AppHelper
 
-        _set_pasteboard_concealed(text)
-    except Exception:
-        logger.exception("Failed to copy snippet to clipboard")
+            home = os.path.expanduser("~")
+            display = path.replace(home, "~")
+
+            def _hud():
+                from wenzi.ui.hud import show_hud
+                show_hud(f"Trashed\n{display}")
+
+            AppHelper.callAfter(_hud)
+        except Exception:
+            logger.debug("Failed to show delete HUD", exc_info=True)
+
 
 
 def _expand_placeholders(content: str) -> str:
@@ -515,9 +522,9 @@ class SnippetStore:
             if s["name"] == name and s.get("category", "") == category:
                 file_path = s["file_path"]
                 try:
-                    os.remove(file_path)
-                except OSError:
-                    logger.exception("Failed to delete %s", file_path)
+                    _trash_file(file_path)
+                except Exception:
+                    logger.exception("Failed to trash %s", file_path)
                 self._snippets.pop(i)
                 return True
         return False
@@ -610,11 +617,52 @@ class SnippetStore:
                 return s
         return None
 
+    def find_by_content(self, content: str) -> Optional[Dict[str, str]]:
+        """Find a snippet by exact content match."""
+        self._ensure_loaded()
+        for s in self._snippets:
+            if s.get("content") == content:
+                return s
+        return None
+
+    def snippet_path(self, name: str, category: str = "") -> str:
+        """Return the file path for a snippet with the given name and category."""
+        safe_name = _sanitize_filename(name)
+        cat_dir = os.path.join(self._dir, category) if category else self._dir
+        return os.path.join(cat_dir, f"{safe_name}.md")
+
+    def file_exists(self, name: str, category: str = "") -> bool:
+        """Check if a snippet file already exists on disk."""
+        return os.path.exists(self.snippet_path(name, category))
+
     def reload(self) -> None:
         """Force reload from disk."""
         self._snippets = []
         self._cached_mtime = 0.0
         self._ensure_loaded()
+
+    # -- last category persistence ------------------------------------------
+
+    @property
+    def last_category(self) -> str:
+        """Read the last used category from disk."""
+        path = os.path.join(self._dir, ".last_category")
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return f.read().strip()
+        except (OSError, ValueError):
+            return ""
+
+    @last_category.setter
+    def last_category(self, value: str) -> None:
+        """Persist the last used category to disk."""
+        os.makedirs(self._dir, exist_ok=True)
+        path = os.path.join(self._dir, ".last_category")
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(value)
+        except OSError:
+            logger.exception("Failed to save last category")
 
 
 # ---------------------------------------------------------------------------
@@ -631,6 +679,7 @@ class SnippetSource:
 
     def __init__(self, store: SnippetStore) -> None:
         self._store = store
+        self._editor_panel = None
 
     def search(self, query: str) -> List[ChooserItem]:
         """Search snippets by name, keyword, content, or category."""
@@ -710,39 +759,87 @@ class SnippetSource:
                 preview_content = content
 
             if is_random:
+                def _do_edit_random(vs=variants, r=raw, fp=file_path):
+                    from wenzi.scripting.ui.quick_edit_panel import (
+                        open_quick_edit,
+                    )
+                    open_quick_edit(
+                        _pick_and_resolve(vs, r), reveal_path=fp,
+                    )
+
                 items.append(
                     ChooserItem(
                         title=title,
                         subtitle=display_content,
                         item_id=item_id,
-                        action=lambda vs=variants, r=raw: _paste_text(
+                        action=lambda vs=variants, r=raw: paste_text(
                             _pick_and_resolve(vs, r)
                         ),
-                        secondary_action=lambda vs=variants, r=raw: _copy_to_clipboard(
+                        secondary_action=lambda vs=variants, r=raw: copy_to_clipboard(
                             _pick_and_resolve(vs, r)
                         ),
                         reveal_path=file_path,
                         preview={"type": "text", "content": preview_content},
+                        delete_action=lambda n=name, cat=category: _delete_and_notify(
+                            self._store, n, cat,
+                        ),
+                        confirm_delete=True,
+                        modifiers={"alt": ModifierAction(
+                            subtitle="Quick Edit",
+                            action=_do_edit_random,
+                        )},
                     )
                 )
             else:
+                def _do_edit(c=content, r=raw, fp=file_path):
+                    from wenzi.scripting.ui.quick_edit_panel import (
+                        open_quick_edit,
+                    )
+                    open_quick_edit(_resolve(c, r), reveal_path=fp)
+
                 items.append(
                     ChooserItem(
                         title=title,
                         subtitle=display_content,
                         item_id=item_id,
-                        action=lambda c=content, r=raw: _paste_text(
+                        action=lambda c=content, r=raw: paste_text(
                             _resolve(c, r)
                         ),
-                        secondary_action=lambda c=content, r=raw: _copy_to_clipboard(
+                        secondary_action=lambda c=content, r=raw: copy_to_clipboard(
                             _resolve(c, r)
                         ),
                         reveal_path=file_path,
                         preview={"type": "text", "content": content},
+                        delete_action=lambda n=name, cat=category: _delete_and_notify(
+                            self._store, n, cat,
+                        ),
+                        confirm_delete=True,
+                        modifiers={"alt": ModifierAction(
+                            subtitle="Quick Edit",
+                            action=_do_edit,
+                        )},
                     )
                 )
 
         return items
+
+    def create_snippet(self, query: str = "") -> None:
+        """Open the snippet editor panel to create a new snippet.
+
+        Args:
+            query: Pre-fill the keyword field.
+        """
+        from PyObjCTools import AppHelper
+
+        def _show():
+            from wenzi.scripting.ui.snippet_editor_panel import (
+                SnippetEditorPanel,
+            )
+
+            self._editor_panel = SnippetEditorPanel(self._store)
+            self._editor_panel.show(initial_query=query)
+
+        AppHelper.callAfter(_show)
 
     def as_chooser_source(self, prefix: str = "sn") -> ChooserSource:
         """Return a ChooserSource wrapping this SnippetSource."""
@@ -755,6 +852,9 @@ class SnippetSource:
             action_hints={
                 "enter": "Paste",
                 "cmd_enter": "Copy",
+                "alt_enter": "Edit",
+                "delete": "Delete",
             },
             show_preview=True,
+            create_action=self.create_snippet,
         )

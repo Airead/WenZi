@@ -79,8 +79,21 @@ class SnippetExpander:
         self._loop = None
         self._thread: Optional[threading.Thread] = None
         self._expanding = False  # Guard against re-entrance during expansion
+        self._suppressed = False  # True while our own panels are key
 
     # -- public API ----------------------------------------------------------
+
+    def suppress(self) -> None:
+        """Temporarily suppress expansion (e.g. while launcher is open)."""
+        self._suppressed = True
+        with self._lock:
+            self._buffer = ""
+
+    def resume(self) -> None:
+        """Resume expansion after suppression."""
+        self._suppressed = False
+        with self._lock:
+            self._buffer = ""
 
     def start(self) -> None:
         """Start listening for keystrokes."""
@@ -154,7 +167,7 @@ class SnippetExpander:
                     Quartz.CGEventTapEnable(self._tap, True)
                 return event
 
-            if self._expanding:
+            if self._expanding or self._suppressed:
                 return event
 
             keycode = Quartz.CGEventGetIntegerValueField(

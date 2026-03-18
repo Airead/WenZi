@@ -115,6 +115,8 @@ class SettingsPanel:
         self._launcher_hotkey_btn = None
         self._launcher_source_hotkey_labels: Dict[str, object] = {}
         self._launcher_source_hotkey_btns: Dict[str, object] = {}
+        self._new_snippet_hotkey_label = None
+        self._new_snippet_hotkey_btn = None
 
     def show(
         self,
@@ -1091,7 +1093,7 @@ class SettingsPanel:
 
         hk_display = NSTextField.labelWithString_(hotkey_val or "None")
         hk_display.setFrame_(
-            NSMakeRect(pad + 80, y + 2, 120, self._CONTROL_HEIGHT)
+            NSMakeRect(pad + 105, y + 2, 120, self._CONTROL_HEIGHT)
         )
         hk_display.setFont_(small_font)
         hk_display.setTextColor_(NSColor.secondaryLabelColor())
@@ -1105,7 +1107,7 @@ class SettingsPanel:
             hk_btn_title = "Record"
             hk_btn_action = b"launcherHotkeyRecord:"
         hk_btn = NSButton.alloc().initWithFrame_(
-            NSMakeRect(pad + 205, y - 1, 60, 22)
+            NSMakeRect(pad + 230, y - 1, 60, 22)
         )
         hk_btn.setTitle_(hk_btn_title)
         hk_btn.setBezelStyle_(1)
@@ -1114,6 +1116,39 @@ class SettingsPanel:
         hk_btn.setAction_(hk_btn_action)
         doc_view.addSubview_(hk_btn)
         self._launcher_hotkey_btn = hk_btn
+
+        # New Snippet hotkey row (same layout as Hotkey: row above)
+        y -= (self._CONTROL_HEIGHT + self._ROW_GAP)
+        new_sn_hotkey = launcher_state.get("new_snippet_hotkey", "")
+        doc_view.addSubview_(self._make_label(
+            "New Snippet:", pad + 12, y, 80, small_font,
+        ))
+
+        new_sn_hk_label = NSTextField.labelWithString_(new_sn_hotkey or "None")
+        new_sn_hk_label.setFrame_(
+            NSMakeRect(pad + 105, y + 2, 120, self._CONTROL_HEIGHT)
+        )
+        new_sn_hk_label.setFont_(small_font)
+        new_sn_hk_label.setTextColor_(NSColor.secondaryLabelColor())
+        doc_view.addSubview_(new_sn_hk_label)
+        self._new_snippet_hotkey_label = new_sn_hk_label
+
+        if new_sn_hotkey:
+            btn_title = "Clear"
+            btn_action = b"newSnippetHotkeyClear:"
+        else:
+            btn_title = "Record"
+            btn_action = b"newSnippetHotkeyRecord:"
+        new_sn_hk_btn = NSButton.alloc().initWithFrame_(
+            NSMakeRect(pad + 230, y - 1, 60, 22)
+        )
+        new_sn_hk_btn.setTitle_(btn_title)
+        new_sn_hk_btn.setBezelStyle_(1)
+        new_sn_hk_btn.setFont_(NSFont.systemFontOfSize_(10.0))
+        new_sn_hk_btn.setTarget_(self)
+        new_sn_hk_btn.setAction_(btn_action)
+        doc_view.addSubview_(new_sn_hk_btn)
+        self._new_snippet_hotkey_btn = new_sn_hk_btn
 
         y -= self._SECTION_GAP
 
@@ -1740,6 +1775,12 @@ class SettingsPanel:
         enabled = sender.state() == 1
         self._call("on_launcher_usage_learning_toggle", enabled)
 
+    def newSnippetHotkeyRecord_(self, sender):
+        self._call("on_new_snippet_hotkey_record")
+
+    def newSnippetHotkeyClear_(self, sender):
+        self._call("on_new_snippet_hotkey_clear")
+
     def launcherSourceHotkeyRecord_(self, sender):
         meta = self._get_meta(sender)
         source_key = meta.get("source_key", "")
@@ -1801,29 +1842,41 @@ class SettingsPanel:
         if self._config_dir_field:
             self._config_dir_field.setStringValue_(path)
 
-    def update_launcher_hotkey(self, hotkey: str) -> None:
-        """Update the launcher hotkey label and button after recording."""
-        if self._launcher_hotkey_label:
-            self._launcher_hotkey_label.setStringValue_(hotkey or "None")
-        if self._launcher_hotkey_btn:
-            if hotkey:
-                self._launcher_hotkey_btn.setTitle_("Clear")
-                self._launcher_hotkey_btn.setAction_(b"launcherHotkeyClear:")
-            else:
-                self._launcher_hotkey_btn.setTitle_("Record")
-                self._launcher_hotkey_btn.setAction_(b"launcherHotkeyRecord:")
-
-    def update_source_hotkey(self, source_key: str, hotkey: str) -> None:
-        """Update the hotkey label and button for a source after recording."""
-        label = self._launcher_source_hotkey_labels.get(source_key)
+    def _update_hotkey_ui(
+        self, label, btn, hotkey: str,
+        clear_action: bytes, record_action: bytes,
+    ) -> None:
+        """Update a hotkey label + Record/Clear button pair."""
         if label:
             label.setStringValue_(hotkey or "None")
-
-        btn = self._launcher_source_hotkey_btns.get(source_key)
         if btn:
             if hotkey:
                 btn.setTitle_("Clear")
-                btn.setAction_(b"launcherSourceHotkeyClear:")
+                btn.setAction_(clear_action)
             else:
                 btn.setTitle_("Record")
-                btn.setAction_(b"launcherSourceHotkeyRecord:")
+                btn.setAction_(record_action)
+
+    def update_launcher_hotkey(self, hotkey: str) -> None:
+        """Update the launcher hotkey label and button after recording."""
+        self._update_hotkey_ui(
+            self._launcher_hotkey_label, self._launcher_hotkey_btn, hotkey,
+            b"launcherHotkeyClear:", b"launcherHotkeyRecord:",
+        )
+
+    def update_source_hotkey(self, source_key: str, hotkey: str) -> None:
+        """Update the hotkey label and button for a source after recording."""
+        self._update_hotkey_ui(
+            self._launcher_source_hotkey_labels.get(source_key),
+            self._launcher_source_hotkey_btns.get(source_key),
+            hotkey,
+            b"launcherSourceHotkeyClear:", b"launcherSourceHotkeyRecord:",
+        )
+
+    def update_new_snippet_hotkey(self, hotkey: str) -> None:
+        """Update the New Snippet hotkey label and button."""
+        self._update_hotkey_ui(
+            self._new_snippet_hotkey_label, self._new_snippet_hotkey_btn,
+            hotkey,
+            b"newSnippetHotkeyClear:", b"newSnippetHotkeyRecord:",
+        )

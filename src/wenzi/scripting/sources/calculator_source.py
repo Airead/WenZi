@@ -16,7 +16,9 @@ from typing import List
 
 from simpleeval import SimpleEval
 
-from wenzi.scripting.sources import ChooserItem, ChooserSource
+from wenzi.scripting.sources import (
+    ChooserItem, ChooserSource, copy_to_clipboard, paste_text,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -103,35 +105,6 @@ def _format_number(value: object) -> tuple[str, str]:
     return s, s
 
 
-def _paste_text(text: str) -> None:
-    """Write text to clipboard and simulate Cmd+V to paste at cursor."""
-    try:
-        from wenzi.input import _set_pasteboard_concealed
-
-        import subprocess
-        import time
-
-        _set_pasteboard_concealed(text)
-        time.sleep(0.05)
-        subprocess.run(
-            [
-                "osascript", "-e",
-                'tell application "System Events" to keystroke "v" using command down',
-            ],
-            capture_output=True, timeout=5,
-        )
-    except Exception:
-        logger.exception("Failed to paste calculator result")
-
-
-def _copy_to_clipboard(text: str) -> None:
-    """Write text to the system clipboard without pasting."""
-    try:
-        from wenzi.input import _set_pasteboard_concealed
-
-        _set_pasteboard_concealed(text)
-    except Exception:
-        logger.exception("Failed to copy calculator result to clipboard")
 
 
 # ---------------------------------------------------------------------------
@@ -253,8 +226,8 @@ class CalculatorSource:
             subtitle="Unit Conversion",
             icon=icon,
             item_id=f"calc:{expr}",
-            action=lambda t=raw_text: _paste_text(t),
-            secondary_action=lambda t=raw_text: _copy_to_clipboard(t),
+            action=lambda t=raw_text: paste_text(t),
+            secondary_action=lambda t=raw_text: copy_to_clipboard(t),
         )
 
     # -- math expression -----------------------------------------------------
@@ -289,6 +262,6 @@ class CalculatorSource:
             subtitle="Calculator",
             icon=icon,
             item_id=f"calc:{expr}",
-            action=lambda t=raw: _paste_text(t),
-            secondary_action=lambda t=raw: _copy_to_clipboard(t),
+            action=lambda t=raw: paste_text(t),
+            secondary_action=lambda t=raw: copy_to_clipboard(t),
         )

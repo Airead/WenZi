@@ -962,6 +962,24 @@ class TestSnippetSource:
         assert cs.priority == 3
         assert cs.search is not None
 
+    def test_item_has_alt_modifier(self):
+        def setup(d):
+            _write_snippet(d, "email", "@@email", "user@example.com")
+
+        source = self._make_source(setup)
+        results = source.search("")
+        item = results[0]
+        assert item.modifiers is not None
+        assert "alt" in item.modifiers
+        assert item.modifiers["alt"].subtitle == "Quick Edit"
+        assert callable(item.modifiers["alt"].action)
+
+    def test_action_hints_include_alt_enter(self):
+        source = self._make_source()
+        cs = source.as_chooser_source()
+        assert cs.action_hints is not None
+        assert cs.action_hints.get("alt_enter") == "Edit"
+
     def test_long_content_truncated_in_subtitle(self):
         def setup(d):
             _write_snippet(d, "long", ";;l", "a" * 100)

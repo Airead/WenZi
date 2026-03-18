@@ -350,6 +350,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
                 "snippets": "",
                 "bookmarks": "",
             },
+            "new_snippet_hotkey": "",
         },
     },
 }
