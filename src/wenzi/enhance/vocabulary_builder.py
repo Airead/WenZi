@@ -270,7 +270,7 @@ class VocabularyBuilder:
         """Build the system prompt (shared across all batches for KV cache)."""
         prompt = (
             "你是一个词汇提取助手。请从语音识别纠错记录中提取有价值的词汇。\n\n"
-            "每条记录包含：asr_text（ASR原始结果，可能有错）和 final_text（用户确认的正确文本）。\n\n"
+            "每条纠错记录格式为 ASR原文 → 正确文本，一行一条。\n\n"
             "请提取专有名词、技术术语、常用短语，以及ASR容易识别错误的词汇。\n"
             "以管道符分隔的文本格式输出，第一行为表头，之后每行一个词条。\n"
             "字段：term|category|variants|context\n"
@@ -297,12 +297,12 @@ class VocabularyBuilder:
     @staticmethod
     def _build_user_prompt(batch: List[Dict[str, Any]]) -> str:
         """Build the user prompt with correction records for a single batch."""
-        records_text = ""
+        lines = []
         for r in batch:
             asr = r.get("asr_text", "")
             final = r.get("final_text", "")
-            records_text += f"asr_text: {asr}\nfinal_text: {final}\n\n"
-        return records_text.rstrip()
+            lines.append(f"{asr} → {final}")
+        return "\n".join(lines)
 
     @staticmethod
     def _extract_usage(usage_obj: Any) -> Dict[str, int]:
