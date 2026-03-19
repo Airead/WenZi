@@ -833,8 +833,8 @@ class TextEnhancer:
 
         Returns just the joined entry lines, e.g.::
 
-            - asr_1 → final_1
-            - asr_2 → final_2
+            - 我试着说一句话，看有没有[热慈→热词]被导入
+            - 这是一条无纠错的记录
 
         The combined context header and footer are managed by
         :meth:`_build_context_section`.
@@ -858,8 +858,7 @@ class TextEnhancer:
         if self._history_enabled:
             lines.append(
                 "- 对话记录（优先参考）：反映用户真实的纠错偏好和话题上下文，"
-                "若 ASR 识别与最终确认不同则用→分隔（识别→确认），"
-                "相同则表示无需纠错。"
+                "差异部分以[误→正]标注，无标注表示该部分无需纠错。"
             )
 
         if self._vocab_enabled:

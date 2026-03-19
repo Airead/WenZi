@@ -3,11 +3,9 @@
 from __future__ import annotations
 
 import asyncio
-import difflib
 import json
 import logging
 import os
-import re
 import threading
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -19,6 +17,7 @@ from wenzi.config import DEFAULT_DATA_DIR, DEFAULT_LOG_DIR
 from .conversation_history import ConversationHistory
 from .enhancer import build_thinking_body
 from .repetition import detect_repetition, truncate_repeated
+from .text_diff import inline_diff
 
 logger = logging.getLogger(__name__)
 
@@ -435,49 +434,6 @@ class VocabularyBuilder:
             "如果当前批次中没有值得提取的词汇，只输出表头行即可。\n"
         )
 
-    # Token pattern: ASCII words as whole units, each non-ASCII char individually,
-    # whitespace runs, or any other single character.
-    _TOKEN_RE = re.compile(r"[a-zA-Z0-9]+|[^\x00-\x7f]|\s+|.")
-
-    @staticmethod
-    def _tokenize(text: str) -> List[str]:
-        """Split text into diff-friendly tokens.
-
-        English/number sequences stay as whole tokens; each CJK character
-        becomes its own token.  This gives a good granularity for diffing
-        mixed Chinese-English ASR text.
-        """
-        return VocabularyBuilder._TOKEN_RE.findall(text)
-
-    @staticmethod
-    def _diff_texts(asr: str, final: str) -> str:
-        """Produce an inline diff between ASR text and corrected text.
-
-        Only replacements are bracketed as ``[old→new]``.  Insertions
-        and deletions are applied silently (new text included / old text
-        omitted) since they carry no ASR-misrecognition information
-        useful for vocabulary extraction.
-        """
-        if asr == final:
-            return asr
-
-        asr_tokens = VocabularyBuilder._tokenize(asr)
-        final_tokens = VocabularyBuilder._tokenize(final)
-        matcher = difflib.SequenceMatcher(None, asr_tokens, final_tokens)
-
-        parts: List[str] = []
-        for op, i1, i2, j1, j2 in matcher.get_opcodes():
-            if op == "equal":
-                parts.append("".join(asr_tokens[i1:i2]))
-            elif op == "replace":
-                old = "".join(asr_tokens[i1:i2])
-                new = "".join(final_tokens[j1:j2])
-                parts.append(f"[{old}→{new}]")
-            elif op == "insert":
-                parts.append("".join(final_tokens[j1:j2]))
-            # delete: omit old text silently
-        return "".join(parts)
-
     @staticmethod
     def _term_in_texts(term_lower: str, texts_lower: str) -> bool:
         """Check if *term_lower* appears in *texts_lower* as a whole token.
@@ -519,7 +475,7 @@ class VocabularyBuilder:
         for r in batch:
             asr = r.get("asr_text", "").replace("\n", "\u23ce")
             final = r.get("final_text", "").replace("\n", "\u23ce")
-            diff = VocabularyBuilder._diff_texts(asr, final)
+            diff = inline_diff(asr, final)
             if "[" not in diff:
                 continue
             lines.append(diff)

@@ -245,7 +245,9 @@ class TestConversationHistoryFormatForPrompt:
             {"asr_text": "你好世界", "final_text": "你好，世界！"},
         ]
         result = history.format_for_prompt(entries)
-        assert "你好世界 → 你好，世界！" in result
+        # inline_diff treats this as pure insertion (punctuation added),
+        # so the entry line shows the final text without brackets.
+        assert "- 你好，世界！" in result
 
     def test_format_empty_list(self, history):
         result = history.format_for_prompt([])
@@ -258,7 +260,7 @@ class TestConversationHistoryFormatForPrompt:
         ]
         result = history.format_for_prompt(entries)
         assert "- same" in result
-        assert "平平 → 萍萍" in result
+        assert "[平平→萍萍]" in result
 
     def test_format_replaces_newlines_with_return_symbol(self, history):
         entries = [
@@ -273,7 +275,7 @@ class TestConversationHistoryFormatForPrompt:
             {"asr_text": "a\nb", "final_text": "a\nc"},
         ]
         result = history.format_for_prompt(entries)
-        assert "a\u23ceb → a\u23cec" in result
+        assert "a\u23ce[b→c]" in result
 
     def test_format_respects_max_chars(self, history):
         """Output should not exceed max_chars."""
@@ -350,12 +352,13 @@ class TestConversationHistoryFormatEntryLine:
 
     def test_different_asr_and_final(self):
         entry = {"asr_text": "hello", "final_text": "Hello!"}
-        assert ConversationHistory.format_entry_line(entry) == "- hello → Hello!"
+        result = ConversationHistory.format_entry_line(entry)
+        assert result == "- [hello→Hello!]"
 
     def test_newlines_replaced(self):
         entry = {"asr_text": "a\nb", "final_text": "a\nc"}
         result = ConversationHistory.format_entry_line(entry)
-        assert "a\u23ceb → a\u23cec" in result
+        assert result == "- a\u23ce[b→c]"
 
     def test_missing_fields_use_empty_string(self):
         result = ConversationHistory.format_entry_line({})

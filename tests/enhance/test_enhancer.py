@@ -1402,10 +1402,10 @@ class TestIncrementalHistoryContext:
 
         assert result != ""
         # max_entries=3, so only last 3 entries used as base
-        assert "final_7" in result
-        assert "final_8" in result
-        assert "final_9" in result
-        assert "final_6" not in result
+        assert "[asr→final]_7" in result
+        assert "[asr→final]_8" in result
+        assert "[asr→final]_9" in result
+        assert "_6" not in result
         assert len(self._mode_cache(enhancer).entry_lines) == 3
 
     def test_fast_path_no_log_change(self):
@@ -1440,7 +1440,7 @@ class TestIncrementalHistoryContext:
         mock_h.get_recent.return_value = entries_v2
         result2 = enhancer._build_history_context()
 
-        assert "final_3" in result2
+        assert "[asr→final]_3" in result2
         assert len(self._mode_cache(enhancer).entry_lines) == 4
         # Prefix should be preserved (the first 3 entry lines unchanged)
         assert result2.startswith(result1.rsplit("\n---", 1)[0])
@@ -1501,8 +1501,8 @@ class TestIncrementalHistoryContext:
 
         # Rebuilt with max_entries=2 → only last 2 entries
         assert len(self._mode_cache(enhancer).entry_lines) == 2
-        assert "final_3" in self._mode_cache(enhancer).entry_lines[0]
-        assert "final_4" in self._mode_cache(enhancer).entry_lines[1]
+        assert "[asr→final]_3" in self._mode_cache(enhancer).entry_lines[0]
+        assert "[asr→final]_4" in self._mode_cache(enhancer).entry_lines[1]
 
     def test_rebuild_on_chars_threshold(self):
         """Rebuild when total chars reaches max_history_chars."""
@@ -1550,7 +1550,7 @@ class TestIncrementalHistoryContext:
 
         # Should have rebuilt with last max_entries entries
         assert len(self._mode_cache(enhancer).entry_lines) == 3
-        assert "final_104" in result
+        assert "[asr→final]_104" in result
 
     def test_non_qualifying_log_no_append(self):
         """Non-qualifying log() (e.g. preview_enabled=False) does not append."""
@@ -1614,7 +1614,7 @@ class TestIncrementalHistoryContext:
         mock_h.get_recent.return_value = proofread_entries
         result = enhancer._build_history_context()
 
-        assert "asr_0" in result
+        assert "[asr→final]_0" in result
         # Proofread cache still has the original 3 entries
         assert len(enhancer._history_caches["proofread"].entry_lines) == 3
 
@@ -1705,7 +1705,7 @@ class TestIncrementalHistoryContext:
         assert header_pos < history_instr_pos < vocab_instr_pos
 
         # History entries come before vocab entries
-        history_entry_pos = result.find("asr_0")
+        history_entry_pos = result.find("[asr→final]_0")
         vocab_entry_pos = result.find("WenZi（app name）")
         assert history_entry_pos < vocab_entry_pos
 
