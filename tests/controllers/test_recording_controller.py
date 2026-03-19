@@ -332,6 +332,24 @@ class TestOnCancelRecording:
 
         assert not mock_app._recording_started.is_set()
 
+    @patch("PyObjCTools.AppHelper")
+    def test_cancel_restores_mode(self, mock_apphelper, ctrl, mock_app):
+        """Cancelling recording should restore prefer_mode override."""
+        mock_apphelper.callAfter = lambda fn, *a, **kw: fn(*a, **kw)
+        mock_app._sound_manager.enabled = False
+
+        # Simulate a prefer_mode override being active
+        ctrl._saved_mode = ("proofread", "proofread", True)
+        mock_app._enhance_mode = "translate"
+        mock_app._enhancer.mode = "translate"
+
+        ctrl.on_cancel_recording()
+
+        # Mode should be restored
+        assert mock_app._enhance_mode == "proofread"
+        assert mock_app._enhance_controller.enhance_mode == "proofread"
+        assert ctrl._saved_mode is None
+
 
 class TestDoTranscribeDirect:
     @patch("wenzi.controllers.recording_controller.type_text")

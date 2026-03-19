@@ -386,6 +386,7 @@ class RecordingController:
         app._recording_started.clear()
         app._busy = False
         app._set_status("WZ")
+        self._restore_mode()
 
     def on_hotkey_release(self, key_name: str = "") -> None:
         """Called when hotkey is released - stop recording and transcribe."""
