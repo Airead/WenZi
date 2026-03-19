@@ -1,4 +1,11 @@
-"""Tests for combo hotkey recording helpers."""
+"""Tests for combo hotkey recording helpers.
+
+White-box tests: _MOD_CANONICAL, _MOD_DISPLAY_ORDER, _SPECIAL_VK, and
+_VK_TO_NAME are private mapping tables imported intentionally to verify
+internal consistency (e.g. every modifier key has a canonical form, every
+keycode has a reverse lookup). These invariants cannot be tested through
+public APIs alone.
+"""
 
 from wenzi.app import (
     _MOD_CANONICAL,
