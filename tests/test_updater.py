@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -201,6 +202,48 @@ class TestDownloadDmg:
         assert dest.exists()
 
 
+class TestVerifyApp:
+    @patch("wenzi.updater.subprocess.run")
+    def test_valid_signature(self, mock_run):
+        mock_run.return_value = MagicMock(returncode=0)
+        # Should not raise
+        AppUpdater._verify_app(Path("/tmp/WenZi.app"))
+        args = mock_run.call_args[0][0]
+        assert "codesign" in args
+        assert "--verify" in args
+
+    @patch("wenzi.updater.subprocess.run")
+    def test_invalid_signature_raises(self, mock_run, tmp_path):
+        mock_run.return_value = MagicMock(
+            returncode=1, stderr="invalid signature"
+        )
+        staged = tmp_path / "Staged.app"
+        staged.mkdir()
+        with pytest.raises(UpdateError, match="Code signature verification failed"):
+            AppUpdater._verify_app(staged)
+        # Should also clean up the invalid app
+        assert not staged.exists()
+
+    @patch("wenzi.updater.subprocess.run")
+    def test_incomplete_copy_raises(self, mock_run, tmp_path):
+        mock_run.return_value = MagicMock(
+            returncode=3, stderr="resource envelope is obsolete"
+        )
+        staged = tmp_path / "Staged.app"
+        staged.mkdir()
+        with pytest.raises(UpdateError, match="verification failed"):
+            AppUpdater._verify_app(staged)
+
+    @patch("wenzi.updater.subprocess.run")
+    def test_timeout_raises(self, mock_run, tmp_path):
+        mock_run.side_effect = subprocess.TimeoutExpired(cmd="codesign", timeout=30)
+        staged = tmp_path / "Staged.app"
+        staged.mkdir()
+        with pytest.raises(UpdateError, match="timed out"):
+            AppUpdater._verify_app(staged)
+        assert not staged.exists()
+
+
 class TestPerformSwapAndRelaunch:
     @patch("wenzi.updater.subprocess.Popen")
     @patch("wenzi.updater.AppUpdater.get_app_bundle_path")
@@ -236,6 +279,7 @@ class TestPerformSwapAndRelaunch:
 
 
 class TestRunFullFlow:
+    @patch("wenzi.updater.AppUpdater._verify_app")
     @patch("wenzi.updater.AppUpdater._unmount_dmg")
     @patch("wenzi.updater.AppUpdater._mount_dmg")
     @patch("wenzi.updater.AppUpdater._download_dmg")
@@ -248,6 +292,7 @@ class TestRunFullFlow:
         mock_download,
         mock_mount,
         mock_unmount,
+        mock_verify,
         tmp_path,
     ):
         app_path = tmp_path / "WenZi.app"
@@ -279,6 +324,7 @@ class TestRunFullFlow:
 
         on_ready.assert_called_once()
         on_error.assert_not_called()
+        mock_verify.assert_called_once_with(staged)
         mock_unmount.assert_called_once_with(mount_dir)
 
     @patch("wenzi.updater.AppUpdater.is_writable", return_value=False)

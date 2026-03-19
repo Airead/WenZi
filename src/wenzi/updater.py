@@ -126,6 +126,10 @@ class AppUpdater:
             shutil.rmtree(staged_app, ignore_errors=True)
             shutil.copytree(str(new_app), str(staged_app), symlinks=True)
 
+            # Verify staged app integrity via code signature
+            self._progress("Verifying update...")
+            self._verify_app(staged_app)
+
             # Unmount and clean up
             self._unmount_dmg(mount_point)
             mount_point = None
@@ -232,6 +236,29 @@ class AppUpdater:
                 return item
 
         raise UpdateError("WenZi.app not found in DMG")
+
+    @staticmethod
+    def _verify_app(app_path: Path) -> None:
+        """Verify app bundle integrity via macOS code signature.
+
+        Raises UpdateError if verification fails (corrupted, incomplete,
+        or unsigned). Unsigned builds (dev mode) will fail — this is
+        intentional since auto-update targets signed releases only.
+        """
+        try:
+            result = subprocess.run(
+                ["codesign", "--verify", "--deep", "--strict", str(app_path)],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+        except subprocess.TimeoutExpired:
+            shutil.rmtree(app_path, ignore_errors=True)
+            raise UpdateError("Code signature verification timed out")
+        if result.returncode != 0:
+            shutil.rmtree(app_path, ignore_errors=True)
+            detail = result.stderr.strip() or "unknown error"
+            raise UpdateError(f"Code signature verification failed: {detail}")
 
     @staticmethod
     def perform_swap_and_relaunch() -> bool:
