@@ -159,6 +159,16 @@ If either check fails, fix all errors first, commit the fixes, then re-run until
 
 This mirrors the CI pipeline in `.github/workflows/test.yml`.
 
+## Post-Merge Cleanup
+
+After a PR is merged, delete both the local and remote feature branches:
+
+```bash
+git checkout main && git pull origin main
+git branch -d <branch>
+git push origin --delete <branch>   # skip if GitHub auto-deleted it
+```
+
 ## Release Process
 
 1. Ensure all changes are committed and tests pass (`uv run pytest tests/`)
