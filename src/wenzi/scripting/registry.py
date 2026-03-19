@@ -116,8 +116,8 @@ class ScriptingRegistry:
 
     def register_timer(
         self, interval: float, callback: Callable, repeating: bool = False
-    ) -> str:
-        """Register a timer. Returns a unique timer_id."""
+    ) -> TimerEntry:
+        """Register a timer. Returns the TimerEntry."""
         timer_id = str(uuid.uuid4())
         entry = TimerEntry(
             timer_id=timer_id,
@@ -133,12 +133,21 @@ class ScriptingRegistry:
             interval,
             repeating,
         )
-        return timer_id
+        return entry
+
+    def get_timer(self, timer_id: str) -> Optional[TimerEntry]:
+        """Thread-safe lookup of a timer entry."""
+        with self._lock:
+            return self._timers.get(timer_id)
+
+    def pop_timer(self, timer_id: str) -> Optional[TimerEntry]:
+        """Atomically remove and return a timer entry without cancelling."""
+        with self._lock:
+            return self._timers.pop(timer_id, None)
 
     def cancel_timer(self, timer_id: str) -> None:
         """Cancel and remove a timer."""
-        with self._lock:
-            entry = self._timers.pop(timer_id, None)
+        entry = self.pop_timer(timer_id)
         if entry and entry._timer:
             entry._timer.cancel()
             logger.info("Cancelled timer %s", timer_id[:8])

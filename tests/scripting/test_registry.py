@@ -40,23 +40,22 @@ class TestScriptingRegistry:
 
     def test_register_timer(self):
         reg = ScriptingRegistry()
-        timer_id = reg.register_timer(1.0, _noop, repeating=False)
-        assert timer_id in reg.timers
-        assert reg.timers[timer_id].interval == 1.0
-        assert reg.timers[timer_id].repeating is False
+        entry = reg.register_timer(1.0, _noop, repeating=False)
+        assert entry.timer_id in reg.timers
+        assert entry.interval == 1.0
+        assert entry.repeating is False
 
     def test_cancel_timer(self):
         reg = ScriptingRegistry()
-        timer_id = reg.register_timer(10.0, _noop)
+        entry = reg.register_timer(10.0, _noop)
         # Set a real timer to verify cancel
-        entry = reg.timers[timer_id]
         t = threading.Timer(10.0, _noop)
         t.daemon = True
         entry._timer = t
         t.start()
 
-        reg.cancel_timer(timer_id)
-        assert timer_id not in reg.timers
+        reg.cancel_timer(entry.timer_id)
+        assert entry.timer_id not in reg.timers
         # Timer.cancel() prevents firing but thread may still be alive briefly
         t.join(timeout=1.0)
         assert not t.is_alive()
@@ -69,11 +68,10 @@ class TestScriptingRegistry:
         reg = ScriptingRegistry()
         reg.register_leader("cmd_r", [LeaderMapping(key="w", app="WeChat")])
         reg.register_hotkey("ctrl+v", _noop)
-        timer_id = reg.register_timer(10.0, _noop)
+        entry = reg.register_timer(10.0, _noop)
         reg.register_event("test_event", _noop)
 
         # Add a real timer
-        entry = reg.timers[timer_id]
         t = threading.Timer(10.0, _noop)
         t.daemon = True
         entry._timer = t
