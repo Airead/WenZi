@@ -1383,6 +1383,8 @@ class ResultPreviewPanel:
             )
             if system_prompt:
                 self._eval_js("enablePromptButton()")
+            if self._input_context_text:
+                self._eval_js("enableContextButton()")
 
         AppHelper.callAfter(_update)
 
@@ -1417,6 +1419,8 @@ class ResultPreviewPanel:
             )
             if system_prompt:
                 self._eval_js("enablePromptButton()")
+            if self._input_context_text:
+                self._eval_js("enableContextButton()")
 
         AppHelper.callAfter(_update)
 
@@ -1466,13 +1470,13 @@ class ResultPreviewPanel:
         AppHelper.callAfter(_update)
 
     def set_input_context(self, text: str) -> None:
-        """Cache input context display text and enable the button."""
+        """Cache input context display text.
+
+        The button is enabled later by ``set_enhance_complete()``,
+        ``replay_cached_result()``, or ``load_history_record()`` —
+        i.e. only after the webview is guaranteed to be ready.
+        """
         self._input_context_text = text
-        if text:
-            from PyObjCTools import AppHelper
-            AppHelper.callAfter(
-                lambda: self._eval_js("enableContextButton()") if self._webview else None
-            )
 
     def set_enhance_label(self, suffix: str, request_id: int = 0) -> None:
         """Update only the enhancement label text."""
