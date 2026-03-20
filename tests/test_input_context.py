@@ -146,14 +146,12 @@ class TestCaptureInputContext:
         assert ctx.window_title is None
         assert ctx.focused_role is None
 
-    @patch("wenzi.input_context._get_ax_focused_element")
-    @patch("wenzi.input_context._get_window_title")
+    @patch("wenzi.input_context._collect_ax_fields")
     @patch("wenzi.input_context._get_frontmost_app_info")
-    def test_detailed_collects_all(self, mock_info, mock_title, mock_ax):
+    def test_detailed_collects_all(self, mock_info, mock_collect):
         from wenzi.input_context import capture_input_context
         mock_info.return_value = ("Terminal", "com.apple.Terminal", 1234)
-        mock_title.return_value = "zsh"
-        mock_ax.return_value = ("AXTextArea", None)
+        mock_collect.return_value = ("zsh", "AXTextArea", None, None)
         ctx = capture_input_context("detailed")
         assert ctx is not None
         assert ctx.app_name == "Terminal"
@@ -166,16 +164,14 @@ class TestCaptureInputContext:
         mock_info.return_value = (None, None, None)
         assert capture_input_context("basic") is None
 
-    @patch("wenzi.input_context._get_browser_domain")
-    @patch("wenzi.input_context._get_ax_focused_element")
-    @patch("wenzi.input_context._get_window_title")
+    @patch("wenzi.input_context._collect_ax_fields")
     @patch("wenzi.input_context._get_frontmost_app_info")
-    def test_detailed_browser_domain(self, mock_info, mock_title, mock_ax, mock_domain):
+    def test_detailed_browser_domain(self, mock_info, mock_collect):
         from wenzi.input_context import capture_input_context
         mock_info.return_value = ("Google Chrome", "com.google.Chrome", 5678)
-        mock_title.return_value = "GitHub - My Repo"
-        mock_ax.return_value = ("AXTextField", "Search or type a URL")
-        mock_domain.return_value = "github.com"
+        mock_collect.return_value = (
+            "GitHub - My Repo", "AXTextField", "Search or type a URL", "github.com"
+        )
         ctx = capture_input_context("detailed")
         assert ctx.browser_domain == "github.com"
         assert ctx.focused_description == "Search or type a URL"
@@ -188,3 +184,41 @@ class TestCaptureInputContext:
         assert ctx is not None
         assert ctx.app_name == "Terminal"
         assert ctx.window_title is None  # basic level
+
+    def test_timeout_returns_partial_context(self):
+        """AX timeout should gracefully degrade to partial context."""
+        from wenzi.input_context import capture_input_context
+
+        with patch("wenzi.input_context._get_frontmost_app_info") as mock_info, \
+             patch("wenzi.input_context._collect_ax_fields", side_effect=Exception("timeout")):
+            mock_info.return_value = ("Terminal", "com.apple.Terminal", 1234)
+            ctx = capture_input_context("detailed")
+            assert ctx is not None
+            assert ctx.app_name == "Terminal"
+            assert ctx.focused_role is None  # AX failed
+
+
+class TestParseDomainFromTitle:
+    def test_chrome_title(self):
+        from wenzi.input_context import _parse_domain_from_title
+        assert _parse_domain_from_title("GitHub - Google Chrome") is None  # "GitHub" is not a domain
+
+    def test_bare_domain(self):
+        from wenzi.input_context import _parse_domain_from_title
+        assert _parse_domain_from_title("github.com") == "github.com"
+
+    def test_url_title(self):
+        from wenzi.input_context import _parse_domain_from_title
+        assert _parse_domain_from_title("https://github.com/foo/bar") == "github.com"
+
+    def test_firefox_title(self):
+        from wenzi.input_context import _parse_domain_from_title
+        assert _parse_domain_from_title("GitHub -- Mozilla Firefox") is None
+
+    def test_non_domain(self):
+        from wenzi.input_context import _parse_domain_from_title
+        assert _parse_domain_from_title("My Document") is None
+
+    def test_domain_after_chrome_strip(self):
+        from wenzi.input_context import _parse_domain_from_title
+        assert _parse_domain_from_title("github.com - Google Chrome") == "github.com"

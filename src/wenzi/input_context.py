@@ -134,16 +134,19 @@ def capture_input_context(level: str = "basic") -> Optional[InputContext]:
     # detailed — collect with timeout protection (500ms budget)
     import concurrent.futures
 
-    window_title = _get_window_title(pid) if pid else None
-
-    # AX calls may hang if target app is unresponsive — run with timeout
+    # NOTE: AXUIElement calls ideally run on the main thread, but we
+    # use a thread pool here for timeout protection. In practice,
+    # AX calls use process-to-process IPC and work from any thread.
+    window_title = None
     focused_role = None
     focused_desc = None
     browser_domain = None
     try:
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-            future = pool.submit(_collect_ax_fields, pid, bundle_id, window_title)
-            focused_role, focused_desc, browser_domain = future.result(timeout=0.5)
+            future = pool.submit(_collect_ax_fields, pid, bundle_id)
+            window_title, focused_role, focused_desc, browser_domain = future.result(
+                timeout=0.5
+            )
     except (concurrent.futures.TimeoutError, Exception) as e:
         logger.debug("AX collection timed out or failed: %s", e)
 
@@ -157,15 +160,14 @@ def capture_input_context(level: str = "basic") -> Optional[InputContext]:
     )
 
 
-def _collect_ax_fields(
-    pid: int, bundle_id: Optional[str], window_title: Optional[str]
-) -> tuple:
-    """Collect AX-dependent fields. Called in a thread with timeout."""
+def _collect_ax_fields(pid: int, bundle_id: Optional[str]) -> tuple:
+    """Collect window title and AX-dependent fields. Called in a thread with timeout."""
+    window_title = _get_window_title(pid)
     focused_role, focused_desc = _get_ax_focused_element(pid)
     browser_domain = None
     if bundle_id in _BROWSER_BUNDLE_IDS:
         browser_domain = _get_browser_domain(pid, window_title)
-    return (focused_role, focused_desc, browser_domain)
+    return (window_title, focused_role, focused_desc, browser_domain)
 
 
 def _get_frontmost_app_info() -> tuple:
@@ -319,5 +321,12 @@ def _parse_domain_from_title(title: str) -> Optional[str]:
     )
     if domain_pattern.match(title):
         return title.lower()
+
+    # Try urlparse for URLs
+    from urllib.parse import urlparse
+
+    parsed = urlparse(title)
+    if parsed.hostname:
+        return parsed.hostname
 
     return None
