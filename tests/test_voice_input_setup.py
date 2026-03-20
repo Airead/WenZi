@@ -11,6 +11,23 @@ from wenzi.transcription.apple import (
 )
 
 
+def _make_app_with_real_choice_handler(**overrides):
+    """Create a MagicMock app with the real _handle_dictation_setup_choice bound."""
+    from wenzi.app import WenZiApp
+
+    app = MagicMock()
+    app._config = {"asr": {}}
+    app._config_path = "/tmp/config.json"
+    app._voice_input_available = True
+    app._hotkey_listener = MagicMock()
+    for k, v in overrides.items():
+        setattr(app, k, v)
+    app._handle_dictation_setup_choice = (
+        lambda choice: WenZiApp._handle_dictation_setup_choice(app, choice)
+    )
+    return app
+
+
 class TestSiriSetupConstants:
     """Verify Siri setup dialog return value constants."""
 
@@ -27,19 +44,11 @@ class TestSiriSetupConstants:
 class TestHandleNoVoiceBackend:
     """Tests for WenZiApp._handle_no_voice_backend."""
 
-    def _make_app(self):
-        app = MagicMock()
-        app._config = {"asr": {}}
-        app._config_path = "/tmp/config.json"
-        app._voice_input_available = True
-        app._hotkey_listener = MagicMock()
-        return app
-
     def test_previously_disabled_skips_prompt(self):
         """If voice_input_disabled is already set, skip dialog."""
         from wenzi.app import WenZiApp
 
-        app = self._make_app()
+        app = _make_app_with_real_choice_handler()
         app._config["asr"]["voice_input_disabled"] = True
 
         with patch("wenzi.app.save_config"):
@@ -52,7 +61,7 @@ class TestHandleNoVoiceBackend:
         """Open Settings: opens URL, voice input disabled, hotkeys stay."""
         from wenzi.app import WenZiApp
 
-        app = self._make_app()
+        app = _make_app_with_real_choice_handler()
 
         with patch(
             "wenzi.transcription.apple.prompt_siri_setup",
@@ -69,7 +78,7 @@ class TestHandleNoVoiceBackend:
         """Set Up Later: voice input disabled, hotkeys stay, no save."""
         from wenzi.app import WenZiApp
 
-        app = self._make_app()
+        app = _make_app_with_real_choice_handler()
 
         with patch(
             "wenzi.transcription.apple.prompt_siri_setup",
@@ -85,7 +94,7 @@ class TestHandleNoVoiceBackend:
         """Don't Ask Again: persists preference, stops hotkeys."""
         from wenzi.app import WenZiApp
 
-        app = self._make_app()
+        app = _make_app_with_real_choice_handler()
 
         with patch(
             "wenzi.transcription.apple.prompt_siri_setup",
@@ -120,8 +129,8 @@ class TestTryEnableVoiceInput:
         app._transcriber.initialize.assert_called_once()
         assert app._voice_input_available is True
 
-    def test_dictation_disabled_prompts_user(self):
-        """If Dictation is disabled, show prompt without attempting initialize."""
+    def test_dictation_disabled_shows_setup_dialog(self):
+        """If Dictation is disabled, show three-option dialog without attempting initialize."""
         from wenzi.controllers.recording_controller import RecordingController
 
         app = MagicMock()
@@ -129,35 +138,69 @@ class TestTryEnableVoiceInput:
         ctrl = RecordingController(app)
 
         with patch("threading.Thread") as mock_thread, \
-             patch("wenzi.transcription.apple.check_siri_available", return_value=(False, "Siri disabled")), \
-             patch("wenzi.transcription.apple.prompt_enable_dictation") as mock_prompt:
+             patch("wenzi.transcription.apple.check_siri_available", return_value=(False, "disabled")), \
+             patch("wenzi.transcription.apple.prompt_siri_setup", return_value=SIRI_SETUP_LATER):
             ctrl._try_enable_voice_input()
             target = mock_thread.call_args[1].get("target") or mock_thread.call_args[0][0]
             if callable(target):
                 target()
 
         app._transcriber.initialize.assert_not_called()
-        mock_prompt.assert_called_once()
         assert app._voice_input_available is False
 
-    def test_dictation_available_but_init_fails(self):
-        """If Dictation is enabled but initialize() fails, show prompt."""
+    def test_dictation_disabled_dont_ask_again(self):
+        """If user chooses Don't Ask Again on hotkey press, persist and stop hotkeys."""
         from wenzi.controllers.recording_controller import RecordingController
 
-        app = MagicMock()
-        app._voice_input_available = False
-        app._transcriber.initialize.side_effect = RuntimeError("auth denied")
+        app = _make_app_with_real_choice_handler(_voice_input_available=False)
         ctrl = RecordingController(app)
 
         with patch("threading.Thread") as mock_thread, \
-             patch("wenzi.transcription.apple.check_siri_available", return_value=(True, None)), \
-             patch("wenzi.transcription.apple.prompt_enable_dictation") as mock_prompt:
+             patch("wenzi.transcription.apple.check_siri_available", return_value=(False, "disabled")), \
+             patch("wenzi.transcription.apple.prompt_siri_setup", return_value=SIRI_SETUP_DONT_ASK), \
+             patch("wenzi.config.save_config"):
             ctrl._try_enable_voice_input()
             target = mock_thread.call_args[1].get("target") or mock_thread.call_args[0][0]
             if callable(target):
                 target()
 
-        mock_prompt.assert_called_once()
+        assert app._config["asr"]["voice_input_disabled"] is True
+        app._stop_voice_hotkeys.assert_called_once()
+
+    def test_dictation_disabled_open_settings(self):
+        """If user chooses Open Settings on hotkey press, open Keyboard settings."""
+        from wenzi.controllers.recording_controller import RecordingController
+
+        app = _make_app_with_real_choice_handler(_voice_input_available=False)
+        ctrl = RecordingController(app)
+
+        with patch("threading.Thread") as mock_thread, \
+             patch("wenzi.transcription.apple.check_siri_available", return_value=(False, "disabled")), \
+             patch("wenzi.transcription.apple.prompt_siri_setup", return_value=SIRI_SETUP_OPEN_SETTINGS), \
+             patch("subprocess.Popen") as mock_popen:
+            ctrl._try_enable_voice_input()
+            target = mock_thread.call_args[1].get("target") or mock_thread.call_args[0][0]
+            if callable(target):
+                target()
+
+        mock_popen.assert_called_once()
+
+    def test_dictation_available_but_init_fails(self):
+        """If Dictation is enabled but initialize() fails, show setup dialog."""
+        from wenzi.controllers.recording_controller import RecordingController
+
+        app = _make_app_with_real_choice_handler(_voice_input_available=False)
+        app._transcriber.initialize.side_effect = RuntimeError("auth denied")
+        ctrl = RecordingController(app)
+
+        with patch("threading.Thread") as mock_thread, \
+             patch("wenzi.transcription.apple.check_siri_available", return_value=(True, None)), \
+             patch("wenzi.transcription.apple.prompt_siri_setup", return_value=SIRI_SETUP_LATER):
+            ctrl._try_enable_voice_input()
+            target = mock_thread.call_args[1].get("target") or mock_thread.call_args[0][0]
+            if callable(target):
+                target()
+
         assert app._voice_input_available is False
 
 

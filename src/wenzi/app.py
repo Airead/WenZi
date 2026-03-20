@@ -1162,11 +1162,7 @@ class WenZiApp(StatusBarApp):
         The user can still try via hotkey press (Open Settings / Set Up Later)
         which will attempt initialization on demand.
         """
-        from .transcription.apple import (
-            SIRI_SETUP_DONT_ASK,
-            SIRI_SETUP_OPEN_SETTINGS,
-            prompt_siri_setup,
-        )
+        from .transcription.apple import prompt_siri_setup
 
         asr_cfg = self._config["asr"]
 
@@ -1179,25 +1175,32 @@ class WenZiApp(StatusBarApp):
             return
 
         choice = prompt_siri_setup()
+        self._handle_dictation_setup_choice(choice)
+        self._set_status("WZ")
+        logger.info("Voice input not available, app running without ASR")
+
+    def _handle_dictation_setup_choice(self, choice: str) -> None:
+        """Handle the user's choice from the Dictation setup dialog.
+
+        Shared by _handle_no_voice_backend (startup) and
+        RecordingController._show_dictation_setup (hotkey press).
+        """
+        from .transcription.apple import (
+            KEYBOARD_SETTINGS_URL,
+            SIRI_SETUP_DONT_ASK,
+            SIRI_SETUP_OPEN_SETTINGS,
+        )
 
         if choice == SIRI_SETUP_OPEN_SETTINGS:
             import subprocess
 
-            from .transcription.apple import KEYBOARD_SETTINGS_URL
-
             subprocess.Popen(["open", KEYBOARD_SETTINGS_URL])
-
         elif choice == SIRI_SETUP_DONT_ASK:
-            asr_cfg["voice_input_disabled"] = True
+            self._config["asr"]["voice_input_disabled"] = True
             save_config(self._config, self._config_path)
             self._stop_voice_hotkeys()
 
-        # For all choices: mark voice unavailable, set normal status.
-        # "Open Settings" / "Set Up Later" keep hotkeys active so the
-        # user can try recording later (will attempt init on demand).
         self._voice_input_available = False
-        self._set_status("WZ")
-        logger.info("Voice input not available, app running without ASR")
 
     def _stop_voice_hotkeys(self) -> None:
         """Stop the voice recording hotkey listener."""

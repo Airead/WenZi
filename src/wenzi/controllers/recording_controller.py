@@ -83,9 +83,9 @@ class RecordingController:
         """Attempt to initialize voice input when user presses the hotkey.
 
         Called when _voice_input_available is False. Tries to initialize
-        the transcriber (in case user enabled Siri since startup). On
-        success, marks voice input as available. On failure, shows the
-        Siri setup prompt.
+        the transcriber (in case user enabled Dictation since startup).
+        On success, marks voice input as available. On failure, shows a
+        three-option setup dialog (Open Settings / Cancel / Don't Ask Again).
 
         Uses a lock to prevent concurrent initialization from rapid
         hotkey presses.
@@ -96,15 +96,11 @@ class RecordingController:
 
         def _attempt():
             try:
-                # Quick check if Dictation is enabled before attempting full init
-                from wenzi.transcription.apple import (
-                    check_siri_available,
-                    prompt_enable_dictation,
-                )
+                from wenzi.transcription.apple import check_siri_available
 
                 ok, _ = check_siri_available()
                 if not ok:
-                    prompt_enable_dictation()
+                    self._show_dictation_setup(app)
                     return
 
                 app._transcriber.initialize()
@@ -113,13 +109,19 @@ class RecordingController:
                 logger.info("Voice input enabled after deferred initialization")
             except Exception:
                 logger.debug("Deferred voice init failed, prompting user")
-                from wenzi.transcription.apple import prompt_enable_dictation
-
-                prompt_enable_dictation()
+                self._show_dictation_setup(app)
             finally:
                 self._voice_init_lock.release()
 
         threading.Thread(target=_attempt, daemon=True).start()
+
+    @staticmethod
+    def _show_dictation_setup(app) -> None:
+        """Show the three-option Dictation setup dialog and handle the choice."""
+        from wenzi.transcription.apple import prompt_siri_setup
+
+        choice = prompt_siri_setup()
+        app._handle_dictation_setup_choice(choice)
 
     def on_hotkey_press(self, key_name: str = "") -> None:
         """Called when hotkey is pressed down - start recording."""
