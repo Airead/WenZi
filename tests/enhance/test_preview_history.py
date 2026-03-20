@@ -203,3 +203,16 @@ class TestPreviewHistoryStore:
         store = PreviewHistoryStore()
         store.add(_make_record())
         assert store.get(0).hotwords_detail == []
+
+
+class TestPreviewRecordInputContext:
+    def test_default_none(self):
+        r = _make_record()
+        assert r.input_context is None
+
+    def test_with_input_context(self):
+        from wenzi.input_context import InputContext
+        ctx = InputContext(app_name="Terminal", bundle_id="com.apple.Terminal")
+        r = _make_record(input_context=ctx)
+        assert r.input_context is ctx
+        assert r.input_context.app_name == "Terminal"

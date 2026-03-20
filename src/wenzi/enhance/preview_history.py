@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
+
+if TYPE_CHECKING:
+    from wenzi.input_context import InputContext
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +32,7 @@ class PreviewRecord:
     thinking_text: str = ""
     token_usage: dict | None = None
     hotwords_detail: list = field(default_factory=list)  # List[HotwordDetail]
+    input_context: "InputContext | None" = None
 
 
 class PreviewHistoryStore:
