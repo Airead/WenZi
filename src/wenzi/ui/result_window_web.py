@@ -410,6 +410,8 @@ select {
             <button class="btn disabled" id="thinking-btn" onclick="postAction('showThinking')"
                 style="opacity:0.3;">🧠</button>
             <button class="btn disabled" id="prompt-btn" onclick="postAction('showPrompt')">Prompt ⓘ</button>
+            <button class="btn disabled" id="context-btn" onclick="postAction('showContext')"
+                style="opacity:0.3;">📍</button>
         </div>
     </div>
     <div class="text-area enhance-bg" id="enhance-text"></div>
@@ -730,6 +732,8 @@ function setEnhanceLoading() {
     document.getElementById('enhance-info').textContent = '⏳ Processing...';
     const _tb = document.getElementById('thinking-btn');
     _tb.classList.add('disabled'); _tb.style.opacity = '0.3';
+    const _cb = document.getElementById('context-btn');
+    _cb.classList.add('disabled'); _cb.style.opacity = '0.3';
     userEdited = false;
 }
 
@@ -740,6 +744,8 @@ function setEnhanceOff() {
     _pb.classList.add('disabled'); _pb.style.opacity = '0.3';
     const _tb = document.getElementById('thinking-btn');
     _tb.classList.add('disabled'); _tb.style.opacity = '0.3';
+    const _cb = document.getElementById('context-btn');
+    _cb.classList.add('disabled'); _cb.style.opacity = '0.3';
 }
 
 function setEnhanceComplete(info, hasThinking, finalText) {
@@ -757,6 +763,14 @@ function setEnhanceComplete(info, hasThinking, finalText) {
 function enablePromptButton() {
     const pb = document.getElementById('prompt-btn');
     pb.classList.remove('disabled'); pb.style.opacity = '1';
+}
+function enableContextButton() {
+    const cb = document.getElementById('context-btn');
+    cb.classList.remove('disabled'); cb.style.opacity = '1';
+}
+function disableContextButton() {
+    const cb = document.getElementById('context-btn');
+    cb.classList.add('disabled'); cb.style.opacity = '0.3';
 }
 
 function setFinalText(text) {
@@ -876,6 +890,13 @@ function loadHistoryRecord(data) {
         tb.classList.remove('disabled'); tb.style.opacity = '1';
     } else {
         tb.classList.add('disabled'); tb.style.opacity = '0.3';
+    }
+    // Context button
+    const cb = document.getElementById('context-btn');
+    if (data.hasContext) {
+        cb.classList.remove('disabled'); cb.style.opacity = '1';
+    } else {
+        cb.classList.add('disabled'); cb.style.opacity = '0.3';
     }
 
     // Audio buttons
@@ -1053,6 +1074,7 @@ class ResultPreviewPanel:
         self._enhance_request_id: int = 0
         self._asr_request_id: int = 0
         self._system_prompt: str = ""
+        self._input_context_text: str = ""
         self._stt_models: List[str] = []
         self._llm_models: List[str] = []
         self._stt_current_index: int = 0
@@ -1361,6 +1383,8 @@ class ResultPreviewPanel:
             )
             if system_prompt:
                 self._eval_js("enablePromptButton()")
+            if self._input_context_text:
+                self._eval_js("enableContextButton()")
 
         AppHelper.callAfter(_update)
 
@@ -1395,6 +1419,8 @@ class ResultPreviewPanel:
             )
             if system_prompt:
                 self._eval_js("enablePromptButton()")
+            if self._input_context_text:
+                self._eval_js("enableContextButton()")
 
         AppHelper.callAfter(_update)
 
@@ -1429,6 +1455,7 @@ class ResultPreviewPanel:
             "asrInfo": asr_info,
             "hasPrompt": bool(system_prompt),
             "hasThinking": bool(thinking_text),
+            "hasContext": bool(self._input_context_text),
         }
 
         def _update():
@@ -1441,6 +1468,15 @@ class ResultPreviewPanel:
             self._eval_js(f"loadHistoryRecord({json.dumps(data)})")
 
         AppHelper.callAfter(_update)
+
+    def set_input_context(self, text: str) -> None:
+        """Cache input context display text.
+
+        The button is enabled later by ``set_enhance_complete()``,
+        ``replay_cached_result()``, or ``load_history_record()`` —
+        i.e. only after the webview is guaranteed to be ready.
+        """
+        self._input_context_text = text
 
     def set_enhance_label(self, suffix: str, request_id: int = 0) -> None:
         """Update only the enhancement label text."""
@@ -1681,6 +1717,10 @@ class ResultPreviewPanel:
         elif msg_type == "showPrompt":
             if self._system_prompt:
                 self._show_info_panel("System Prompt", self._system_prompt)
+
+        elif msg_type == "showContext":
+            if self._input_context_text:
+                self._show_info_panel("Input Context", self._input_context_text)
 
         elif msg_type == "toggleAudio":
             if self._asr_wav_data:

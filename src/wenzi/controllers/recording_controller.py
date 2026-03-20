@@ -12,6 +12,7 @@ if TYPE_CHECKING:
 
 from wenzi.config import save_config
 from wenzi.input import type_text
+from wenzi.input_context import capture_input_context
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,12 @@ class RecordingController:
         # Guard against watchdog + normal release racing into on_hotkey_release
         self._release_lock = threading.Lock()
         self._release_done = False
+        self._input_context = None
+
+    @property
+    def input_context(self):
+        """The input context captured at the last hotkey press."""
+        return self._input_context
 
     def _fire_scripting_event(self, event_name: str, **kwargs) -> None:
         """Fire a scripting event if the script engine is available."""
@@ -135,6 +142,14 @@ class RecordingController:
             return
         if app._busy:
             return
+
+        # Capture input context while the user's target app is still frontmost
+        ic_level = (
+            app._enhancer.input_context_level
+            if app._enhancer
+            else app._config.get("ai_enhance", {}).get("input_context", "basic")
+        )
+        self._input_context = capture_input_context(ic_level)
 
         # Allow on_hotkey_release to proceed (reset from previous cycle)
         self._release_done = False
@@ -872,6 +887,7 @@ class RecordingController:
                 stt_model=app._current_stt_model(),
                 llm_model=app._current_llm_model(),
                 audio_duration=getattr(app, "_last_audio_duration", 0.0),
+                input_context=self._input_context,
             )
         except Exception as e:
             logger.error("Failed to log conversation: %s", e)
@@ -887,7 +903,7 @@ class RecordingController:
 
         async def _stream():
             nonlocal usage
-            gen = app._enhancer.enhance_stream(asr_text)
+            gen = app._enhancer.enhance_stream(asr_text, input_context=self._input_context)
             completion_tokens = 0
             thinking_tokens = 0
             had_thinking = False
@@ -976,7 +992,7 @@ class RecordingController:
 
                     async def _stream_step(text_input: str) -> None:
                         nonlocal step_usage
-                        gen = app._enhancer.enhance_stream(text_input)
+                        gen = app._enhancer.enhance_stream(text_input, input_context=self._input_context)
                         completion_tokens = 0
                         thinking_tokens = 0
                         had_thinking = False

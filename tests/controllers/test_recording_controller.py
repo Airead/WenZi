@@ -410,7 +410,7 @@ class TestDoTranscribeDirect:
         mock_apphelper.callAfter = lambda fn, *a, **kw: fn(*a, **kw)
 
         # Make enhance_stream immediately cancel
-        async def fake_stream(text):
+        async def fake_stream(text, **kwargs):
             return
             yield  # Make it an async generator
 
@@ -469,7 +469,7 @@ class TestDirectModeEscCancel:
         mock_app._enhancer.get_mode_definition.return_value = MagicMock(steps=None)
 
         # Create async generator that checks cancel on second chunk
-        async def fake_stream(text):
+        async def fake_stream(text, **kwargs):
             yield "first ", None, False
             # Simulate ESC pressed during streaming
             # The cancel_event is created inside do_transcribe_direct,
@@ -833,7 +833,7 @@ class TestEventLoopCleanup:
 
     def test_single_stream_closes_loop_on_error(self, ctrl, mock_app):
         """_run_direct_single_stream closes the event loop on exception."""
-        async def failing_stream(text):
+        async def failing_stream(text, **kwargs):
             raise RuntimeError("stream error")
             yield  # make it an async generator
         mock_app._enhancer.enhance_stream = failing_stream
@@ -848,7 +848,7 @@ class TestEventLoopCleanup:
 
     def test_single_stream_closes_loop_on_success(self, ctrl, mock_app):
         """_run_direct_single_stream closes the event loop on normal exit."""
-        async def ok_stream(text):
+        async def ok_stream(text, **kwargs):
             yield ("result", None, False)
 
         mock_app._enhancer.enhance_stream = ok_stream
@@ -859,7 +859,7 @@ class TestEventLoopCleanup:
 
     def test_chain_stream_closes_loop_on_error(self, ctrl, mock_app):
         """_run_direct_chain_stream closes the event loop on exception."""
-        async def failing_stream(text):
+        async def failing_stream(text, **kwargs):
             raise RuntimeError("chain error")
             yield
         mock_app._enhancer.enhance_stream = failing_stream

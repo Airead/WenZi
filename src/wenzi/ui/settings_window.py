@@ -161,6 +161,7 @@ class SettingsPanel:
                 - on_enhance_mode_select: (mode_id) -> None
                 - on_enhance_add_mode: () -> None
                 - on_thinking_toggle: (enabled) -> None
+                - on_input_context_change: (level) -> None
                 - on_vocab_toggle: (enabled) -> None
                 - on_auto_build_toggle: (enabled) -> None
                 - on_history_toggle: (enabled) -> None
@@ -1004,6 +1005,38 @@ class SettingsPanel:
             pad + 12, y, content_w - 24, doc_view,
         )
 
+        # Input Context level
+        y -= (self._CONTROL_HEIGHT + self._ROW_GAP)
+        ic_label = self._make_label(
+            "Input Context", pad + 12, y, 110, small_font,
+        )
+        doc_view.addSubview_(ic_label)
+
+        ic_items = [
+            ("off", "Off"),
+            ("basic", "Basic"),
+            ("detailed", "Detailed"),
+        ]
+        current_ic = state.get("input_context_level", "basic")
+        self._input_context_popup = self._make_popup(
+            ic_items, current_ic,
+            pad + 12 + 110, y, 120, small_font,
+            b"inputContextChanged:", doc_view,
+        )
+
+        _ic_hints = {
+            "off": "No app info is sent to the AI model.",
+            "basic": "App name is sent to help the AI adapt to your context.",
+            "detailed": "App name, window title, and other details are sent for better accuracy. May include sensitive info.",
+        }
+        y = self._add_hint(
+            _ic_hints.get(current_ic, _ic_hints["basic"]),
+            pad + 12, y, content_w - 24, doc_view,
+        )
+        # Store hint label reference and hints dict for dynamic update
+        self._input_context_hint_label = doc_view.subviews()[-1]
+        self._ic_hints = _ic_hints
+
         vocab_count = state.get("vocab_count", 0)
         vocab_title = f"Vocabulary ({vocab_count})" if vocab_count > 0 else "Vocabulary"
         y -= (self._CONTROL_HEIGHT + self._ROW_GAP)
@@ -1748,6 +1781,15 @@ class SettingsPanel:
 
     def thinkingCheckChanged_(self, sender):
         self._call("on_thinking_toggle", bool(sender.state()))
+
+    def inputContextChanged_(self, sender):
+        value = sender.selectedItem().representedObject()
+        if value is not None:
+            self._call("on_input_context_change", str(value))
+            # Update dynamic hint label
+            hint = self._ic_hints.get(str(value), self._ic_hints["basic"])
+            if hasattr(self, "_input_context_hint_label") and self._input_context_hint_label:
+                self._input_context_hint_label.setStringValue_(hint)
 
     def vocabCheckChanged_(self, sender):
         self._call("on_vocab_toggle", bool(sender.state()))

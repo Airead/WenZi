@@ -7,7 +7,10 @@ import logging
 import os
 import re
 from dataclasses import dataclass, field
-from typing import Any, AsyncIterator, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, AsyncIterator, Dict, List, Optional, Tuple
+
+if TYPE_CHECKING:
+    from wenzi.input_context import InputContext
 
 from .mode_loader import (
     MODE_OFF,
@@ -30,6 +33,7 @@ class _ModeHistoryCache:
     last_ts: str = ""
     total_chars: int = 0
     last_log_count: int = 0
+    last_context_level: str = "off"
 
 
 # Appended to system prompt when thinking mode is enabled to keep reasoning concise
@@ -211,6 +215,7 @@ class TextEnhancer:
         self._max_retries = config.get("max_retries", 2)
         self._max_output_tokens = config.get("max_output_tokens", 4096)
         self._thinking = config.get("thinking", False)
+        self._input_context_level: str = config.get("input_context", "basic")
         self._config_dir = config_dir
         self._data_dir = data_dir
         self._cache_dir = cache_dir
@@ -426,6 +431,15 @@ class TextEnhancer:
         )
 
     @property
+    def input_context_level(self) -> str:
+        return self._input_context_level
+
+    @input_context_level.setter
+    def input_context_level(self, value: str) -> None:
+        self._input_context_level = value
+        logger.info("Input context level changed to: %s", value)
+
+    @property
     def conversation_history(self) -> ConversationHistory:
         return self._conversation_history
 
@@ -607,7 +621,10 @@ class TextEnhancer:
             result.update(provider_extra_body)
         return result
 
-    def _build_system_content(self, text: str, mode_def: "ModeDefinition") -> str:
+    def _build_system_content(
+        self, text: str, mode_def: "ModeDefinition",
+        input_context: "InputContext | None" = None,
+    ) -> str:
         """Build system prompt with vocabulary and history context.
 
         Components are ordered by stability (most stable first) so that
@@ -625,19 +642,22 @@ class TextEnhancer:
         if self._thinking:
             system_content = f"{system_content}\n\n{THINKING_BREVITY_HINT}"
 
-        # 2. Combined context section (history + vocab)
-        context_section = self._build_context_section(text)
+        # 2. Combined context section (history + vocab + input context)
+        context_section = self._build_context_section(text, input_context)
         if context_section:
             system_content = f"{system_content}\n\n{context_section}"
 
         return system_content
 
-    def _build_context_section(self, text: str) -> str:
-        """Build the combined context section with history and vocabulary.
+    def _build_context_section(
+        self, text: str, input_context: "InputContext | None" = None,
+    ) -> str:
+        """Build the combined context section with history, vocabulary, and input context.
 
         Merges history and vocabulary instruction headers into one static
         block at the top, maximizing the cacheable prompt prefix.  History
-        entries follow (append-only), then vocabulary entries (dynamic).
+        entries follow (append-only), then vocabulary entries (dynamic),
+        then input context (dynamic per request).
 
         Structure::
 
@@ -651,6 +671,9 @@ class TextEnhancer:
             词库：
             - term1
             - term2
+
+            当前输入环境：
+            - iTerm2 — "窗口标题" — AXTextArea
             ---
         """
         history_context = ""
@@ -677,7 +700,11 @@ class TextEnhancer:
             except Exception as e:
                 logger.warning("Vocabulary retrieval failed: %s", e)
 
-        if not history_context and not vocab_lines:
+        env_line = None
+        if input_context is not None:
+            env_line = input_context.format_for_prompt(self._input_context_level)
+
+        if not history_context and not vocab_lines and not env_line:
             return ""
 
         # Build the combined section — header uses enabled flags for stability
@@ -688,6 +715,9 @@ class TextEnhancer:
 
         if vocab_lines:
             parts.append(f"词库：\n{vocab_lines}")
+
+        if env_line:
+            parts.append(f"当前输入环境：\n- {env_line}")
 
         parts.append("---")
         return "\n\n".join(parts)
@@ -716,6 +746,12 @@ class TextEnhancer:
         """
         ch = self._conversation_history
         mc = self._get_mode_cache()
+
+        # Invalidate cache if context level changed — replace with a fresh
+        # instance to force a full rebuild (resets last_log_count etc.).
+        if mc.last_context_level != self._input_context_level:
+            mc = _ModeHistoryCache(last_context_level=self._input_context_level)
+            self._history_caches[self._mode] = mc
 
         # Fast path: no new log() calls since last build — return cached.
         # last_log_count is per-mode so that one mode's update does not
@@ -772,7 +808,7 @@ class TextEnhancer:
         new_entries.reverse()
 
         # Pre-check: would appending exceed thresholds?
-        new_lines = [ch.format_entry_line(e) for e in new_entries]
+        new_lines = [ch.format_entry_line(e, context_level=self._input_context_level) for e in new_entries]
         # Each new line adds: 1 separator (\n) + line length
         new_chars = sum(len(line) + 1 for line in new_lines)
         projected_count = len(mc.entry_lines) + len(new_lines)
@@ -813,7 +849,7 @@ class TextEnhancer:
         ch = self._conversation_history
         mc = self._get_mode_cache()
         base = entries[-self._history_max_entries:]
-        mc.entry_lines = [ch.format_entry_line(e) for e in base]
+        mc.entry_lines = [ch.format_entry_line(e, context_level=self._input_context_level) for e in base]
         # Total chars of "\n".join(lines): sum of line lengths + (N-1) separators
         n = len(mc.entry_lines)
         mc.total_chars = (
@@ -856,16 +892,28 @@ class TextEnhancer:
         lines = ["---", "以下是辅助纠错的参考上下文："]
 
         if self._history_enabled:
-            lines.append(
+            hist_hint = (
                 "- 对话记录（优先参考）：反映用户真实的纠错偏好和话题上下文，"
                 "差异部分以[误→正]标注，无标注表示该部分无需纠错。"
             )
+            if self._input_context_level != "off":
+                hist_hint += (
+                    "每条记录前的应用名称表示该条是在哪个应用中输入的，"
+                    "这是系统自动采集的元数据，不是用户输入的内容。"
+                )
+            lines.append(hist_hint)
 
         if self._vocab_enabled:
             lines.append(
                 "- 词库（仅供辅助）：以下专有名词 ASR 常误写为同音近音词，"
                 "仅当输入中确实存在对应误写时才替换，不要强行套用。"
                 "当词库与对话记录冲突时，以对话记录为准。"
+            )
+
+        if self._input_context_level != "off":
+            lines.append(
+                "- 当前输入环境：标注用户正在使用的应用和窗口信息，"
+                "这是系统自动采集的元数据，不是用户输入的内容。"
             )
 
         return "\n".join(lines)
@@ -902,7 +950,9 @@ class TextEnhancer:
 
         return kwargs
 
-    async def enhance(self, text: str) -> Tuple[str, Optional[Dict[str, int]]]:
+    async def enhance(
+        self, text: str, input_context: "InputContext | None" = None,
+    ) -> Tuple[str, Optional[Dict[str, int]]]:
         """Enhance text using LLM.
 
         Returns (enhanced_text, usage) where usage is a dict with
@@ -921,7 +971,7 @@ class TextEnhancer:
             return text, None
 
         try:
-            system_content = self._build_system_content(text, mode_def)
+            system_content = self._build_system_content(text, mode_def, input_context=input_context)
             kwargs = self._build_request_kwargs(text, system_content)
             client, _, _ = self._providers[self._active_provider]
 
@@ -965,7 +1015,7 @@ class TextEnhancer:
         self._cancel_event.set()
 
     async def enhance_stream(
-        self, text: str
+        self, text: str, input_context: "InputContext | None" = None,
     ) -> AsyncIterator[Tuple[str, Optional[Dict[str, int]], bool]]:
         """Stream-enhance text using LLM.
 
@@ -989,7 +1039,7 @@ class TextEnhancer:
             return
 
         try:
-            system_content = self._build_system_content(text, mode_def)
+            system_content = self._build_system_content(text, mode_def, input_context=input_context)
             kwargs = self._build_request_kwargs(
                 text, system_content,
                 stream=True,

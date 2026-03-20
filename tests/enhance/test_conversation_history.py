@@ -1288,3 +1288,46 @@ class TestFullCache:
         # Force mtime difference (file was modified after cache was set)
         results = history.get_all()
         assert len(results) == 2
+
+
+class TestInputContextStorage:
+    def test_log_with_input_context(self, history, history_dir):
+        from wenzi.input_context import InputContext
+        ctx = InputContext(app_name="Terminal", bundle_id="com.apple.Terminal")
+        history.log(
+            asr_text="hello", enhanced_text="hello", final_text="hello",
+            enhance_mode="proofread", preview_enabled=True, input_context=ctx,
+        )
+        records = history.get_all()
+        assert len(records) == 1
+        assert records[0]["input_context"] == {"app_name": "Terminal", "bundle_id": "com.apple.Terminal"}
+
+    def test_log_without_input_context(self, history, history_dir):
+        history.log(
+            asr_text="hello", enhanced_text="hello", final_text="hello",
+            enhance_mode="proofread", preview_enabled=True,
+        )
+        records = history.get_all()
+        assert len(records) == 1
+        assert "input_context" not in records[0]
+
+    def test_format_entry_line_with_context_tag(self):
+        from wenzi.enhance.conversation_history import ConversationHistory
+        entry = {"asr_text": "KC", "final_text": "k8s", "input_context": {"app_name": "Terminal"}}
+        line = ConversationHistory.format_entry_line(entry, context_level="basic")
+        assert line.startswith("- Terminal - ")
+        assert "k8s" in line
+
+    def test_format_entry_line_no_context(self):
+        from wenzi.enhance.conversation_history import ConversationHistory
+        entry = {"asr_text": "hello", "final_text": "hello"}
+        line = ConversationHistory.format_entry_line(entry, context_level="basic")
+        assert line == "- hello"
+
+    def test_format_entry_line_detailed_only_app_name(self):
+        from wenzi.enhance.conversation_history import ConversationHistory
+        entry = {"asr_text": "hello", "final_text": "hello",
+                 "input_context": {"app_name": "Chrome", "browser_domain": "github.com"}}
+        line = ConversationHistory.format_entry_line(entry, context_level="detailed")
+        assert line.startswith("- Chrome - ")
+        assert "github.com" not in line

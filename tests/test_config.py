@@ -577,3 +577,16 @@ class TestConfigDirPreference:
             result = cfg_mod._read_user_defaults_config_dir()
             assert result == "/custom/config"
             importlib.reload(cfg_mod)
+
+
+def test_validate_input_context_invalid_falls_back():
+    config = {"ai_enhance": {"input_context": "invalid_value"}}
+    result = validate_config(config)
+    assert result["ai_enhance"]["input_context"] == "basic"
+
+
+def test_validate_input_context_valid_values():
+    for level in ("off", "basic", "detailed"):
+        config = {"ai_enhance": {"input_context": level}}
+        result = validate_config(config)
+        assert result["ai_enhance"]["input_context"] == level

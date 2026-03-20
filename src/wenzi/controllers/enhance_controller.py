@@ -12,6 +12,7 @@ from wenzi.lru_cache import LRUCache
 
 if TYPE_CHECKING:
     from wenzi.enhance.enhancer import TextEnhancer
+    from wenzi.input_context import InputContext
     from wenzi.ui.result_window_web import ResultPreviewPanel
     from wenzi.usage_stats import UsageStats
 
@@ -99,6 +100,7 @@ class EnhanceController:
         asr_text: str,
         request_id: int,
         result_holder: dict | None = None,
+        input_context: "InputContext | None" = None,
     ) -> None:
         """Run AI enhancement in a background thread with streaming."""
         if not self._enhancer:
@@ -127,10 +129,12 @@ class EnhanceController:
                     self._run_chain(
                         asr_text, request_id, result_holder, cancel_event,
                         chain_steps, current_mode_def.mode_id,
+                        input_context=input_context,
                     )
                 else:
                     self._run_single(
                         asr_text, request_id, result_holder, cancel_event,
+                        input_context=input_context,
                     )
             except Exception as e:
                 logger.error("AI enhancement failed: %s", e)
@@ -143,6 +147,7 @@ class EnhanceController:
     def _run_single(
         self, asr_text: str, request_id: int,
         result_holder: dict | None, cancel_event: threading.Event,
+        input_context: "InputContext | None" = None,
     ) -> None:
         """Run a single-step streaming enhancement."""
         loop = asyncio.new_event_loop()
@@ -152,7 +157,7 @@ class EnhanceController:
 
         async def _stream():
             nonlocal usage, cancelled
-            gen = self._enhancer.enhance_stream(asr_text)
+            gen = self._enhancer.enhance_stream(asr_text, input_context=input_context)
             completion_tokens = 0
             thinking_tokens = 0
             had_thinking = False
@@ -246,6 +251,7 @@ class EnhanceController:
         self, asr_text: str, request_id: int,
         result_holder: dict | None, cancel_event: threading.Event,
         chain_steps: list[str], original_mode_id: str,
+        input_context: "InputContext | None" = None,
     ) -> None:
         """Run a multi-step chain enhancement with streaming."""
         loop = asyncio.new_event_loop()
@@ -287,7 +293,7 @@ class EnhanceController:
 
                 async def _stream_step(text_input: str) -> None:
                     nonlocal step_usage, cancelled
-                    gen = self._enhancer.enhance_stream(text_input)
+                    gen = self._enhancer.enhance_stream(text_input, input_context=input_context)
                     completion_tokens = 0
                     thinking_tokens = 0
                     had_thinking = False

@@ -305,6 +305,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
             "enabled": False,
             "max_entries": 10,
         },
+        "input_context": "basic",
     },
     "clipboard_enhance": {
         "hotkey": "ctrl+cmd+v",
@@ -533,6 +534,8 @@ def validate_config(config: Dict[str, Any]) -> Dict[str, Any]:
          DEFAULT_CONFIG["ai_enhance"]["vocabulary"]["max_dynamic_hotwords"]),
         ("ai_enhance.vocabulary.max_static_hotwords", int, lambda v: v > 0,
          DEFAULT_CONFIG["ai_enhance"]["vocabulary"]["max_static_hotwords"]),
+        ("ai_enhance.input_context", str, lambda v: v in {"off", "basic", "detailed"},
+         DEFAULT_CONFIG["ai_enhance"]["input_context"]),
     ]
 
     for path, expected_type, constraint, default in rules:

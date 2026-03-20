@@ -2242,3 +2242,103 @@ class TestStreamThinkTagIntegration:
         thinking_chunks = [r[0] for r in results if r[2] is True]
         assert "".join(content_chunks) == "hello world"
         assert thinking_chunks == []
+
+
+# --- Input context injection tests ---
+
+
+class TestInputContextInjection:
+    """Tests for input_context injection into the LLM system prompt."""
+
+    def _make_enhancer(self, **config_overrides):
+        """Create a TextEnhancer with _init_providers patched out."""
+        with patch("wenzi.enhance.enhancer.TextEnhancer._init_providers"):
+            return TextEnhancer(_make_config(**config_overrides))
+
+    def test_build_system_content_with_input_context(self):
+        from wenzi.input_context import InputContext
+
+        enhancer = self._make_enhancer(input_context="basic")
+        mode_def = _TEST_MODES["proofread"]
+        ctx = InputContext(app_name="Safari")
+
+        result = enhancer._build_system_content("hello", mode_def, input_context=ctx)
+
+        # Should contain the environment line
+        assert "\u5f53\u524d\u8f93\u5165\u73af\u5883" in result
+        assert "Safari" in result
+
+    def test_build_system_content_without_input_context(self):
+        enhancer = self._make_enhancer()
+        mode_def = _TEST_MODES["proofread"]
+
+        result = enhancer._build_system_content("hello", mode_def, input_context=None)
+
+        # Should NOT contain the environment section with app name
+        assert "Safari" not in result
+
+    def test_input_context_inside_section(self, tmp_path):
+        """Input context should appear inside the --- block, after vocab."""
+        from wenzi.input_context import InputContext
+
+        enhancer = self._make_enhancer(
+            input_context="basic",
+            conversation_history={"enabled": True, "max_entries": 5},
+        )
+        # Replace conversation history with one using tmp_path
+        enhancer._conversation_history = ConversationHistory(
+            data_dir=str(tmp_path)
+        )
+        ch = enhancer._conversation_history
+        ch.log("asr text", None, "final text", "proofread", True)
+        mode_def = _TEST_MODES["proofread"]
+        ctx = InputContext(app_name="VSCode")
+
+        result = enhancer._build_system_content("hello", mode_def, input_context=ctx)
+
+        # Input context should be inside the --- delimited section
+        assert "\u5f53\u524d\u8f93\u5165\u73af\u5883\uff1a\n- VSCode" in result
+        # Should appear before the closing ---
+        env_pos = result.find("- VSCode")
+        section_end = result.rfind("---")
+        assert env_pos < section_end, (
+            f"Input context (pos={env_pos}) should appear before "
+            f"closing --- (pos={section_end})"
+        )
+
+    def test_input_context_off_level(self):
+        """When input_context config is 'off', no environment line is injected."""
+        from wenzi.input_context import InputContext
+
+        enhancer = self._make_enhancer(input_context="off")
+        mode_def = _TEST_MODES["proofread"]
+        ctx = InputContext(app_name="Safari")
+
+        result = enhancer._build_system_content("hello", mode_def, input_context=ctx)
+
+        assert "Safari" not in result
+
+    def test_history_cache_invalidated_on_context_level_change(self, tmp_path):
+        """Changing input_context level should invalidate history cache."""
+        enhancer = self._make_enhancer(
+            input_context="basic",
+            conversation_history={"enabled": True, "max_entries": 5},
+        )
+        enhancer._conversation_history = ConversationHistory(
+            data_dir=str(tmp_path)
+        )
+        ch = enhancer._conversation_history
+        ch.log("asr text", None, "final text", "proofread", True)
+
+        # Build history to populate cache
+        enhancer._build_history_context()
+        mc = enhancer._get_mode_cache()
+        assert mc.entry_lines  # cache populated
+
+        # Change input_context level
+        enhancer._input_context_level = "detailed"
+
+        # Build again — should invalidate and rebuild
+        enhancer._build_history_context()
+        mc = enhancer._get_mode_cache()
+        assert mc.last_context_level == "detailed"

@@ -31,7 +31,7 @@ def _make_controller(stream_chunks):
     enhancer.get_mode_definition.return_value = None
     enhancer.last_system_prompt = "system"
 
-    async def fake_stream(text):
+    async def fake_stream(text, **kwargs):
         for chunk in stream_chunks:
             yield chunk
 

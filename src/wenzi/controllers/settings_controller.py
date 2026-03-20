@@ -130,6 +130,7 @@ class SettingsController:
             "history_refresh_threshold": (
                 app._enhancer.history_refresh_threshold if app._enhancer else 50
             ),
+            "input_context_level": app._config.get("ai_enhance", {}).get("input_context", "basic"),
             "config_dir": app._config_dir,
             "scripting_enabled": app._config.get("scripting", {}).get(
                 "enabled", False
@@ -166,6 +167,7 @@ class SettingsController:
             "on_history_toggle": self.history_toggle,
             "on_history_max_entries": self.history_max_entries_change,
             "on_history_refresh_threshold": self.history_refresh_threshold_change,
+            "on_input_context_change": self.input_context_change,
             "on_vocab_build_model_select": self.vocab_build_model_select,
             "on_vocab_build": lambda: app._on_vocab_build(None),
             "on_tab_change": self.tab_change,
@@ -719,6 +721,16 @@ class SettingsController:
         app._config["ai_enhance"]["thinking"] = enabled
         self._save_and_reload()
         logger.info("AI thinking set to: %s (from settings)", enabled)
+
+    def input_context_change(self, level: str) -> None:
+        """Handle input context level change from Settings panel."""
+        app = self._app
+        app._config.setdefault("ai_enhance", {})
+        app._config["ai_enhance"]["input_context"] = level
+        if app._enhancer:
+            app._enhancer.input_context_level = level
+        save_config(app._config, app._config_path)
+        logger.info("Input context level set to: %s (from settings)", level)
 
     def vocab_toggle(self, enabled: bool) -> None:
         """Handle vocabulary toggle from Settings panel."""
