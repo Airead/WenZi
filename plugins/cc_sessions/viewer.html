@@ -228,6 +228,48 @@
     font-size: 11px;
   }
 
+  .collapsible {
+    position: relative;
+    max-height: calc(1.6em * 8);
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+  }
+  .collapsible.expanded {
+    max-height: none;
+  }
+  .collapsible::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 24px;
+    background: linear-gradient(transparent, var(--bg-primary));
+    pointer-events: none;
+  }
+  .collapsible.expanded::after {
+    display: none;
+  }
+  .user-content.collapsible::after {
+    background: linear-gradient(transparent, var(--bg-user-msg-solid, #eef4fe));
+  }
+  @media (prefers-color-scheme: dark) {
+    .user-content.collapsible::after {
+      background: linear-gradient(transparent, var(--bg-user-msg-solid, #1e2a3a));
+    }
+  }
+  .show-more-btn {
+    display: block;
+    background: none;
+    border: none;
+    color: var(--badge-user);
+    font-size: 11px;
+    cursor: pointer;
+    padding: 2px 12px;
+    opacity: 0.8;
+  }
+  .show-more-btn:hover { opacity: 1; }
+
   .user-content {
     padding: 8px 12px;
     background: var(--bg-user-msg);
@@ -748,6 +790,28 @@ function renderConversation(messages) {
   }
 
   setupOutlineObserver();
+  setupCollapsibles(conv);
+}
+
+// ── Collapsible long content ──
+function setupCollapsibles(container) {
+  const lineHeight = parseFloat(getComputedStyle(document.documentElement).fontSize) * 1.6;
+  const maxH = lineHeight * 8;
+
+  container.querySelectorAll(".user-content, .assistant-text").forEach(el => {
+    if (el.scrollHeight <= maxH + 4) return;  // +4 for rounding tolerance
+
+    el.classList.add("collapsible");
+
+    const btn = document.createElement("button");
+    btn.className = "show-more-btn";
+    btn.textContent = "\u25BC Show more";
+    btn.addEventListener("click", () => {
+      const expanded = el.classList.toggle("expanded");
+      btn.textContent = expanded ? "\u25B2 Show less" : "\u25BC Show more";
+    });
+    el.parentNode.insertBefore(btn, el.nextSibling);
+  });
 }
 
 // ── Check if user message is purely tool_result (no real user text) ──
