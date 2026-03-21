@@ -147,11 +147,9 @@ class ScriptEngine:
         self._wz.pasteboard._set_monitor(None)
         self._wz.snippets._set_store(None)
 
-        # Clear all registered sources
+        # Clear all registered sources and trackers
         panel = self._wz.chooser._get_panel()
-        panel._sources.clear()
-        panel._usage_tracker = None
-        panel._query_history = None
+        panel.reset()
 
         logger.info("Chooser disabled at runtime")
 
@@ -238,6 +236,11 @@ class ScriptEngine:
             if self._snippet_expander is not None:
                 self._snippet_expander.stop()
                 self._snippet_expander = None
+            chooser_config = self._config.get("chooser", {})
+            snippet_hotkey = chooser_config.get("new_snippet_hotkey", "")
+            if snippet_hotkey:
+                self._wz.hotkey.unbind(snippet_hotkey)
+            self._snippet_source = None
             self._snippet_store = None
             self._wz.snippets._set_store(None)
             self._wz.chooser.unregister_source(source_name)

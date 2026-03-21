@@ -262,6 +262,12 @@ class ChooserPanel:
         """Remove a data source by name."""
         self._sources.pop(name, None)
 
+    def reset(self) -> None:
+        """Clear all sources and reset trackers."""
+        self._sources.clear()
+        self._usage_tracker = None
+        self._query_history = None
+
     # ------------------------------------------------------------------
     # Event helpers
     # ------------------------------------------------------------------

@@ -28,6 +28,9 @@ _VK_DELETE = 51
 # Maximum buffer length — keywords longer than this are not supported
 _MAX_BUFFER = 128
 
+# UTF-16 buffer size for CGEventKeyboardGetUnicodeString
+_KEYBOARD_BUF_SIZE = 16
+
 # Keycodes that should clear the character buffer (navigation / control)
 _CLEAR_KEYCODES = {
     36,  # return
@@ -51,16 +54,17 @@ def _get_unicode_string(event) -> str:
     import objc
 
     length = ctypes.c_uint32(0)
-    buf = (ctypes.c_uint16 * 4)()
+    buf = (ctypes.c_uint16 * _KEYBOARD_BUF_SIZE)()
     _carbon.CGEventKeyboardGetUnicodeString(
         ctypes.c_void_p(objc.pyobjc_id(event)),
-        ctypes.c_uint32(4),
+        ctypes.c_uint32(_KEYBOARD_BUF_SIZE),
         ctypes.byref(length),
         buf,
     )
     if length.value == 0:
         return ""
-    return "".join(chr(buf[i]) for i in range(length.value))
+    n = min(length.value, _KEYBOARD_BUF_SIZE)
+    return "".join(chr(buf[i]) for i in range(n))
 
 
 class SnippetExpander:
@@ -281,6 +285,17 @@ class SnippetExpander:
             )
         except Exception:
             logger.exception("Failed to expand snippet %r", keyword)
+            try:
+                from wenzi.statusbar import send_notification
+
+                send_notification(
+                    "Snippet Expansion Failed",
+                    f"Keyword: {keyword}",
+                    "Paste (Cmd+V) did not complete. "
+                    "The snippet content is still on your clipboard.",
+                )
+            except Exception:
+                pass
         finally:
             self._expanding = False
 

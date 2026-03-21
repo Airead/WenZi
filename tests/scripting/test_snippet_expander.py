@@ -281,6 +281,75 @@ class TestRandomExpansion:
         assert args[1] == "user@example.com"
 
 
+class TestGetUnicodeString:
+    """Test _get_unicode_string buffer safety."""
+
+    def test_length_exceeding_buffer_is_clamped(self):
+        """Ensure out-of-bounds read is prevented when length > buf_size."""
+        from wenzi.scripting.snippet_expander import _get_unicode_string
+
+        mock_event = MagicMock()
+        mock_objc = MagicMock()
+        mock_objc.pyobjc_id.return_value = 0
+        with (
+            patch("wenzi.scripting.snippet_expander._carbon") as mock_carbon,
+            patch.dict("sys.modules", {"objc": mock_objc}),
+        ):
+            def fake_get(event_ptr, max_len, length_ptr, buf):
+                # Simulate the API reporting a length larger than buffer
+                length_ptr._obj.value = 32  # larger than buf_size (16)
+                for i in range(16):
+                    buf[i] = ord("A") + (i % 26)
+
+            mock_carbon.CGEventKeyboardGetUnicodeString.side_effect = fake_get
+            result = _get_unicode_string(mock_event)
+
+        # Should return at most 16 chars (buf_size), not 32
+        assert len(result) <= 16
+
+    def test_empty_event_returns_empty_string(self):
+        from wenzi.scripting.snippet_expander import _get_unicode_string
+
+        mock_event = MagicMock()
+        mock_objc = MagicMock()
+        mock_objc.pyobjc_id.return_value = 0
+        with (
+            patch("wenzi.scripting.snippet_expander._carbon") as mock_carbon,
+            patch.dict("sys.modules", {"objc": mock_objc}),
+        ):
+            def fake_get(event_ptr, max_len, length_ptr, buf):
+                length_ptr._obj.value = 0
+
+            mock_carbon.CGEventKeyboardGetUnicodeString.side_effect = fake_get
+            result = _get_unicode_string(mock_event)
+
+        assert result == ""
+
+
+class TestExpandNotification:
+    """Test that expansion failure sends a notification."""
+
+    def test_notification_sent_on_paste_failure(self):
+        store = _make_store()
+        expander = SnippetExpander(store)
+
+        with (
+            patch.object(expander, "_send_backspaces"),
+            patch(
+                "wenzi.scripting.sources.snippet_source._expand_placeholders",
+                return_value="content",
+            ),
+            patch("wenzi.input._set_pasteboard_concealed"),
+            patch("subprocess.run", side_effect=Exception("osascript failed")),
+            patch("wenzi.statusbar.send_notification") as mock_notify,
+        ):
+            expander._expand(";;test", "content")
+
+        mock_notify.assert_called_once()
+        assert "Failed" in mock_notify.call_args[0][0]
+        assert expander._expanding is False
+
+
 class TestEngineIntegration:
     """Test that the engine wires up the expander correctly."""
 

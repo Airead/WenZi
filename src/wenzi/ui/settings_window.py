@@ -1324,7 +1324,7 @@ class SettingsPanel:
         )
 
         y -= (self._CONTROL_HEIGHT + self._ROW_GAP)
-        self._make_switch(
+        self._launcher_usage_learning_check = self._make_switch(
             "Usage Learning", pad + 12, y, content_w - 24,
             launcher_state.get("usage_learning", True), small_font,
             b"launcherUsageLearningToggled:", doc_view,
@@ -1380,6 +1380,7 @@ class SettingsPanel:
             self._launcher_enabled_check,
             self._launcher_hotkey_btn,
             self._launcher_switch_english_check,
+            self._launcher_usage_learning_check,
             refresh_btn,
         ]
         for check in self._launcher_source_checks.values():

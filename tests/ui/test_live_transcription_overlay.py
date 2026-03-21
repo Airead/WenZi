@@ -18,10 +18,7 @@ def _mock_overlay_internals():
     mock_view = MagicMock()
     mock_cls = MagicMock()
     mock_cls.alloc.return_value.initWithFrame_.return_value = mock_view
-    with (
-        patch("wenzi.ui.live_transcription_overlay._is_dark_mode", return_value=False),
-        patch("wenzi.ui.live_transcription_overlay._LiveBgView", mock_cls),
-    ):
+    with patch("wenzi.ui.live_transcription_overlay._LiveBgView", mock_cls):
         yield
 
 

@@ -572,8 +572,8 @@ class RecordingIndicatorPanel:
                 if completion:
                     completion()
 
-            ctx = NSAnimationContext.currentContext()
             NSAnimationContext.beginGrouping()
+            ctx = NSAnimationContext.currentContext()
             ctx.setDuration_(0.2)
             ctx.setCompletionHandler_(_on_complete)
             panel.animator().setAlphaValue_(0.0)

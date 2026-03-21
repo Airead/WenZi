@@ -48,6 +48,19 @@ class TestSourceRegistration:
         panel = _make_panel()
         panel.unregister_source("nope")  # Should not raise
 
+    def test_reset_clears_sources_and_trackers(self):
+        panel = _make_panel()
+        panel.register_source(_make_source("apps"))
+        panel.register_source(_make_source("files"))
+        panel._usage_tracker = MagicMock()
+        panel._query_history = MagicMock()
+
+        panel.reset()
+
+        assert len(panel._sources) == 0
+        assert panel._usage_tracker is None
+        assert panel._query_history is None
+
 
 class TestSearchLogic:
     def test_empty_query_returns_no_results(self):
