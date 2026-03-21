@@ -255,5 +255,13 @@
   "leader_alert.default_action": "action",
 
   "chooser.action.open": "Open",
-  "chooser.action.reveal": "Reveal"
+  "chooser.action.reveal": "Reveal",
+
+  "apple_stt.dictation_disabled.title": "Dictation Disabled",
+  "apple_stt.dictation_disabled.message": "Apple Speech requires Dictation to be enabled.\n\nPlease enable it in System Settings > Keyboard > Dictation.",
+  "apple_stt.btn.open_settings": "Open Settings",
+  "apple_stt.dictation_required.title": "Dictation Required",
+  "apple_stt.dictation_required.message": "WenZi uses Apple Speech for voice input, which requires Dictation to be enabled.\n\nYou can enable it now in System Settings > Keyboard > Dictation, or continue using WenZi without voice input (e.g. launcher only).",
+  "apple_stt.btn.setup_later": "Set Up Later",
+  "apple_stt.btn.dont_ask": "Don't Ask Again"
 }

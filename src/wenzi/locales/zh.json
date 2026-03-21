@@ -255,5 +255,13 @@
   "leader_alert.default_action": "操作",
 
   "chooser.action.open": "打开",
-  "chooser.action.reveal": "显示"
+  "chooser.action.reveal": "显示",
+
+  "apple_stt.dictation_disabled.title": "听写已禁用",
+  "apple_stt.dictation_disabled.message": "Apple 语音识别需要启用听写功能。\n\n请在系统设置 > 键盘 > 听写中启用。",
+  "apple_stt.btn.open_settings": "打开设置",
+  "apple_stt.dictation_required.title": "需要启用听写",
+  "apple_stt.dictation_required.message": "闻字使用 Apple 语音识别进行语音输入，需要启用听写功能。\n\n您可以现在在系统设置 > 键盘 > 听写中启用，或者继续使用闻字的其他功能（如启动器）。",
+  "apple_stt.btn.setup_later": "稍后设置",
+  "apple_stt.btn.dont_ask": "不再询问"
 }

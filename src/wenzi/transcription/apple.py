@@ -10,6 +10,8 @@ from typing import Callable, List, Optional
 
 import numpy as np
 
+from wenzi.i18n import t
+
 from .base import BaseTranscriber
 
 logger = logging.getLogger(__name__)
@@ -126,13 +128,10 @@ def prompt_enable_dictation():
     from wenzi.ui_helpers import restore_accessory, topmost_alert
 
     result = topmost_alert(
-        title="Dictation Disabled",
-        message=(
-            "Apple Speech requires Dictation to be enabled.\n\n"
-            "Please enable it in System Settings > Keyboard > Dictation."
-        ),
-        ok="Open Settings",
-        cancel="Cancel",
+        title=t("apple_stt.dictation_disabled.title"),
+        message=t("apple_stt.dictation_disabled.message"),
+        ok=t("apple_stt.btn.open_settings"),
+        cancel=t("common.cancel"),
     )
     if result == 1:
         import subprocess
@@ -172,18 +171,12 @@ def prompt_siri_setup():
         activate_for_dialog()
 
         alert = NSAlert.alloc().init()
-        alert.setMessageText_("Dictation Required")
-        alert.setInformativeText_(
-            "WenZi uses Apple Speech for voice input, which requires "
-            "Dictation to be enabled.\n\n"
-            "You can enable it now in System Settings > Keyboard > "
-            "Dictation, or continue using WenZi without voice input "
-            "(e.g. launcher only)."
-        )
+        alert.setMessageText_(t("apple_stt.dictation_required.title"))
+        alert.setInformativeText_(t("apple_stt.dictation_required.message"))
         # Button order: first = 1000, second = 1001, third = 1002
-        alert.addButtonWithTitle_("Open Settings")
-        alert.addButtonWithTitle_("Set Up Later")
-        alert.addButtonWithTitle_("Don't Ask Again")
+        alert.addButtonWithTitle_(t("apple_stt.btn.open_settings"))
+        alert.addButtonWithTitle_(t("apple_stt.btn.setup_later"))
+        alert.addButtonWithTitle_(t("apple_stt.btn.dont_ask"))
         alert.setAlertStyle_(0)  # informational
         alert.window().setLevel_(NSStatusWindowLevel)
         alert.window().setFloatingPanel_(True)
