@@ -89,6 +89,17 @@ body { display: flex; flex-direction: column; }
     font-size: 11px; color: var(--secondary);
     text-align: center;
 }
+.preview-html {
+    width: 100%; height: 100%; overflow-y: auto;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+    font-size: 12px; line-height: 1.5;
+    color: var(--text);
+    -webkit-user-select: text; user-select: text;
+}
+.preview-html::-webkit-scrollbar { width: 6px; }
+.preview-html::-webkit-scrollbar-thumb {
+    background: var(--secondary); border-radius: 3px; opacity: 0.5;
+}
 
 /* Search bar */
 .search-bar {
@@ -530,6 +541,11 @@ function setPreview(data) {
         pathDiv.className = 'preview-text';
         pathDiv.textContent = data.content || '';
         previewPanel.appendChild(pathDiv);
+    } else if (data.type === 'html') {
+        var htmlDiv = document.createElement('div');
+        htmlDiv.className = 'preview-html';
+        htmlDiv.innerHTML = data.content || '';
+        previewPanel.appendChild(htmlDiv);
     }
 }
 
