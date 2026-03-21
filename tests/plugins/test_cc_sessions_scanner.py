@@ -222,7 +222,7 @@ class TestSessionScanner:
         ]
         (proj / "sessions-index.json").write_text(json.dumps(index))
 
-        scanner = SessionScanner(base_dir=tmp_path)
+        scanner = SessionScanner(base_dir=tmp_path, cache_path=None)
         sessions = scanner.scan_all()
         assert len(sessions) == 1
         assert sessions[0]["project"] == "MyApp"
@@ -235,7 +235,7 @@ class TestSessionScanner:
             json.dumps({"type": "user", "timestamp": "2026-01-01T00:00:00Z", "message": {"content": "Hi"}}) + "\n"
         )
 
-        scanner = SessionScanner(base_dir=tmp_path)
+        scanner = SessionScanner(base_dir=tmp_path, cache_path=None)
         sessions = scanner.scan_all()
         assert len(sessions) == 1
         assert sessions[0]["session_id"] == "sess1"
@@ -248,7 +248,7 @@ class TestSessionScanner:
             json.dumps({"type": "user", "timestamp": "2026-01-01T00:00:00Z", "message": {"content": "First"}}) + "\n"
         )
 
-        scanner = SessionScanner(base_dir=tmp_path)
+        scanner = SessionScanner(base_dir=tmp_path, cache_path=tmp_path / "cache.json")
         results1 = scanner.scan_all()
         assert len(results1) == 1
 
@@ -259,7 +259,8 @@ class TestSessionScanner:
 
         # Verify cache was used by checking internal state
         cache_key = str(jsonl)
-        assert cache_key in scanner._cache
+        assert scanner._cache is not None
+        assert scanner._cache.get(cache_key) is not None
 
     def test_sorted_by_modified_desc(self, tmp_path: Path):
         proj = tmp_path / "proj"
@@ -278,11 +279,137 @@ class TestSessionScanner:
         ]
         (proj / "sessions-index.json").write_text(json.dumps(index))
 
-        scanner = SessionScanner(base_dir=tmp_path)
+        scanner = SessionScanner(base_dir=tmp_path, cache_path=None)
         sessions = scanner.scan_all()
         assert sessions[0]["session_id"] == "new"
         assert sessions[1]["session_id"] == "old"
 
     def test_nonexistent_base_dir(self, tmp_path: Path):
-        scanner = SessionScanner(base_dir=tmp_path / "nope")
+        scanner = SessionScanner(base_dir=tmp_path / "nope", cache_path=None)
         assert scanner.scan_all() == []
+
+
+# ---------------------------------------------------------------------------
+# SessionScanner with persistent disk cache
+# ---------------------------------------------------------------------------
+
+
+class TestSessionScannerPersistentCache:
+    """Test SessionScanner with persistent disk cache."""
+
+    def test_cache_persists_across_instances(self, tmp_path: Path):
+        """A second scanner instance reads cached data without re-parsing."""
+        proj = tmp_path / "projects" / "proj"
+        proj.mkdir(parents=True)
+        jsonl = proj / "persist1.jsonl"
+        jsonl.write_text(
+            json.dumps({
+                "type": "user",
+                "timestamp": "2026-01-01T00:00:00Z",
+                "message": {"content": "Persist test"},
+            }) + "\n"
+        )
+        cache_path = tmp_path / "cache" / "cc_sessions_cache.json"
+
+        scanner1 = SessionScanner(base_dir=tmp_path / "projects", cache_path=cache_path)
+        sessions1 = scanner1.scan_all()
+        assert len(sessions1) == 1
+        assert sessions1[0]["first_prompt"] == "Persist test"
+
+        # Second scanner — should read from disk cache
+        scanner2 = SessionScanner(base_dir=tmp_path / "projects", cache_path=cache_path)
+        sessions2 = scanner2.scan_all()
+        assert len(sessions2) == 1
+        assert sessions2[0]["first_prompt"] == "Persist test"
+
+    def test_detects_new_session(self, tmp_path: Path):
+        """New JSONL file not in cache is parsed and added."""
+        proj = tmp_path / "projects" / "proj"
+        proj.mkdir(parents=True)
+        cache_path = tmp_path / "cache" / "cc_sessions_cache.json"
+
+        scanner = SessionScanner(base_dir=tmp_path / "projects", cache_path=cache_path)
+        assert scanner.scan_all() == []
+
+        # Add a new session file
+        jsonl = proj / "new1.jsonl"
+        jsonl.write_text(
+            json.dumps({
+                "type": "user",
+                "timestamp": "2026-01-01T00:00:00Z",
+                "message": {"content": "New session"},
+            }) + "\n"
+        )
+        sessions = scanner.scan_all()
+        assert len(sessions) == 1
+        assert sessions[0]["first_prompt"] == "New session"
+
+    def test_detects_modified_session(self, tmp_path: Path):
+        """Modified JSONL file (mtime changed) is re-parsed."""
+        proj = tmp_path / "projects" / "proj"
+        proj.mkdir(parents=True)
+        jsonl = proj / "mod1.jsonl"
+        jsonl.write_text(
+            json.dumps({
+                "type": "user",
+                "timestamp": "2026-01-01T00:00:00Z",
+                "message": {"content": "Original"},
+            }) + "\n"
+        )
+        cache_path = tmp_path / "cache" / "cc_sessions_cache.json"
+
+        scanner = SessionScanner(base_dir=tmp_path / "projects", cache_path=cache_path)
+        sessions = scanner.scan_all()
+        assert sessions[0]["first_prompt"] == "Original"
+
+        # Modify the file (change mtime)
+        import time
+        time.sleep(0.05)
+        jsonl.write_text(
+            json.dumps({
+                "type": "user",
+                "timestamp": "2026-01-01T00:00:00Z",
+                "message": {"content": "Updated"},
+            }) + "\n"
+        )
+        sessions = scanner.scan_all()
+        assert sessions[0]["first_prompt"] == "Updated"
+
+    def test_prunes_deleted_session(self, tmp_path: Path):
+        """Deleted JSONL file is removed from cache."""
+        proj = tmp_path / "projects" / "proj"
+        proj.mkdir(parents=True)
+        jsonl = proj / "del1.jsonl"
+        jsonl.write_text(
+            json.dumps({
+                "type": "user",
+                "timestamp": "2026-01-01T00:00:00Z",
+                "message": {"content": "Will be deleted"},
+            }) + "\n"
+        )
+        cache_path = tmp_path / "cache" / "cc_sessions_cache.json"
+
+        scanner = SessionScanner(base_dir=tmp_path / "projects", cache_path=cache_path)
+        assert len(scanner.scan_all()) == 1
+
+        # Delete the file
+        jsonl.unlink()
+        sessions = scanner.scan_all()
+        assert len(sessions) == 0
+
+    def test_no_cache_path_uses_memory_only(self, tmp_path: Path):
+        """When cache_path is None, scanner works without disk persistence."""
+        proj = tmp_path / "projects" / "proj"
+        proj.mkdir(parents=True)
+        jsonl = proj / "mem1.jsonl"
+        jsonl.write_text(
+            json.dumps({
+                "type": "user",
+                "timestamp": "2026-01-01T00:00:00Z",
+                "message": {"content": "Memory only"},
+            }) + "\n"
+        )
+
+        scanner = SessionScanner(base_dir=tmp_path / "projects", cache_path=None)
+        sessions = scanner.scan_all()
+        assert len(sessions) == 1

@@ -216,15 +216,31 @@ def _read_head(path: Path, max_lines: int = 30) -> list[str]:
     return lines
 
 
+_UNSET = object()
+
+
 class SessionScanner:
     """Discover and cache Claude Code sessions."""
 
-    def __init__(self, base_dir: Path | None = None) -> None:
+    def __init__(
+        self,
+        base_dir: Path | None = None,
+        cache_path: Path | None | object = _UNSET,
+    ) -> None:
         if base_dir is None:
             base_dir = Path.home() / ".claude" / "projects"
         self._base_dir = base_dir
-        # Cache: file_path -> (mtime, session_dict)
-        self._cache: dict[str, tuple[float, dict[str, Any]]] = {}
+
+        if cache_path is _UNSET:
+            # Default: use WenZi cache dir
+            from wenzi.config import resolve_cache_dir
+            cache_path = Path(resolve_cache_dir()) / "cc_sessions_cache.json"
+
+        if cache_path is not None:
+            from .cache import SessionCache
+            self._cache: SessionCache | None = SessionCache(cache_path)
+        else:
+            self._cache = None
 
     def scan_all(self) -> list[dict[str, Any]]:
         """Return all sessions sorted by modified descending."""
@@ -233,6 +249,8 @@ class SessionScanner:
 
         sessions: list[dict[str, Any]] = []
         seen_ids: set[str] = set()
+        live_paths: set[str] = set()
+        live_index_paths: set[str] = set()
 
         for proj_entry in self._base_dir.iterdir():
             if not proj_entry.is_dir():
@@ -243,16 +261,20 @@ class SessionScanner:
             index_path = proj_entry / "sessions-index.json"
             if index_path.exists():
                 cache_key = str(index_path)
+                live_index_paths.add(cache_key)
                 try:
                     mtime = index_path.stat().st_mtime
                 except OSError:
                     continue
-                cached = self._cache.get(cache_key)
+
+                cached = self._cache.get_index(cache_key) if self._cache else None
                 if cached and cached[0] == mtime:
                     index_sessions = cached[1]
                 else:
                     index_sessions = _scan_project_with_index(proj_entry, project_name)
-                    self._cache[cache_key] = (mtime, index_sessions)
+                    if self._cache:
+                        self._cache.put_index(cache_key, mtime, index_sessions)
+
                 if index_sessions:
                     for s in index_sessions:
                         seen_ids.add(s["session_id"])
@@ -261,10 +283,14 @@ class SessionScanner:
 
             # Fallback: scan individual JSONL files
             for jsonl_file in proj_entry.glob("*.jsonl"):
-                mtime = jsonl_file.stat().st_mtime
                 cache_key = str(jsonl_file)
+                live_paths.add(cache_key)
+                try:
+                    mtime = jsonl_file.stat().st_mtime
+                except OSError:
+                    continue
 
-                cached = self._cache.get(cache_key)
+                cached = self._cache.get(cache_key) if self._cache else None
                 if cached and cached[0] == mtime:
                     session = cached[1]
                 else:
@@ -272,11 +298,17 @@ class SessionScanner:
                     if result is None:
                         continue
                     session = result
-                    self._cache[cache_key] = (mtime, session)
+                    if self._cache:
+                        self._cache.put(cache_key, mtime, session)
 
                 if session["session_id"] not in seen_ids:
                     seen_ids.add(session["session_id"])
                     sessions.append(session)
+
+        # Prune deleted entries and save
+        if self._cache:
+            self._cache.prune(live_paths, live_index_paths)
+            self._cache.save()
 
         # Sort by modified descending
         sessions.sort(key=lambda s: s.get("modified", ""), reverse=True)
