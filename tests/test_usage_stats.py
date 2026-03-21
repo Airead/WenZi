@@ -456,6 +456,25 @@ class TestRecordHistoryEdit:
         assert today["totals"]["history_edits"] == 1
 
 
+class TestRecordSystemSettingsOpen:
+    def test_record_system_settings_open(self, stats):
+        stats.record_system_settings_open()
+        s = stats.get_stats()
+        assert s["totals"]["system_settings_opened"] == 1
+
+    def test_record_system_settings_open_multiple(self, stats):
+        stats.record_system_settings_open()
+        stats.record_system_settings_open()
+        stats.record_system_settings_open()
+        s = stats.get_stats()
+        assert s["totals"]["system_settings_opened"] == 3
+
+    def test_record_system_settings_open_daily(self, stats):
+        stats.record_system_settings_open()
+        today = stats.get_today_stats()
+        assert today["totals"]["system_settings_opened"] == 1
+
+
 class TestFilePermissions:
     def test_cumulative_file_is_owner_only(self, stats):
         """Stats files should be owner-only readable (0o600)."""

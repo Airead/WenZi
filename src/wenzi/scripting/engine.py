@@ -6,7 +6,7 @@ import importlib
 import logging
 import os
 import sys
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 import wenzi.config as _cfg
 from wenzi.scripting.registry import ScriptingRegistry
@@ -33,6 +33,8 @@ class ScriptEngine:
         self._snippet_store = None
         self._snippet_source = None
         self._snippet_expander = None
+        self._system_settings_source = None
+        self._system_settings_open_cb: Optional[Callable[[], None]] = None
         self._reloading = False
 
         # Create wz namespace and install as module singleton
@@ -68,6 +70,10 @@ class ScriptEngine:
         if self._snippet_expander is not None:
             self._snippet_expander.stop()
             self._snippet_expander = None
+        if self._system_settings_source is not None:
+            self._wz.chooser.unregister_source("system_settings")
+            self._wz.chooser.unregister_source("system_settings_mixed")
+            self._system_settings_source = None
         if self._query_history is not None:
             self._query_history.flush_sync()
         self._wz.pasteboard._set_monitor(None)
@@ -142,6 +148,7 @@ class ScriptEngine:
             self._snippet_expander = None
 
         self._snippet_store = None
+        self._system_settings_source = None
         self._usage_tracker = None
         self._query_history = None
         self._wz.pasteboard._set_monitor(None)
@@ -196,6 +203,17 @@ class ScriptEngine:
         self._wz.chooser.unregister_source("clipboard")
         logger.info("Clipboard monitor disabled at runtime")
 
+    def set_system_settings_open_callback(
+        self, callback: Callable[[], None]
+    ) -> None:
+        """Set the callback invoked when a system setting is opened.
+
+        The callback is stored and re-applied after reload().
+        """
+        self._system_settings_open_cb = callback
+        if self._system_settings_source is not None:
+            self._system_settings_source.set_on_open(callback)
+
     def enable_source(self, config_key: str) -> None:
         """Register a single source at runtime by config key."""
         chooser_config = self._config.get("chooser", {})
@@ -208,6 +226,7 @@ class ScriptEngine:
             "snippets": ("snippets", self._enable_snippet_source),
             "bookmarks": ("bookmarks", self._enable_bookmark_source),
             "calculator": ("calculator", self._enable_calculator_source),
+            "system_settings": ("system_settings", self._enable_system_settings_source),
         }
         entry = source_map.get(config_key)
         if not entry:
@@ -226,6 +245,7 @@ class ScriptEngine:
             "snippets": "snippets",
             "bookmarks": "bookmarks",
             "calculator": "calculator",
+            "system_settings": "system_settings",
         }
         source_name = source_name_map.get(config_key)
         if not source_name:
@@ -244,6 +264,10 @@ class ScriptEngine:
             self._snippet_store = None
             self._wz.snippets._set_store(None)
             self._wz.chooser.unregister_source(source_name)
+        elif config_key == "system_settings":
+            self._wz.chooser.unregister_source("system_settings")
+            self._wz.chooser.unregister_source("system_settings_mixed")
+            self._system_settings_source = None
         else:
             self._wz.chooser.unregister_source(source_name)
         logger.info("Source %s disabled at runtime", config_key)
@@ -330,6 +354,22 @@ class ScriptEngine:
             logger.info("Calculator source enabled at runtime")
         except Exception:
             logger.exception("Failed to enable calculator source")
+
+    def _enable_system_settings_source(self, prefix: str) -> None:
+        try:
+            from wenzi.scripting.sources.system_settings_source import (
+                SystemSettingsSource,
+            )
+
+            ss_source = SystemSettingsSource(
+                on_open=self._system_settings_open_cb,
+            )
+            self._system_settings_source = ss_source
+            for cs in ss_source.as_chooser_source(prefix=prefix or "ss"):
+                self._wz.chooser.register_source(cs)
+            logger.info("System settings source enabled at runtime")
+        except Exception:
+            logger.exception("Failed to enable system settings source")
 
     def rebind_chooser_hotkey(self, old_hotkey: str, new_hotkey: str) -> None:
         """Unbind old chooser hotkey and bind the new one at runtime."""
@@ -514,6 +554,24 @@ class ScriptEngine:
                 logger.info("Snippet keyword expander started")
             except Exception:
                 logger.exception("Failed to start snippet expander")
+
+        # System Settings source
+        if chooser_config.get("system_settings", True):
+            try:
+                from wenzi.scripting.sources.system_settings_source import (
+                    SystemSettingsSource,
+                )
+
+                ss_source = SystemSettingsSource(
+                    on_open=self._system_settings_open_cb,
+                )
+                self._system_settings_source = ss_source
+                prefix = prefixes.get("system_settings", "ss")
+                for cs in ss_source.as_chooser_source(prefix=prefix):
+                    self._wz.chooser.register_source(cs)
+                logger.info("Built-in system settings source registered")
+            except Exception:
+                logger.exception("Failed to register system settings source")
 
         # Bookmark search source
         if chooser_config.get("bookmarks", True):

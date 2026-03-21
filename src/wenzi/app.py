@@ -1409,6 +1409,10 @@ class WenZiApp(StatusBarApp):
                 "openSettings", []
             ).append(lambda: self._on_open_settings(None))
 
+            self._script_engine.set_system_settings_open_callback(
+                self._usage_stats.record_system_settings_open
+            )
+
         # Start clipboard enhance hotkey listener if configured
         clip_hotkey = self._config.get("clipboard_enhance", {}).get("hotkey", "")
         if clip_hotkey:

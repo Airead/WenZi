@@ -32,6 +32,7 @@ def _empty_totals() -> Dict[str, int]:
         "history_browse_opens": 0,
         "history_edits": 0,
         "recording_seconds": 0.0,
+        "system_settings_opened": 0,
     }
 
 
@@ -240,6 +241,12 @@ class UsageStats:
             return
         self._record(lambda data: data["totals"].__setitem__(
             "recording_seconds", data["totals"]["recording_seconds"] + seconds
+        ))
+
+    def record_system_settings_open(self) -> None:
+        """Record a system settings pane opened from the chooser."""
+        self._record(lambda data: data["totals"].__setitem__(
+            "system_settings_opened", data["totals"]["system_settings_opened"] + 1
         ))
 
     def record_output_method(self, copy_to_clipboard: bool) -> None:
