@@ -849,7 +849,7 @@ class TestCancelRaceCondition:
         ctrl.on_cancel_recording()
 
         # Cancel should have waited and then taken the clean-exit path
-        mock_app._set_status.assert_called_with("WZ")
+        mock_app._set_status.assert_called_with("statusbar.status.ready")
 
     @patch("PyObjCTools.AppHelper")
     def test_cancel_stops_recording_after_race(self, mock_apphelper, ctrl, mock_app):
@@ -900,7 +900,7 @@ class TestCancelRaceCondition:
 
         ctrl.on_cancel_recording()
 
-        mock_app._set_status.assert_called_with("WZ")
+        mock_app._set_status.assert_called_with("statusbar.status.ready")
 
 
 class TestRestartWatchdogSafety:
