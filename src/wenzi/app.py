@@ -31,7 +31,7 @@ from .enhance.conversation_history import ConversationHistory
 from .usage_stats import UsageStats
 from .enhance.enhancer import MODE_OFF, create_enhancer
 from .ui.result_window_web import ResultPreviewPanel
-from .ui.settings_window import SettingsPanel
+from .ui.settings_window_web import SettingsWebPanel as SettingsPanel
 from .hotkey import MultiHotkeyListener, TapHotkeyListener, _is_fn_key
 from .transcription.model_registry import (
     PRESET_BY_ID,
