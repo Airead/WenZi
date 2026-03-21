@@ -8,6 +8,8 @@ import subprocess
 from pathlib import Path
 from typing import Callable, List, Tuple
 
+from wenzi.i18n import t
+
 logger = logging.getLogger(__name__)
 
 # Log line pattern: "2026-03-13 10:00:01,123 [module] LEVEL: message"
@@ -230,7 +232,7 @@ class LogViewerPanel:
             False,
         )
         panel.setMinSize_(NSMakeSize(600, 400))
-        panel.setTitle_("WenZi Logs")
+        panel.setTitle_(t("log_viewer.title"))
         panel.setLevel_(NSStatusWindowLevel)
         panel.setFloatingPanel_(True)
         panel.setHidesOnDeactivate_(False)
@@ -251,7 +253,7 @@ class LogViewerPanel:
         small_font = NSFont.systemFontOfSize_(11.0)
         label_color = NSColor.secondaryLabelColor()
 
-        output_label = NSTextField.labelWithString_("Output Level:")
+        output_label = NSTextField.labelWithString_(t("log_viewer.output_level"))
         output_label.setFrame_(NSMakeRect(btn_x, y + 4, 82, 18))
         output_label.setFont_(small_font)
         output_label.setTextColor_(label_color)
@@ -271,14 +273,15 @@ class LogViewerPanel:
 
         # Action buttons: Console, Finder, Copy Path, Clear, Refresh (right-aligned)
         rx = self._PANEL_WIDTH - self._PADDING
+        copy_path_label = t("log_viewer.copy_path")
         for title, action in reversed([
-            ("Console", b"consoleClicked:"),
-            ("Finder", b"finderClicked:"),
-            ("Copy Path", b"copyPathClicked:"),
-            ("Clear", b"clearClicked:"),
-            ("Refresh", b"refreshClicked:"),
+            (t("log_viewer.console"), b"consoleClicked:"),
+            (t("log_viewer.finder"), b"finderClicked:"),
+            (copy_path_label, b"copyPathClicked:"),
+            (t("log_viewer.clear"), b"clearClicked:"),
+            (t("log_viewer.refresh"), b"refreshClicked:"),
         ]):
-            w = 80 if title == "Copy Path" else self._BUTTON_WIDTH
+            w = 80 if title == copy_path_label else self._BUTTON_WIDTH
             rx -= w + 6
             btn = NSButton.alloc().initWithFrame_(
                 NSMakeRect(rx, y, w, self._BUTTON_HEIGHT)
@@ -298,7 +301,7 @@ class LogViewerPanel:
             NSMakeRect(btn_x, y, 110, self._BUTTON_HEIGHT)
         )
         auto_scroll.setButtonType_(NSSwitchButton)
-        auto_scroll.setTitle_("Auto-scroll")
+        auto_scroll.setTitle_(t("log_viewer.autoscroll"))
         auto_scroll.setState_(NSOnState)
         auto_scroll.setTarget_(self)
         auto_scroll.setAction_(b"autoScrollToggled:")
@@ -310,7 +313,7 @@ class LogViewerPanel:
             NSMakeRect(btn_x, y, 120, self._BUTTON_HEIGHT)
         )
         print_prompt.setButtonType_(NSSwitchButton)
-        print_prompt.setTitle_("Print Prompt")
+        print_prompt.setTitle_(t("log_viewer.print_prompt"))
         print_prompt.setState_(NSOffState)
         print_prompt.setTarget_(self)
         print_prompt.setAction_(b"printPromptToggled:")
@@ -322,7 +325,7 @@ class LogViewerPanel:
             NSMakeRect(btn_x, y, 160, self._BUTTON_HEIGHT)
         )
         print_req_body.setButtonType_(NSSwitchButton)
-        print_req_body.setTitle_("Print Request Body")
+        print_req_body.setTitle_(t("log_viewer.print_request_body"))
         print_req_body.setState_(NSOffState)
         print_req_body.setTarget_(self)
         print_req_body.setAction_(b"printRequestBodyToggled:")
@@ -378,14 +381,14 @@ class LogViewerPanel:
         search = NSSearchField.alloc().initWithFrame_(
             NSMakeRect(self._PADDING, y, search_width, self._TOOLBAR_HEIGHT)
         )
-        search.setPlaceholderString_("Search logs...")
+        search.setPlaceholderString_(t("log_viewer.search_placeholder"))
         search.setTarget_(self)
         search.setAction_(b"searchChanged:")
         search.setAutoresizingMask_(NSViewWidthSizable | NSViewMinYMargin)
         content.addSubview_(search)
         self._search_field = search
 
-        filter_label = NSTextField.labelWithString_("Filter:")
+        filter_label = NSTextField.labelWithString_(t("log_viewer.filter"))
         filter_label.setFrame_(
             NSMakeRect(self._PADDING + search_width + 6, y + 5, filter_label_w, 18)
         )

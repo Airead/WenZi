@@ -5,6 +5,8 @@ from __future__ import annotations
 import logging
 from typing import Any, Callable, Dict, List, Optional, Set
 
+from wenzi.i18n import t
+
 logger = logging.getLogger(__name__)
 
 # Filter labels
@@ -313,7 +315,7 @@ class HistoryBrowserPanel:
             False,
         )
         panel.setMinSize_(NSMakeSize(600, 450))
-        panel.setTitle_("Conversation History")
+        panel.setTitle_(t("history.title"))
         panel.setLevel_(NSStatusWindowLevel)
         panel.setFloatingPanel_(True)
         panel.setHidesOnDeactivate_(False)
@@ -352,7 +354,7 @@ class HistoryBrowserPanel:
                 self._BUTTON_HEIGHT,
             )
         )
-        close_btn.setTitle_("Close")
+        close_btn.setTitle_(t("common.close"))
         close_btn.setBezelStyle_(1)
         close_btn.setKeyEquivalent_("\x1b")  # Escape
         close_btn.setTarget_(self)
@@ -370,7 +372,7 @@ class HistoryBrowserPanel:
                 self._BUTTON_HEIGHT,
             )
         )
-        save_btn.setTitle_("Save")
+        save_btn.setTitle_(t("common.save"))
         save_btn.setBezelStyle_(1)
         save_btn.setTarget_(self)
         save_btn.setAction_(b"saveClicked:")
@@ -549,17 +551,17 @@ class HistoryBrowserPanel:
 
         col_time = NSTableColumn.alloc().initWithIdentifier_("time")
         col_time.setWidth_(130)
-        col_time.headerCell().setStringValue_("Time")
+        col_time.headerCell().setStringValue_(t("history.column.time"))
         table.addTableColumn_(col_time)
 
         col_mode = NSTableColumn.alloc().initWithIdentifier_("mode")
         col_mode.setWidth_(80)
-        col_mode.headerCell().setStringValue_("Mode")
+        col_mode.headerCell().setStringValue_(t("history.column.mode"))
         table.addTableColumn_(col_mode)
 
         col_preview = NSTableColumn.alloc().initWithIdentifier_("preview")
         col_preview.setWidth_(inner_w - 130 - 80 - 20)
-        col_preview.headerCell().setStringValue_("Content")
+        col_preview.headerCell().setStringValue_(t("history.column.content"))
         table.addTableColumn_(col_preview)
 
         # NSTableView dataSource/delegate must be NSObject subclasses
@@ -600,7 +602,7 @@ class HistoryBrowserPanel:
         search = NSSearchField.alloc().initWithFrame_(
             NSMakeRect(self._PADDING, y, search_w, self._SEARCH_HEIGHT)
         )
-        search.setPlaceholderString_("Search history...")
+        search.setPlaceholderString_(t("history.search_placeholder"))
         search.setTarget_(self)
         search.setAction_(b"searchChanged:")
         search.setAutoresizingMask_(NSViewWidthSizable | NSViewMinYMargin)
@@ -648,7 +650,7 @@ class HistoryBrowserPanel:
             )
         )
         corrected_cb.setButtonType_(3)  # NSSwitchButton
-        corrected_cb.setTitle_("Corrected")
+        corrected_cb.setTitle_(t("history.corrected"))
         corrected_cb.setFont_(NSFont.systemFontOfSize_(11.0))
         corrected_cb.setState_(0)
         corrected_cb.setTarget_(self)

@@ -7,6 +7,8 @@ import logging
 from datetime import date, timedelta
 from typing import TYPE_CHECKING, Any, Dict, List
 
+from wenzi.i18n import t
+
 if TYPE_CHECKING:
     from wenzi.usage_stats import UsageStats
 
@@ -111,32 +113,33 @@ body {
 <div class="cards-row" id="cards"></div>
 
 <div class="tab-bar">
-    <button class="tab-btn active" onclick="setRange(7)">7 Days</button>
-    <button class="tab-btn" onclick="setRange(14)">14 Days</button>
-    <button class="tab-btn" onclick="setRange(30)">30 Days</button>
+    <button class="tab-btn active" onclick="setRange(7)">__TAB_7D__</button>
+    <button class="tab-btn" onclick="setRange(14)">__TAB_14D__</button>
+    <button class="tab-btn" onclick="setRange(30)">__TAB_30D__</button>
 </div>
 
 <div class="chart-grid">
     <div class="chart-container">
-        <h3>Daily Transcriptions</h3>
+        <h3>__CHART_DAILY__</h3>
         <div class="chart-wrap"><canvas id="dailyTrend"></canvas></div>
     </div>
     <div class="chart-container">
-        <h3>User Actions</h3>
+        <h3>__CHART_ACTIONS__</h3>
         <div class="chart-wrap"><canvas id="actionBar"></canvas></div>
     </div>
     <div class="chart-container">
-        <h3>Token Usage</h3>
+        <h3>__CHART_TOKENS__</h3>
         <div class="chart-wrap"><canvas id="tokenBar"></canvas></div>
     </div>
     <div class="chart-container">
-        <h3>Enhance Modes</h3>
+        <h3>__CHART_MODES__</h3>
         <div class="chart-wrap"><canvas id="enhanceBar"></canvas></div>
     </div>
 </div>
 
 <script>
 const DATA = __STATS_DATA__;
+const __I18N__ = __I18N_DATA__;
 
 const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
 Chart.defaults.color = isDark ? '#c8c8cc' : '#1d1d1f';
@@ -165,15 +168,15 @@ function renderCards() {
     const tk = cum.token_usage || {};
 
     const cards = [
-        { label: 'Total Transcriptions', value: t.transcriptions || 0,
-          sub: `Today: ${td.transcriptions || 0}` },
-        { label: 'Total Tokens', value: compactNum(tk.total_tokens || 0),
+        { label: __I18N__.card_total_transcriptions, value: t.transcriptions || 0,
+          sub: `${__I18N__.today}: ${td.transcriptions || 0}` },
+        { label: __I18N__.card_total_tokens, value: compactNum(tk.total_tokens || 0),
           sub: formatTokenSub(tk) },
-        { label: 'Accept Rate',
+        { label: __I18N__.card_accept_rate,
           value: calcRate(t.direct_accept, t.direct_accept + t.user_modification + t.cancel),
-          sub: `Accept: ${t.direct_accept || 0} | Modified: ${t.user_modification || 0}` },
-        { label: 'Recording Time', value: formatDuration(t.recording_seconds || 0),
-          sub: `Today: ${formatDuration(td.recording_seconds || 0)}` },
+          sub: `${__I18N__.accept}: ${t.direct_accept || 0} | ${__I18N__.modified}: ${t.user_modification || 0}` },
+        { label: __I18N__.card_recording_time, value: formatDuration(t.recording_seconds || 0),
+          sub: `${__I18N__.today}: ${formatDuration(td.recording_seconds || 0)}` },
     ];
 
     const container = document.getElementById('cards');
@@ -335,7 +338,7 @@ function renderCharts() {
         });
     } else {
         document.getElementById('actionBar').closest('.chart-container').innerHTML =
-            '<h3>User Actions</h3><div class="empty-hint">No action data yet</div>';
+            '<h3>' + __I18N__.chart_actions + '</h3><div class="empty-hint">' + __I18N__.no_action_data + '</div>';
     }
 
     // 3. Token Usage — stacked bar: Prompt + Completion + Cached
@@ -371,7 +374,7 @@ function renderCharts() {
         });
     } else {
         document.getElementById('tokenBar').closest('.chart-container').innerHTML =
-            '<h3>Token Usage</h3><div class="empty-hint">No token data yet</div>';
+            '<h3>' + __I18N__.chart_tokens + '</h3><div class="empty-hint">' + __I18N__.no_token_data + '</div>';
     }
 
     // 4. Enhance Modes — stacked bar: one dataset per mode, stacked by day
@@ -397,7 +400,7 @@ function renderCharts() {
         });
     } else {
         document.getElementById('enhanceBar').closest('.chart-container').innerHTML =
-            '<h3>Enhance Modes</h3><div class="empty-hint">No enhance mode data yet</div>';
+            '<h3>' + __I18N__.chart_modes + '</h3><div class="empty-hint">' + __I18N__.no_enhance_data + '</div>';
     }
 }
 
@@ -447,10 +450,41 @@ def get_daily_range(
     return result
 
 
+def _build_i18n_payload() -> Dict[str, str]:
+    """Build a dict of translated strings for the stats HTML template."""
+    return {
+        "card_total_transcriptions": t("stats.card.total_transcriptions"),
+        "card_total_tokens": t("stats.card.total_tokens"),
+        "card_accept_rate": t("stats.card.accept_rate"),
+        "card_recording_time": t("stats.card.recording_time"),
+        "today": t("stats.today"),
+        "accept": t("stats.accept"),
+        "modified": t("stats.modified"),
+        "chart_daily": t("stats.chart.daily_transcriptions"),
+        "chart_actions": t("stats.chart.user_actions"),
+        "chart_tokens": t("stats.chart.token_usage"),
+        "chart_modes": t("stats.chart.enhance_modes"),
+        "no_action_data": t("stats.empty.no_action_data"),
+        "no_token_data": t("stats.empty.no_token_data"),
+        "no_enhance_data": t("stats.empty.no_enhance_data"),
+    }
+
+
 def build_html(payload: Dict[str, Any]) -> str:
     """Build the final HTML by injecting the JSON payload into the template."""
     payload_json = json.dumps(payload, ensure_ascii=False)
-    return _HTML_TEMPLATE.replace("__STATS_DATA__", payload_json)
+    i18n_json = json.dumps(_build_i18n_payload(), ensure_ascii=False)
+    html = _HTML_TEMPLATE.replace("__STATS_DATA__", payload_json)
+    html = html.replace("__I18N_DATA__", i18n_json)
+    # Replace static HTML placeholders
+    html = html.replace("__TAB_7D__", t("stats.period.7d"))
+    html = html.replace("__TAB_14D__", t("stats.period.14d"))
+    html = html.replace("__TAB_30D__", t("stats.period.30d"))
+    html = html.replace("__CHART_DAILY__", t("stats.chart.daily_transcriptions"))
+    html = html.replace("__CHART_ACTIONS__", t("stats.chart.user_actions"))
+    html = html.replace("__CHART_TOKENS__", t("stats.chart.token_usage"))
+    html = html.replace("__CHART_MODES__", t("stats.chart.enhance_modes"))
+    return html
 
 
 # ---------------------------------------------------------------------------
@@ -525,7 +559,7 @@ class StatsChartPanel:
             NSBackingStoreBuffered,
             False,
         )
-        panel.setTitle_("Usage Statistics")
+        panel.setTitle_(t("stats.title"))
         panel.setLevel_(NSStatusWindowLevel)
         panel.setFloatingPanel_(True)
         panel.setHidesOnDeactivate_(False)

@@ -5,6 +5,8 @@ from __future__ import annotations
 import logging
 from typing import Callable, Optional
 
+from wenzi.i18n import t
+
 logger = logging.getLogger(__name__)
 
 
@@ -106,11 +108,14 @@ class VocabBuildProgressPanel:
             if self._token_label is not None:
                 if confirmed > 0:
                     self._token_label.setStringValue_(
-                        f"Tokens: {confirmed:,}+  |  streaming... {stream_chars:,} chars received"
+                        t("vocab_build.tokens_streaming_confirmed",
+                          confirmed=f"{confirmed:,}",
+                          chars=f"{stream_chars:,}")
                     )
                 else:
                     self._token_label.setStringValue_(
-                        f"Tokens: streaming... {stream_chars:,} chars received"
+                        t("vocab_build.tokens_streaming",
+                          chars=f"{stream_chars:,}")
                     )
 
         AppHelper.callAfter(_append)
@@ -128,10 +133,16 @@ class VocabBuildProgressPanel:
 
         def _update():
             if self._token_label is not None:
-                cached_info = f", cached {cached_tokens:,}" if cached_tokens else ""
+                cached_info = (
+                    t("vocab_build.tokens_cached", cached=f"{cached_tokens:,}")
+                    if cached_tokens else ""
+                )
                 self._token_label.setStringValue_(
-                    f"Tokens: {total:,}  (input {input_tokens:,}{cached_info}"
-                    f" + output {output_tokens:,})"
+                    t("vocab_build.tokens_detail",
+                      total=f"{total:,}",
+                      input=f"{input_tokens:,}",
+                      cached_info=cached_info,
+                      output=f"{output_tokens:,}")
                 )
 
         AppHelper.callAfter(_update)
@@ -204,7 +215,7 @@ class VocabBuildProgressPanel:
             NSBackingStoreBuffered,
             False,
         )
-        panel.setTitle_("Build Vocabulary")
+        panel.setTitle_(t("vocab_build.title"))
         panel.setLevel_(NSStatusWindowLevel)
         panel.setFloatingPanel_(True)
         panel.setHidesOnDeactivate_(False)
@@ -246,7 +257,7 @@ class VocabBuildProgressPanel:
         y += self._STREAM_HEIGHT + self._PADDING
 
         # Token usage label (below stream)
-        token_label = NSTextField.labelWithString_("Tokens: 0")
+        token_label = NSTextField.labelWithString_(t("vocab_build.tokens", count=0))
         token_label.setFrame_(NSMakeRect(self._PADDING, y, inner_width, self._LABEL_HEIGHT))
         token_label.setFont_(NSFont.systemFontOfSize_(11))
         token_label.setTextColor_(NSColor.secondaryLabelColor())
@@ -256,7 +267,7 @@ class VocabBuildProgressPanel:
         y += self._LABEL_HEIGHT + self._PADDING
 
         # Status label
-        status_label = NSTextField.labelWithString_("Preparing...")
+        status_label = NSTextField.labelWithString_(t("vocab_build.preparing"))
         status_label.setFrame_(NSMakeRect(self._PADDING, y, inner_width, self._LABEL_HEIGHT))
         status_label.setFont_(NSFont.boldSystemFontOfSize_(12))
         content_view.addSubview_(status_label)
@@ -265,7 +276,7 @@ class VocabBuildProgressPanel:
         y += self._LABEL_HEIGHT
 
         # Info label (provider / model)
-        info_text = f"Provider: {enhance_info}" if enhance_info else ""
+        info_text = t("vocab_build.provider", provider=enhance_info) if enhance_info else ""
         info_label = NSTextField.labelWithString_(info_text)
         info_label.setFrame_(NSMakeRect(self._PADDING, y, inner_width, self._LABEL_HEIGHT))
         info_label.setFont_(NSFont.systemFontOfSize_(11))

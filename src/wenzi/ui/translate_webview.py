@@ -6,6 +6,8 @@ import logging
 import re
 import urllib.parse
 
+from wenzi.i18n import t
+
 logger = logging.getLogger(__name__)
 
 # CJK Unified Ideographs range for Chinese detection
@@ -83,7 +85,7 @@ class TranslateWebViewPanel:
             NSBackingStoreBuffered,
             False,
         )
-        panel.setTitle_("Google Translate")
+        panel.setTitle_(t("translate.title"))
         panel.setLevel_(NSStatusWindowLevel)
         panel.setFloatingPanel_(True)
         panel.setHidesOnDeactivate_(False)
