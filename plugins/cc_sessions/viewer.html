@@ -6,11 +6,11 @@
 <title>Session Viewer</title>
 
 <!-- Markdown rendering -->
-<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="vendor/marked.min.js"></script>
 
 <!-- Code highlighting -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11/styles/github-dark.min.css">
-<script src="https://cdn.jsdelivr.net/npm/highlight.js@11/highlight.min.js"></script>
+<link rel="stylesheet" href="vendor/github-dark.min.css">
+<script src="vendor/highlight.min.js"></script>
 
 <style>
   /* ── CSS Variables ── */
@@ -139,7 +139,7 @@
   }
 
   .outline-item {
-    padding: 6px 12px;
+    padding: 6px 12px 6px 20px;
     font-size: 12px;
     line-height: 1.4;
     color: var(--text-muted);
@@ -149,6 +149,21 @@
     white-space: nowrap;
     border-left: 2px solid transparent;
     transition: background 0.15s, border-color 0.15s;
+    position: relative;
+  }
+  .outline-item::before {
+    content: "";
+    position: absolute;
+    left: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #3b82f6;
+  }
+  .outline-item.outline-assistant::before {
+    background: #8b5cf6;
   }
   .outline-item:hover {
     background: var(--bg-secondary);
@@ -157,6 +172,9 @@
     background: var(--outline-active-bg);
     border-left-color: var(--outline-active-border);
     color: var(--text-primary);
+  }
+  .outline-item.outline-assistant {
+    color: var(--text-secondary);
   }
 
   /* ── Conversation ── */
@@ -562,73 +580,137 @@ async function loadSession(info) {
 }
 
 // ── Main render ──
+let _lastRenderedTime = "";
+
 function renderConversation(messages) {
   const conv = document.getElementById("conversation");
   conv.innerHTML = "";
+  document.getElementById("outline").innerHTML = "";
+  outlineItems.length = 0;
+  activeOutlineIdx = -1;
+  _lastRenderedTime = "";
 
   // Filter: skip sidechain and non-conversation types
   const validTypes = new Set(["user", "assistant"]);
   const turns = messages.filter(m => validTypes.has(m.type) && !m.isSidechain);
 
+  // Pre-process: extract tool_results from user messages into a global map
+  // (Claude Code puts tool_result in the next user message, not in the assistant message)
+  const globalResultMap = {};
   for (const msg of turns) {
-    const turnEl = document.createElement("div");
-    turnEl.className = "turn";
+    if (msg.type !== "user") continue;
+    const content = msg.message?.content || msg.content;
+    if (!Array.isArray(content)) continue;
+    for (const part of content) {
+      if (part.type === "tool_result" && part.tool_use_id) {
+        globalResultMap[part.tool_use_id] = part;
+      }
+    }
+  }
+
+  let i = 0;
+  while (i < turns.length) {
+    const msg = turns[i];
 
     if (msg.type === "user") {
+      // Check if this is a pure tool_result message (no real user text)
+      if (_isToolResultOnly(msg)) {
+        i++;
+        continue;  // Skip — results shown when expanding tool calls
+      }
+      const turnEl = document.createElement("div");
+      turnEl.className = "turn";
       renderUserTurn(turnEl, msg);
+      conv.appendChild(turnEl);
+      i++;
     } else if (msg.type === "assistant") {
-      renderAssistantTurn(turnEl, msg);
-    }
+      // Merge consecutive assistant messages into one turn
+      const turnEl = document.createElement("div");
+      turnEl.className = "turn";
+      const firstTime = formatTime(msg.timestamp);
+      const showTime = firstTime !== _lastRenderedTime;
+      if (showTime) _lastRenderedTime = firstTime;
 
-    conv.appendChild(turnEl);
+      const header = document.createElement("div");
+      header.className = "turn-header";
+      header.innerHTML = `
+        <span class="badge badge-assistant">Claude</span>
+        ${showTime ? `<span class="timestamp">${escapeHtml(firstTime)}</span>` : ""}
+      `;
+      turnEl.appendChild(header);
+
+      // Collect all consecutive assistant messages (skip interleaved tool_result user msgs)
+      const assistantTexts = [];
+      while (i < turns.length && (turns[i].type === "assistant" || (turns[i].type === "user" && _isToolResultOnly(turns[i])))) {
+        if (turns[i].type === "assistant") {
+          renderAssistantContent(turnEl, turns[i], assistantTexts, globalResultMap);
+        }
+        i++;
+      }
+
+      // Add outline entry for Claude's text (if any)
+      const combinedText = assistantTexts.join(" ").trim();
+      if (combinedText) {
+        addOutlineItem(combinedText, turnEl, "assistant");
+      }
+
+      conv.appendChild(turnEl);
+    } else {
+      i++;
+    }
   }
 
   setupOutlineObserver();
 }
 
+// ── Check if user message is purely tool_result (no real user text) ──
+function _isToolResultOnly(msg) {
+  const content = msg.message?.content || msg.content;
+  if (!Array.isArray(content)) return false;
+  // If every part is tool_result, or text parts are empty/system
+  const hasRealText = content.some(p =>
+    p.type === "text" && p.text && p.text.trim() &&
+    !p.text.startsWith("<system-reminder>")
+  );
+  const hasToolResult = content.some(p => p.type === "tool_result");
+  return hasToolResult && !hasRealText;
+}
+
 // ── User turn ──
 function renderUserTurn(el, msg) {
   const time = formatTime(msg.timestamp);
+  const showTime = time !== _lastRenderedTime;
+  if (showTime) _lastRenderedTime = time;
   const text = extractUserText(msg.message?.content || msg.content || "");
 
   el.innerHTML = `
     <div class="turn-header">
       <span class="badge badge-user">You</span>
-      <span class="timestamp">${escapeHtml(time)}</span>
+      ${showTime ? `<span class="timestamp">${escapeHtml(time)}</span>` : ""}
     </div>
     <div class="user-content">${escapeHtml(text)}</div>
   `;
 
   // Add to outline
-  addOutlineItem(text, el);
+  addOutlineItem(text, el, "user");
 }
 
-// ── Assistant turn ──
-function renderAssistantTurn(el, msg) {
-  const time = formatTime(msg.timestamp);
-
-  const header = document.createElement("div");
-  header.className = "turn-header";
-  header.innerHTML = `
-    <span class="badge badge-assistant">Claude</span>
-    <span class="timestamp">${escapeHtml(time)}</span>
-  `;
-  el.appendChild(header);
-
+// ── Assistant content (no header — called from merged turn) ──
+function renderAssistantContent(el, msg, textCollector, globalResultMap) {
   const content = msg.message?.content || msg.content;
   if (!Array.isArray(content)) {
-    // Plain string response
     if (typeof content === "string" && content.trim()) {
       const textEl = document.createElement("div");
       textEl.className = "assistant-text";
       textEl.innerHTML = renderMarkdown(content);
       el.appendChild(textEl);
+      textCollector.push(content.trim());
     }
     return;
   }
 
   // Build a list of renderable blocks, merging adjacent same-type mergeable tools
-  const blocks = buildBlocks(content);
+  const blocks = buildBlocks(content, globalResultMap);
 
   for (const block of blocks) {
     if (block.kind === "text") {
@@ -636,6 +718,7 @@ function renderAssistantTurn(el, msg) {
       textEl.className = "assistant-text";
       textEl.innerHTML = renderMarkdown(block.text);
       el.appendChild(textEl);
+      textCollector.push(block.text.trim());
     } else if (block.kind === "thinking") {
       el.appendChild(createThinkingBlock(block.text));
     } else if (block.kind === "tool_group") {
@@ -647,10 +730,10 @@ function renderAssistantTurn(el, msg) {
 }
 
 // ── Build block list with tool merging ──
-function buildBlocks(parts) {
+function buildBlocks(parts, globalResultMap) {
   const blocks = [];
-  // Collect tool_use and pair with tool_result
-  const resultMap = {};
+  // Collect tool_result from same message (if any) and merge with global map
+  const resultMap = Object.assign({}, globalResultMap || {});
   for (const p of parts) {
     if (p.type === "tool_result") {
       resultMap[p.tool_use_id] = p;
@@ -822,10 +905,10 @@ function createThinkingBlock(text) {
 }
 
 // ── Outline ──
-function addOutlineItem(text, targetEl) {
+function addOutlineItem(text, targetEl, role) {
   const outline = document.getElementById("outline");
   const item = document.createElement("div");
-  item.className = "outline-item";
+  item.className = "outline-item" + (role === "assistant" ? " outline-assistant" : "");
   item.textContent = truncate(text.trim(), 40);
 
   item.addEventListener("click", () => {
