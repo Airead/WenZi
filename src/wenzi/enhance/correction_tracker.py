@@ -7,12 +7,14 @@ from difflib import SequenceMatcher
 from typing import Optional
 
 from .text_diff import tokenize_for_diff, _is_punctuation_only
+from .vocabulary import _MIN_LATIN_VARIANT_LENGTH
 
 _DEFAULT_MAX_REPLACE_TOKENS = 8
 
 _SCHEMA_VERSION = 1
 
-_MIN_LATIN_VARIANT_LENGTH = 4
+SOURCE_ASR = "asr"
+SOURCE_LLM = "llm"
 
 _DDL = """
 CREATE TABLE IF NOT EXISTS correction_sessions (
@@ -105,10 +107,10 @@ class CorrectionTracker:
 
     def __init__(self, db_path: str) -> None:
         self._db_path = db_path
-        self._common_words: Optional[set] = None
+        self._common_words: Optional[set[str]] = None
         self._init_db()
 
-    def _get_common_words(self) -> set:
+    def _get_common_words(self) -> set[str]:
         """Lazy-load and cache the common words set."""
         if self._common_words is None:
             from wenzi.enhance.vocabulary_builder import _load_common_words
@@ -189,13 +191,13 @@ class CorrectionTracker:
             # ASR diffs: asr_text → final_text
             asr_pairs = extract_word_pairs(asr_text, final_text)
             for original, corrected in asr_pairs:
-                self._upsert_pair(conn, session_id, "asr", original, corrected, asr_model, _llm, _app, now)
+                self._upsert_pair(conn, session_id, SOURCE_ASR, original, corrected, asr_model, _llm, _app, now)
 
             # LLM diffs: enhanced_text → final_text (only if user corrected)
             if user_corrected and _enhanced and _enhanced != final_text:
                 llm_pairs = extract_word_pairs(_enhanced, final_text)
                 for original, corrected in llm_pairs:
-                    self._upsert_pair(conn, session_id, "llm", original, corrected, asr_model, _llm, _app, now)
+                    self._upsert_pair(conn, session_id, SOURCE_LLM, original, corrected, asr_model, _llm, _app, now)
 
             conn.commit()
         finally:
@@ -329,26 +331,23 @@ class CorrectionTracker:
         _app = app_bundle_id or ""
         conn = self._get_conn()
         try:
+            # Single query: aggregate frequency and collect variants via GROUP_CONCAT
             rows = conn.execute(
-                """SELECT corrected_word, SUM(count) as freq
+                """SELECT corrected_word, SUM(count) as freq,
+                          GROUP_CONCAT(DISTINCT original_word) as variants
                    FROM correction_pairs
                    WHERE source = 'llm' AND llm_model = ? AND app_bundle_id = ? AND excluded = 0
                    GROUP BY corrected_word HAVING freq >= ?
                    ORDER BY freq DESC LIMIT ?""",
                 (llm_model, _app, min_count, top_k),
             ).fetchall()
-            results = []
-            for corrected, freq in rows:
-                variants = conn.execute(
-                    """SELECT DISTINCT original_word FROM correction_pairs
-                       WHERE source = 'llm' AND corrected_word = ? AND llm_model = ? AND app_bundle_id = ?""",
-                    (corrected, llm_model, _app),
-                ).fetchall()
-                results.append({
+            return [
+                {
                     "corrected_word": corrected,
-                    "variants": [v[0] for v in variants],
+                    "variants": variants.split(",") if variants else [],
                     "frequency": freq,
-                })
-            return results
+                }
+                for corrected, freq, variants in rows
+            ]
         finally:
             conn.close()

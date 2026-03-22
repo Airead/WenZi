@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, AsyncIterator, Dict, List, Optional, Tuple
 
 if TYPE_CHECKING:
+    from wenzi.enhance.correction_tracker import CorrectionTracker
     from wenzi.input_context import InputContext
 
 from .mode_loader import (
@@ -208,7 +209,7 @@ class TextEnhancer:
         data_dir: str | None = None,
         cache_dir: str | None = None,
         conversation_history: Optional[ConversationHistory] = None,
-        correction_tracker: Optional[Any] = None,
+        correction_tracker: Optional[CorrectionTracker] = None,
     ) -> None:
         self._enabled = config.get("enabled", False)
         self._timeout = config.get("timeout", 30)

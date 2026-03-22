@@ -7,10 +7,11 @@ import logging
 import os
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set
+from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Set
 
 if TYPE_CHECKING:
     from wenzi.enhance.conversation_history import ConversationHistory
+    from wenzi.enhance.correction_tracker import CorrectionTracker
 
 from wenzi.config import DEFAULT_DATA_DIR
 
@@ -581,7 +582,7 @@ def build_hotword_list(
     max_count: int = 10,
     max_recent: int = 15,
     max_age_hours: float = 2.0,
-    correction_tracker: Optional[Any] = None,
+    correction_tracker: Optional[CorrectionTracker] = None,
     asr_model: Optional[str] = None,
     app_bundle_id: Optional[str] = None,
 ) -> Optional[List[str]]:
@@ -613,7 +614,7 @@ def build_hotword_list_detailed(
     max_count: int = 10,
     max_recent: int = 15,
     max_age_hours: float = 2.0,
-    correction_tracker: Optional[Any] = None,
+    correction_tracker: Optional[CorrectionTracker] = None,
     asr_model: Optional[str] = None,
     app_bundle_id: Optional[str] = None,
 ) -> List[HotwordDetail]:
