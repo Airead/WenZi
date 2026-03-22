@@ -190,3 +190,82 @@ class TestPluginInfosToState:
         pid = "com.test.plugin"
         is_enabled = pid not in disabled
         assert is_enabled is True
+
+
+# ── _on_plugin_install_by_id with ref ─────────────────────────────
+
+
+class TestInstallByIdWithRef:
+    def test_install_with_ref_transforms_url(self, ctrl):
+        """_on_plugin_install_by_id with ref builds versioned URL."""
+        ctrl._plugin_installer = MagicMock()
+        ctrl._last_plugin_infos = [
+            PluginInfo(
+                meta=PluginMeta(name="Test", id="com.test.plugin", version="2.0.0"),
+                source_url="https://raw.githubusercontent.com/Airead/WenZi/refs/heads/main/plugins/test/plugin.toml",
+                registry_name="Official",
+                status=PluginStatus.NOT_INSTALLED,
+                is_official=True,
+            )
+        ]
+
+        with patch(
+            "PyObjCTools.AppHelper.callAfter",
+            side_effect=lambda fn, *a, **kw: fn(*a, **kw),
+        ), patch(
+            "wenzi.controllers.settings_controller.threading.Thread",
+        ) as mock_thread:
+            ctrl._on_plugin_install_by_id("com.test.plugin", ref="1.0.0")
+            mock_thread.call_args[1]["target"]()
+
+        ctrl._plugin_installer.install.assert_called_once()
+        call_args = ctrl._plugin_installer.install.call_args
+        url = call_args[0][0]
+        assert "refs/tags/v1.0.0" in url
+        assert call_args[1]["pinned_ref"] == "1.0.0"
+
+    def test_install_without_ref_uses_original_url(self, ctrl):
+        """_on_plugin_install_by_id without ref uses registry URL as-is."""
+        ctrl._plugin_installer = MagicMock()
+        source = "https://raw.githubusercontent.com/Airead/WenZi/refs/heads/main/plugins/test/plugin.toml"
+        ctrl._last_plugin_infos = [
+            PluginInfo(
+                meta=PluginMeta(name="Test", id="com.test.plugin", version="2.0.0"),
+                source_url=source,
+                registry_name="Official",
+                status=PluginStatus.NOT_INSTALLED,
+                is_official=True,
+            )
+        ]
+
+        with patch(
+            "PyObjCTools.AppHelper.callAfter",
+            side_effect=lambda fn, *a, **kw: fn(*a, **kw),
+        ), patch(
+            "wenzi.controllers.settings_controller.threading.Thread",
+        ) as mock_thread:
+            ctrl._on_plugin_install_by_id("com.test.plugin")
+            mock_thread.call_args[1]["target"]()
+
+        ctrl._plugin_installer.install.assert_called_once_with(
+            source, pinned_ref=None
+        )
+
+    def test_install_with_invalid_ref_shows_error(self, ctrl):
+        """Short SHA ref shows error in settings panel."""
+        ctrl._plugin_installer = MagicMock()
+        ctrl._last_plugin_infos = [
+            PluginInfo(
+                meta=PluginMeta(name="Test", id="com.test.plugin", version="2.0.0"),
+                source_url="https://raw.githubusercontent.com/Airead/WenZi/refs/heads/main/plugins/test/plugin.toml",
+                registry_name="Official",
+                status=PluginStatus.NOT_INSTALLED,
+                is_official=True,
+            )
+        ]
+        ctrl._on_plugin_install_by_id("com.test.plugin", ref="abc1234")
+
+        ctrl._plugin_installer.install.assert_not_called()
+        call_args = ctrl._app._settings_panel.update_state.call_args[0][0]
+        assert "plugins_error" in call_args
+        assert "40-character" in call_args["plugins_error"]

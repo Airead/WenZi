@@ -1313,8 +1313,10 @@ class SettingsController:
 
         threading.Thread(target=_fetch, daemon=True).start()
 
-    def _on_plugin_install_by_id(self, plugin_id: str) -> None:
-        """Install a plugin by its registry ID."""
+    def _on_plugin_install_by_id(
+        self, plugin_id: str, ref: str | None = None
+    ) -> None:
+        """Install a plugin by its registry ID, optionally at a specific ref."""
         source_url = None
         for info in self._last_plugin_infos:
             if info.meta.id == plugin_id:
@@ -1325,9 +1327,24 @@ class SettingsController:
                 {"plugins_error": f"Plugin {plugin_id} not found in registries"}
             )
             return
-        self._on_plugin_install_url(source_url)
+        if ref:
+            from wenzi.scripting.plugin_installer import (
+                replace_github_ref,
+                resolve_ref,
+            )
 
-    def _on_plugin_install_url(self, url: str) -> None:
+            try:
+                download_url = replace_github_ref(source_url, resolve_ref(ref))
+            except ValueError as e:
+                self._app._settings_panel.update_state(
+                    {"plugins_error": f"Invalid ref: {e}"}
+                )
+                return
+            self._on_plugin_install_url(download_url, pinned_ref=ref)
+        else:
+            self._on_plugin_install_url(source_url)
+
+    def _on_plugin_install_url(self, url: str, pinned_ref: str | None = None) -> None:
         """Install a plugin from a URL in background."""
         from PyObjCTools import AppHelper
 
@@ -1335,7 +1352,7 @@ class SettingsController:
 
         def _do_install():
             try:
-                self._plugin_installer.install(url)
+                self._plugin_installer.install(url, pinned_ref=pinned_ref)
                 self._needs_reload = True
                 AppHelper.callAfter(self._auto_reload_if_needed)
             except Exception as e:
