@@ -1302,6 +1302,21 @@ function renderStats(messages) {
     el.style.width = el.dataset.pct + "%";
     el.style.backgroundColor = el.dataset.color;
   });
+
+  // Attach click handlers for subagent links
+  panel.querySelectorAll(".subagent-link").forEach(link => {
+    link.addEventListener("click", (e) => {
+      e.preventDefault();
+      const agentId = link.dataset.agentId;
+      const description = link.dataset.description;
+      wz.call("open_subagent", {
+        root_session_path: sessionInfo.root_session_path,
+        parent_file_path: sessionInfo.file,
+        agent_id: agentId,
+        description: description,
+      });
+    });
+  });
 }
 
 function computeStats(messages) {
@@ -1354,6 +1369,7 @@ function computeStats(messages) {
           description: p.input?.description || "",
           type: p.input?.subagent_type || "general-purpose",
           model: p.input?.model || "",
+          toolUseId: p.id,
         });
       } else if (name === "TaskCreate") {
         taskCreated++;
@@ -1470,10 +1486,21 @@ function buildStatsHTML(s) {
     // List individual subagent descriptions
     html += '<div style="margin-top:6px;border-top:1px solid var(--border-color);padding-top:6px;">';
     for (const sa of s.subagents) {
+      const sub = window._subagentMap[sa.toolUseId];
       const modelTag = sa.model ? ` <span style="opacity:0.5">(${escapeHtml(sa.model)})</span>` : "";
-      html += `<div class="stats-list-item">
-        <span class="name">${escapeHtml(sa.description)}${modelTag}</span>
-      </div>`;
+      if (sub && sub.exists) {
+        html += `<div class="stats-list-item">
+          <a href="#" class="subagent-link" data-agent-id="${escapeHtml(sub.agentId)}"
+             data-description="${escapeHtml(sa.description)}"
+             style="color:var(--copy-btn-color);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">
+            ${escapeHtml(sa.description)}${modelTag}
+          </a>
+        </div>`;
+      } else {
+        html += `<div class="stats-list-item">
+          <span class="name">${escapeHtml(sa.description)}${modelTag}</span>
+        </div>`;
+      }
     }
     html += '</div></div>';
   }
