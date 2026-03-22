@@ -2,7 +2,6 @@
 
 import json
 import os
-from pathlib import Path
 
 
 def _make_subagent_fixture(tmp_path):
