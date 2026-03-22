@@ -37,11 +37,11 @@ class SessionCache:
     def clear(self) -> None:
         """Remove all cached entries and delete the cache file."""
         self._sessions.clear()
-        self._dirty = False
         try:
             self._path.unlink(missing_ok=True)
         except OSError:
             logger.warning("Failed to delete cache file", exc_info=True)
+        self._dirty = False
 
     def prune(self, live_paths: set[str]) -> None:
         """Remove entries whose paths are not in *live_paths*."""

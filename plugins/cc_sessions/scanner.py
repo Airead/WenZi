@@ -136,7 +136,7 @@ def _resolve_project_name(cwd: str, fallback: str) -> str:
     """Resolve the project name from *cwd*, with caching.
 
     Priority: git remote origin repo name > git root / cwd basename
-    (before ``.'') > *fallback* (directory-name derived).
+    (before ``"."``) > *fallback* (directory-name derived).
 
     When *cwd* is a subdirectory of a git repo, the repo root is used
     for name resolution so that all sessions in the same repo share

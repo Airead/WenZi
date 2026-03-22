@@ -707,38 +707,6 @@ class TestProjectNameResolution:
         assert _resolve_project_name(cwd, "docs") == "WenZi"
         _project_name_cache.pop(cwd, None)
 
-
-class TestScannerClearCache:
-    """Test SessionScanner.clear_cache() method."""
-
-    def test_clear_cache_resets_all(self, tmp_path: Path):
-        """clear_cache() empties disk cache, index supplements, and project name cache."""
-        from cc_sessions.scanner import _project_name_cache
-
-        # Create a scanner with a cache
-        base = tmp_path / "projects"
-        base.mkdir()
-        cache_path = tmp_path / "cache.json"
-        scanner = SessionScanner(base_dir=base, cache_path=cache_path)
-
-        # Populate caches
-        if scanner._cache:
-            scanner._cache.put("test.jsonl", 1.0, {"session_id": "t"})
-            scanner._cache.save()
-        scanner._index_supplements["idx"] = (1.0, {})
-        _project_name_cache["test_cwd"] = "TestProject"
-
-        # Clear
-        scanner.clear_cache()
-
-        # Verify all cleared
-        assert scanner._cache.get("test.jsonl") is None
-        assert not cache_path.exists()
-        assert scanner._index_supplements == {}
-        assert "test_cwd" not in _project_name_cache
-
-
-class TestResolveSubdirectoryNoRemote:
     def test_resolve_subdirectory_no_remote(self, tmp_path: Path):
         """Subdirectory of repo without remote falls back to repo dir basename."""
         from cc_sessions.scanner import _project_name_cache
@@ -751,7 +719,6 @@ class TestResolveSubdirectoryNoRemote:
 
         cwd = str(sub)
         _project_name_cache.pop(cwd, None)
-        # Should resolve to tmp_path basename, not "lib"
         assert _resolve_project_name(cwd, "lib") == tmp_path.name
         _project_name_cache.pop(cwd, None)
 
@@ -782,3 +749,28 @@ class TestResolveSubdirectoryNoRemote:
         assert result is not None
         assert result["project"] == "MyProject"
         _project_name_cache.pop(cwd, None)
+
+
+class TestScannerClearCache:
+    """Test SessionScanner.clear_cache() method."""
+
+    def test_clear_cache_resets_all(self, tmp_path: Path):
+        """clear_cache() empties disk cache, index supplements, and project name cache."""
+        from cc_sessions.scanner import _project_name_cache
+
+        base = tmp_path / "projects"
+        base.mkdir()
+        cache_path = tmp_path / "cache.json"
+        scanner = SessionScanner(base_dir=base, cache_path=cache_path)
+
+        scanner._cache.put("test.jsonl", 1.0, {"session_id": "t"})
+        scanner._cache.save()
+        scanner._index_supplements["idx"] = (1.0, {})
+        _project_name_cache["test_cwd"] = "TestProject"
+
+        scanner.clear_cache()
+
+        assert scanner._cache.get("test.jsonl") is None
+        assert not cache_path.exists()
+        assert scanner._index_supplements == {}
+        assert "test_cwd" not in _project_name_cache
