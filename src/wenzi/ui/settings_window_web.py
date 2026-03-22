@@ -195,6 +195,20 @@ body {
 
 .toggle.on::after { transform: translateX(16px); }
 
+/* Toggle knob as a child div (used in plugin card toggles) */
+.toggle-knob {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  background: white;
+  border-radius: 50%;
+  top: 2px;
+  left: 2px;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+.toggle.on .toggle-knob { transform: translateX(16px); }
+
 /* Select dropdown */
 select {
   -webkit-appearance: none;
@@ -374,6 +388,38 @@ input[type="range"] {
   gap: 8px;
 }
 
+/* Section layout for Plugins tab */
+.section { margin-bottom: 20px; }
+.section-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #6e6e73; margin-bottom: 8px; }
+
+/* Generic buttons */
+.btn { font-size: 12px; padding: 5px 12px; border-radius: 6px; cursor: pointer; border: none; font-family: inherit; }
+.btn-primary { background: #007aff; color: white; }
+.btn-primary:hover { background: #0066d6; }
+.btn-secondary { background: #e5e5ea; color: #1d1d1f; }
+.btn-secondary:hover { background: #d2d2d7; }
+.btn-danger { background: #ff3b30; color: white; }
+.btn-danger:hover { background: #d63027; }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Text input full-width variant */
+.text-input { border: 0.5px solid #d2d2d7; border-radius: 6px; padding: 5px 10px; font-size: 13px; background: white; color: #1d1d1f; font-family: inherit; }
+
+/* Plugin cards */
+.plugin-card { display:flex; align-items:flex-start; padding:12px; border:1px solid #d2d2d7; border-radius:8px; margin-bottom:8px; gap:12px; background:white; }
+.plugin-icon { width:40px; height:40px; border-radius:8px; background:#f5f5f7; display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0; }
+.plugin-info { flex:1; min-width:0; }
+.plugin-name { font-weight:600; font-size:14px; }
+.plugin-version { font-size:12px; color:#86868b; margin-left:6px; }
+.plugin-author { font-size:12px; color:#86868b; }
+.plugin-desc { font-size:13px; margin-top:4px; color:#86868b; }
+.plugin-badge { font-size:10px; padding:2px 6px; border-radius:4px; display:inline-block; margin-left:6px; }
+.badge-official { background:#e8f5e9; color:#2e7d32; }
+.badge-unverified { background:#fff3e0; color:#e65100; }
+.plugin-actions { display:flex; gap:6px; align-items:center; flex-shrink:0; }
+.reload-banner { display:flex; align-items:center; justify-content:space-between; padding:10px 14px; margin-top:12px; background:#f5f5f7; border:1px solid #d2d2d7; border-radius:8px; }
+.manual-install-row { display:flex; gap:8px; align-items:center; }
+
 /* Dark mode */
 @media (prefers-color-scheme: dark) {
   body { background: #1e1e1e; color: #f5f5f7; }
@@ -416,6 +462,18 @@ input[type="range"] {
   .content::-webkit-scrollbar-track { background: transparent; }
   .content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
   .content::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.35); }
+  .section-title { color: #98989d; }
+  .btn-secondary { background: #3a3a3a; color: #f5f5f7; }
+  .btn-secondary:hover { background: #4a4a4a; }
+  .text-input { background: #3a3a3a; color: #f5f5f7; border-color: #4a4a4a; }
+  .plugin-card { background: #2a2a2a; border-color: #3a3a3a; }
+  .plugin-icon { background: #3a3a3a; }
+  .plugin-version { color: #98989d; }
+  .plugin-author { color: #98989d; }
+  .plugin-desc { color: #98989d; }
+  .badge-official { background:#1b5e20; color:#a5d6a7; }
+  .badge-unverified { background:#bf360c; color:#ffcc80; }
+  .reload-banner { background: #2a2a2a; border-color: #3a3a3a; }
 }
 </style>
 </head>
@@ -442,6 +500,10 @@ input[type="range"] {
     <div class="sidebar-item" data-tab="launcher" onclick="switchTab('launcher')">
       <div class="sidebar-icon" style="background:linear-gradient(135deg,#fdcb6e,#e17055);">&#x1f680;</div>
       <span data-i18n="launcher_tab.title">Launcher</span>
+    </div>
+    <div class="sidebar-item" data-tab="plugins" onclick="switchTab('plugins')">
+      <span class="sidebar-icon">&#x1f9e9;</span>
+      <span>Plugins</span>
     </div>
   </div>
 
@@ -764,6 +826,36 @@ input[type="range"] {
         </div>
       </div>
     </div>
+
+    <!-- Plugins Tab -->
+    <div id="tab-plugins" class="tab-content">
+      <div class="content-title">Plugins</div>
+
+      <div class="section">
+        <div class="section-title">Plugin Sources</div>
+        <div id="registry-list"></div>
+        <div class="manual-install-row" style="margin-top:8px;">
+          <input type="text" id="registry-url-input" placeholder="Registry URL..." class="text-input" style="flex:1;">
+          <button class="btn btn-secondary" onclick="addRegistry()">Add</button>
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-title">Plugins <span id="plugins-loading" style="display:none; font-size:12px; color:#86868b;">Loading...</span></div>
+        <div id="plugin-list"></div>
+        <div id="plugins-error" style="display:none; color:#ff3b30; margin-top:8px;"></div>
+      </div>
+      <div class="section">
+        <div class="section-title">Install from URL</div>
+        <div class="manual-install-row">
+          <input type="text" id="plugin-url-input" placeholder="plugin.toml URL..." class="text-input" style="flex:1;">
+          <button class="btn btn-primary" onclick="installFromUrl()">Install</button>
+        </div>
+      </div>
+      <div id="reload-banner" style="display:none;" class="reload-banner">
+        <span>Plugins changed. Reload to apply.</span>
+        <button class="btn btn-primary" onclick="postCallback('on_plugin_reload')">Reload Now</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -825,6 +917,7 @@ function switchTab(tabId) {
   var item = document.querySelector('.sidebar-item[data-tab="' + tabId + '"]');
   if (item) item.classList.add('active');
   postCallback('on_tab_change', tabId);
+  if (tabId === 'plugins') { postCallback('on_plugins_tab_open'); }
 }
 
 /* ------------------------------------------------------------------ */
@@ -1335,6 +1428,117 @@ function _initState(config) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Plugins tab                                                         */
+/* ------------------------------------------------------------------ */
+
+function renderPlugins() {
+  var plugins = CONFIG.plugins || [];
+  var list = document.getElementById('plugin-list');
+  if (!list) return;
+  if (!plugins.length) {
+    list.innerHTML = '<div style="color:#86868b;padding:8px;">No plugins available.</div>';
+    return;
+  }
+  var html = '';
+  for (var i = 0; i < plugins.length; i++) { html += renderPluginCard(plugins[i]); }
+  list.innerHTML = html;
+}
+
+function renderPluginCard(p) {
+  var badge = p.is_official
+    ? '<span class="plugin-badge badge-official">Official</span>'
+    : '<span class="plugin-badge badge-unverified">Unverified</span>';
+  var actions = '';
+  if (p.status === 'incompatible') {
+    actions = '<button class="btn btn-secondary" disabled title="Requires WenZi >= ' + _esc(p.min_wenzi_version) + '">Install</button>';
+  } else if (p.status === 'not_installed') {
+    actions = '<button class="btn btn-primary" onclick="installPlugin(\'' + _esc(p.id) + '\')">Install</button>';
+  } else if (p.status === 'update_available') {
+    actions = '<button class="btn btn-primary" onclick="updatePlugin(\'' + _esc(p.id) + '\')">Update (' + _esc(p.installed_version) + ' \u2192 ' + _esc(p.version) + ')</button>';
+    actions += toggleHtml(p.id, p.enabled);
+    actions += '<button class="btn btn-danger" onclick="uninstallPlugin(\'' + _esc(p.id) + '\')">Uninstall</button>';
+  } else if (p.status === 'installed') {
+    actions += toggleHtml(p.id, p.enabled);
+    actions += '<button class="btn btn-danger" onclick="uninstallPlugin(\'' + _esc(p.id) + '\')">Uninstall</button>';
+  } else if (p.status === 'manually_placed') {
+    actions += toggleHtml(p.id, p.enabled);
+  }
+  return '<div class="plugin-card">'
+    + '<div class="plugin-icon">\uD83E\uDDE9</div>'
+    + '<div class="plugin-info">'
+    + '<div><span class="plugin-name">' + _esc(p.name) + '</span>'
+    + '<span class="plugin-version">v' + _esc(p.version) + '</span>'
+    + badge + '</div>'
+    + '<div class="plugin-author">' + _esc(p.author) + ' \u00B7 ' + _esc(p.registry_name) + '</div>'
+    + '<div class="plugin-desc">' + _esc(p.description) + '</div>'
+    + '</div>'
+    + '<div class="plugin-actions">' + actions + '</div>'
+    + '</div>';
+}
+
+function toggleHtml(pluginId, enabled) {
+  var cls = enabled ? 'toggle on' : 'toggle';
+  return '<div class="' + cls + '" onclick="togglePlugin(this, \'' + _esc(pluginId) + '\')"><div class="toggle-knob"></div></div>';
+}
+
+function installPlugin(id) { postCallback('on_plugin_install_by_id', id); }
+function updatePlugin(id) { postCallback('on_plugin_update', id); }
+function uninstallPlugin(id) {
+  if (confirm('Uninstall this plugin? This will delete all plugin files.')) {
+    postCallback('on_plugin_uninstall', id);
+  }
+}
+function togglePlugin(el, id) {
+  el.classList.toggle('on');
+  var enabled = el.classList.contains('on');
+  postCallback('on_plugin_toggle', id, enabled);
+}
+function installFromUrl() {
+  var input = document.getElementById('plugin-url-input');
+  var url = input.value.trim();
+  if (url) { postCallback('on_plugin_install_url', url); input.value = ''; }
+}
+
+function renderRegistries() {
+  var registries = CONFIG.registries || [];
+  var list = document.getElementById('registry-list');
+  if (!list) return;
+  var html = '';
+  for (var i = 0; i < registries.length; i++) {
+    var r = registries[i];
+    var removeBtn = r.removable
+      ? ' <button class="btn btn-small btn-danger" onclick="removeRegistry(' + i + ')">Remove</button>'
+      : '';
+    html += '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;">'
+      + '<span style="flex:1;font-size:13px;">' + _esc(r.name) + '</span>'
+      + removeBtn + '</div>';
+  }
+  list.innerHTML = html;
+}
+
+function addRegistry() {
+  var input = document.getElementById('registry-url-input');
+  var url = input.value.trim();
+  if (url) { postCallback('on_registry_add', url); input.value = ''; }
+}
+function removeRegistry(index) { postCallback('on_registry_remove', index); }
+
+function showPluginsLoading(show) {
+  var el = document.getElementById('plugins-loading');
+  if (el) el.style.display = show ? 'inline' : 'none';
+}
+function showPluginsError(msg) {
+  var el = document.getElementById('plugins-error');
+  if (!el) return;
+  if (msg) { el.textContent = msg; el.style.display = 'block'; }
+  else { el.style.display = 'none'; }
+}
+function showReloadBanner(show) {
+  var el = document.getElementById('reload-banner');
+  if (el) el.style.display = show ? 'flex' : 'none';
+}
+
+/* ------------------------------------------------------------------ */
 /* Incremental state update (called from Python)                       */
 /* ------------------------------------------------------------------ */
 
@@ -1432,6 +1636,13 @@ function _updateState(state) {
   if (state.scripting_enabled !== undefined || state.launcher !== undefined) {
     updateLauncherDisabledState();
   }
+
+  // Plugins tab
+  if (state.plugins !== undefined) { CONFIG.plugins = state.plugins; renderPlugins(); }
+  if (state.registries !== undefined) { CONFIG.registries = state.registries; renderRegistries(); }
+  if (state.plugins_loading !== undefined) { showPluginsLoading(state.plugins_loading); }
+  if (state.plugins_error !== undefined) { showPluginsError(state.plugins_error); }
+  if (state.show_reload_banner !== undefined) { showReloadBanner(state.show_reload_banner); }
 }
 
 /* ------------------------------------------------------------------ */
