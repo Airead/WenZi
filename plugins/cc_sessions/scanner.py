@@ -107,6 +107,27 @@ def _project_name_from_dir(dirname: str) -> str:
     return parts[-1] if parts else dirname
 
 
+def _find_git_root(cwd: str) -> str:
+    """Walk up from *cwd* to filesystem root looking for ``.git``.
+
+    Returns the path containing ``.git`` (directory or file), or ``""``
+    if none is found.
+    """
+    try:
+        current = Path(cwd).resolve()
+    except (OSError, ValueError):
+        return ""
+    if not current.exists():
+        return ""
+    while True:
+        if (current / ".git").exists():
+            return str(current)
+        parent = current.parent
+        if parent == current:  # reached filesystem root
+            return ""
+        current = parent
+
+
 # Cache: cwd path -> resolved project name
 _project_name_cache: dict[str, str] = {}
 

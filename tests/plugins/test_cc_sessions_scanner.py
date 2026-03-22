@@ -9,6 +9,7 @@ from cc_sessions.scanner import (
     SessionScanner,
     _choose_title,
     _clean_first_prompt,
+    _find_git_root,
     _git_remote_name,
     _name_from_cwd,
     _project_name_from_dir,
@@ -35,6 +36,59 @@ class TestProjectNameFromDir:
 
     def test_leading_trailing_dashes(self):
         assert _project_name_from_dir("--foo--") == "foo"
+
+
+# ---------------------------------------------------------------------------
+# _find_git_root
+# ---------------------------------------------------------------------------
+
+
+class TestFindGitRoot:
+    def test_finds_git_at_cwd(self, tmp_path: Path):
+        """CWD is the repo root itself."""
+        (tmp_path / ".git").mkdir()
+        assert _find_git_root(str(tmp_path)) == str(tmp_path)
+
+    def test_finds_git_in_parent(self, tmp_path: Path):
+        """CWD is a subdirectory of the repo."""
+        (tmp_path / ".git").mkdir()
+        sub = tmp_path / "docs"
+        sub.mkdir()
+        assert _find_git_root(str(sub)) == str(tmp_path)
+
+    def test_finds_git_multiple_levels_up(self, tmp_path: Path):
+        """CWD is nested several levels deep."""
+        (tmp_path / ".git").mkdir()
+        deep = tmp_path / "a" / "b" / "c"
+        deep.mkdir(parents=True)
+        assert _find_git_root(str(deep)) == str(tmp_path)
+
+    def test_returns_empty_when_no_git(self, tmp_path: Path):
+        """No .git anywhere up to root."""
+        sub = tmp_path / "no-repo" / "child"
+        sub.mkdir(parents=True)
+        assert _find_git_root(str(sub)) == ""
+
+    def test_finds_git_file_worktree(self, tmp_path: Path):
+        """CWD has a .git file (worktree), treated as git root."""
+        (tmp_path / ".git").write_text("gitdir: /some/path\n")
+        sub = tmp_path / "src"
+        sub.mkdir()
+        assert _find_git_root(str(sub)) == str(tmp_path)
+
+    def test_innermost_repo_wins(self, tmp_path: Path):
+        """Nested repos: inner .git found first."""
+        (tmp_path / ".git").mkdir()
+        inner = tmp_path / "submodule"
+        inner.mkdir()
+        (inner / ".git").mkdir()
+        child = inner / "lib"
+        child.mkdir()
+        assert _find_git_root(str(child)) == str(inner)
+
+    def test_nonexistent_path(self):
+        """CWD that no longer exists on disk returns empty."""
+        assert _find_git_root("/nonexistent/path/that/does/not/exist") == ""
 
 
 # ---------------------------------------------------------------------------
