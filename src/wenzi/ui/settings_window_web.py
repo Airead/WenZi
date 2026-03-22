@@ -667,13 +667,14 @@ input[type="range"] {
         <div class="setting-row">
           <div class="setting-left">
             <div class="setting-label" data-i18n="ai_tab.input_context">Input Context</div>
+            <div class="setting-desc" id="input-context-hint"></div>
           </div>
           <div class="setting-right">
             <select id="ctl-input-context"
-                    onchange="postCallback('on_input_context_change', this.value)">
+                    onchange="updateInputContextHint(this.value); postCallback('on_input_context_change', this.value)">
               <option value="off" data-i18n="ai_tab.input_context_off">Off</option>
               <option value="basic" data-i18n="ai_tab.input_context_basic">Basic</option>
-              <option value="standard" data-i18n="ai_tab.input_context_detailed">Detailed</option>
+              <option value="detailed" data-i18n="ai_tab.input_context_detailed">Detailed</option>
             </select>
           </div>
         </div>
@@ -784,6 +785,16 @@ function _initI18nLabels() {
 /* ------------------------------------------------------------------ */
 /* Core helper functions                                               */
 /* ------------------------------------------------------------------ */
+
+function updateInputContextHint(value) {
+  var hints = {
+    off: _t('ai_tab.input_context_hint_off', 'No app info is sent to the AI model.'),
+    basic: _t('ai_tab.input_context_hint_basic', 'App name is sent to help the AI adapt to your context.'),
+    detailed: _t('ai_tab.input_context_hint_detailed', 'App name, window title, and other details are sent for better accuracy. May include sensitive info.')
+  };
+  var el = document.getElementById('input-context-hint');
+  if (el) el.textContent = hints[value] || '';
+}
 
 function postCallback(name) {
   var args = Array.prototype.slice.call(arguments, 1);
@@ -1279,7 +1290,10 @@ function _initState(config) {
   var histRefresh = document.getElementById('ctl-history-refresh');
   if (histRefresh && config.history_refresh_threshold !== undefined) histRefresh.value = config.history_refresh_threshold;
   var inputCtx = document.getElementById('ctl-input-context');
-  if (inputCtx && config.input_context_level) inputCtx.value = config.input_context_level;
+  if (inputCtx && config.input_context_level) {
+    inputCtx.value = config.input_context_level;
+    updateInputContextHint(config.input_context_level);
+  }
 
   // Launcher
   var launcher = config.launcher || {};
@@ -1357,7 +1371,10 @@ function _updateState(state) {
   }
   if (state.input_context_level !== undefined) {
     var ic = document.getElementById('ctl-input-context');
-    if (ic) ic.value = state.input_context_level;
+    if (ic) {
+      ic.value = state.input_context_level;
+      updateInputContextHint(state.input_context_level);
+    }
   }
   if (state.config_dir !== undefined) {
     var cd = document.getElementById('config-dir-display');
