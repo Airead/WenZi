@@ -51,6 +51,7 @@ class SettingsController:
         plugins_dir = os.path.join(app._config_dir, "plugins")
         self._plugin_registry = PluginRegistry(plugins_dir=plugins_dir)
         self._plugin_installer = PluginInstaller(plugins_dir=plugins_dir)
+        self._registry_cache_dir = os.path.join(app._config_dir, "registry_cache")
         self._needs_reload = False
         self._last_plugin_infos: list[PluginInfo] = []
 
@@ -1295,21 +1296,53 @@ class SettingsController:
     # ---------------------------------------------------------------------------
 
     def _on_plugins_tab_open(self) -> None:
-        """Fetch registries in background, update UI when done."""
+        """Show cached/local plugins immediately, then fetch fresh registries."""
         from PyObjCTools import AppHelper
 
         app = self._app
         panel = app._settings_panel
-        panel.update_state({"plugins_loading": True, "plugins_error": None})
         self._update_registries_state()
 
+        # Immediate render from cache + local scan
+        extra = app._config.get("plugins", {}).get("extra_registries", [])
+        current_ver = get_version()
+        cached_official, cached_extras = self._get_cached_registry_paths(extra)
+        if cached_official:
+            try:
+                infos = self._plugin_registry.merge_registries(
+                    official_source=cached_official,
+                    extra_sources=cached_extras,
+                    current_wenzi_version=current_ver,
+                )
+                self._last_plugin_infos = infos
+            except Exception:
+                logger.debug("Failed to load cached registries", exc_info=True)
+        # Render whatever we have (cached + local, or local-only)
+        self._finish_plugins_fetch(loading=True)
+
+        # Background fetch for fresh data
         def _fetch():
             try:
-                extra = app._config.get("plugins", {}).get("extra_registries", [])
-                current_ver = get_version()
+                from wenzi.scripting.plugin_meta import read_source
+
+                os.makedirs(self._registry_cache_dir, exist_ok=True)
+                # Fetch and cache each registry
+                sources = [(BUILTIN_REGISTRY_URL, "official.toml")]
+                for i, url in enumerate(extra):
+                    sources.append((url, f"extra_{i}.toml"))
+                for url, fname in sources:
+                    raw = read_source(url)
+                    cache_path = os.path.join(self._registry_cache_dir, fname)
+                    tmp = cache_path + ".tmp"
+                    with open(tmp, "wb") as f:
+                        f.write(raw)
+                    os.replace(tmp, cache_path)
+
+                # Re-merge from fresh cache
+                cached_official, cached_extras = self._get_cached_registry_paths(extra)
                 infos = self._plugin_registry.merge_registries(
-                    official_source=BUILTIN_REGISTRY_URL,
-                    extra_sources=extra,
+                    official_source=cached_official or BUILTIN_REGISTRY_URL,
+                    extra_sources=cached_extras,
                     current_wenzi_version=current_ver,
                 )
                 self._last_plugin_infos = infos
@@ -1322,6 +1355,19 @@ class SettingsController:
                 )
 
         threading.Thread(target=_fetch, daemon=True).start()
+
+    def _get_cached_registry_paths(
+        self, extra_urls: list[str],
+    ) -> tuple[str | None, list[str]]:
+        """Return (cached_official, cached_extras) paths if they exist."""
+        official = os.path.join(self._registry_cache_dir, "official.toml")
+        cached_official = official if os.path.isfile(official) else None
+        cached_extras = []
+        for i in range(len(extra_urls)):
+            p = os.path.join(self._registry_cache_dir, f"extra_{i}.toml")
+            if os.path.isfile(p):
+                cached_extras.append(p)
+        return cached_official, cached_extras
 
     def _on_plugin_install_by_id(
         self, plugin_id: str, ref: str | None = None
@@ -1469,7 +1515,7 @@ class SettingsController:
             return
         self._on_plugin_reload()
 
-    def _finish_plugins_fetch(self) -> None:
+    def _finish_plugins_fetch(self, *, loading: bool = False) -> None:
         """Recompute plugin statuses on main thread after background fetch.
 
         Local-dir scanning must happen here (not in the fetch thread) to
@@ -1480,7 +1526,7 @@ class SettingsController:
             self._recompute_plugin_statuses()
         plugins_data = self._plugin_infos_to_state(self._last_plugin_infos or [])
         self._app._settings_panel.update_state(
-            {"plugins": plugins_data, "plugins_loading": False}
+            {"plugins": plugins_data, "plugins_loading": loading}
         )
 
     def _recompute_plugin_statuses(self) -> None:
@@ -1530,8 +1576,19 @@ class SettingsController:
         if 0 <= index < len(extra):
             extra.pop(index)
             self._save_and_reload()
+            self._clear_extra_registry_cache()
         self._update_registries_state()
         self._on_plugins_tab_open()
+
+    def _clear_extra_registry_cache(self) -> None:
+        """Remove all cached extra_*.toml files (re-fetched on next tab open)."""
+        import glob
+
+        for path in glob.glob(os.path.join(self._registry_cache_dir, "extra_*.toml")):
+            try:
+                os.remove(path)
+            except OSError:
+                pass
 
     def _update_registries_state(self) -> None:
         """Push current registry list to the settings panel."""
