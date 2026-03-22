@@ -51,9 +51,8 @@ def test_missing_file_raises_file_not_found(monkeypatch, tmp_path):
 
 
 def test_integration_settings_window_web_html():
-    """Integration: load the real settings_window_web.html template.
-
-    This test is expected to fail until the HTML file is extracted from Python.
-    """
-    result = load_template("settings_window_web.html")
-    assert "<html" in result
+    """Integration: load the real settings_window_web.html template."""
+    result = load_template("settings_window_web.html", CONFIG='{"test": true}')
+    assert "<!DOCTYPE html>" in result
+    assert '{"test": true}' in result
+    assert "__CONFIG__" not in result

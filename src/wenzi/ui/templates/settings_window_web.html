@@ -1,0 +1,1615 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Settings</title>
+<script>var CONFIG = __CONFIG__;</script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+  font-size: 13px;
+  color: #1d1d1f;
+  background: #f5f5f7;
+}
+
+.container {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Sidebar */
+.sidebar {
+  width: 180px;
+  min-width: 180px;
+  background: rgba(245,245,247,0.8);
+  border-right: 1px solid #d2d2d7;
+  padding: 12px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+  font-size: 13px;
+  color: #1d1d1f;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.sidebar-item:hover { background: rgba(0,0,0,0.05); }
+
+.sidebar-item.active {
+  background: rgba(0, 122, 255, 0.12);
+  color: #007aff;
+  font-weight: 500;
+}
+
+.sidebar-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  color: white;
+  flex-shrink: 0;
+}
+
+/* Content area */
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 28px;
+}
+
+.content-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 20px;
+}
+
+.group-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #6e6e73;
+  margin-bottom: 6px;
+  margin-top: 20px;
+  padding-left: 4px;
+}
+
+.group-title:first-of-type { margin-top: 0; }
+
+.setting-group {
+  background: white;
+  border-radius: 10px;
+  border: 0.5px solid #d2d2d7;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  min-height: 40px;
+  border-bottom: 0.5px solid #e5e5e7;
+}
+
+.setting-row:last-child { border-bottom: none; }
+
+.setting-left {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+}
+
+.setting-label { font-size: 13px; color: #1d1d1f; }
+.setting-desc { font-size: 11px; color: #86868b; margin-top: 1px; }
+.setting-right { flex-shrink: 0; margin-left: 12px; display: flex; align-items: center; gap: 6px; }
+
+/* Toggle switch */
+.toggle {
+  position: relative;
+  width: 38px;
+  height: 22px;
+  background: #e5e5ea;
+  border-radius: 11px;
+  cursor: pointer;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+
+.toggle.on { background: #34c759; }
+
+.toggle::after {
+  content: '';
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  background: white;
+  border-radius: 50%;
+  top: 2px;
+  left: 2px;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+.toggle.on::after { transform: translateX(16px); }
+
+/* Toggle knob as a child div (used in plugin card toggles) */
+.toggle-knob {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  background: white;
+  border-radius: 50%;
+  top: 2px;
+  left: 2px;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+.toggle.on .toggle-knob { transform: translateX(16px); }
+
+/* Select dropdown */
+select {
+  -webkit-appearance: none;
+  appearance: none;
+  background: white;
+  border: 0.5px solid #d2d2d7;
+  border-radius: 6px;
+  padding: 4px 28px 4px 10px;
+  font-size: 13px;
+  color: #1d1d1f;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2386868b'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  min-width: 100px;
+}
+
+/* Inputs */
+input[type="text"], input[type="number"] {
+  border: 0.5px solid #d2d2d7;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 13px;
+  width: 80px;
+  background: white;
+  color: #1d1d1f;
+}
+
+input[type="range"] {
+  accent-color: #007aff;
+}
+
+/* Buttons */
+.toolbar-btn {
+  font-size: 12px;
+  color: #007aff;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+.toolbar-btn:hover { text-decoration: underline; }
+
+.btn-small {
+  font-size: 11px;
+  color: #007aff;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.btn-small:hover { background: rgba(0,122,255,0.08); }
+
+.btn-small.danger { color: #ff3b30; }
+.btn-small.danger:hover { background: rgba(255,59,48,0.08); }
+
+/* Hotkey badge */
+.hotkey-badge {
+  display: inline-block;
+  background: #e5e5ea;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-family: "SF Mono", Menlo, monospace;
+  color: #6e6e73;
+}
+
+/* Model list styles */
+.provider-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  background: #fafafa;
+  border-bottom: 0.5px solid #e5e5e7;
+}
+
+.provider-name { font-size: 12px; font-weight: 600; color: #1d1d1f; }
+
+.provider-badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-weight: 500;
+}
+.provider-badge.local { background: #d4edda; color: #1b7a3d; }
+.provider-badge.remote { background: #d6e9ff; color: #1a5ab8; }
+
+.model-row {
+  display: flex;
+  align-items: center;
+  padding: 9px 14px;
+  border-bottom: 0.5px solid #e5e5e7;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.model-row:last-child { border-bottom: none; }
+.model-row:hover { background: rgba(0,0,0,0.02); }
+
+.model-radio {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid #d2d2d7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-right: 10px;
+  transition: border-color 0.15s;
+}
+.model-row.selected .model-radio { border-color: #007aff; }
+.model-row.selected .model-radio::after {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #007aff;
+}
+
+.model-info { flex: 1; min-width: 0; }
+.model-name { font-size: 13px; font-weight: 450; }
+.model-detail { font-size: 11px; color: #86868b; margin-top: 1px; }
+
+.model-tag {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: #f0f0f0;
+  color: #6e6e73;
+  margin-left: 8px;
+  flex-shrink: 0;
+}
+
+.model-size {
+  font-size: 11px;
+  color: #86868b;
+  margin-left: 8px;
+  flex-shrink: 0;
+  min-width: 50px;
+  text-align: right;
+}
+
+.model-actions {
+  margin-left: 8px;
+  flex-shrink: 0;
+}
+
+.add-row {
+  display: flex;
+  justify-content: center;
+  padding: 8px;
+  border-bottom: 0.5px solid #e5e5e7;
+}
+.add-row:last-child { border-bottom: none; }
+
+/* Tab visibility */
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* Config path display */
+.config-path {
+  font-size: 11px;
+  color: #86868b;
+  font-family: "SF Mono", Menlo, monospace;
+  word-break: break-all;
+}
+
+/* Bottom bar */
+.bottom-bar {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Section layout for Plugins tab */
+.section { margin-bottom: 20px; }
+.section-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #6e6e73; margin-bottom: 8px; }
+
+/* Generic buttons */
+.btn { font-size: 12px; padding: 5px 12px; border-radius: 6px; cursor: pointer; border: none; font-family: inherit; }
+.btn-primary { background: #007aff; color: white; }
+.btn-primary:hover { background: #0066d6; }
+.btn-secondary { background: #e5e5ea; color: #1d1d1f; }
+.btn-secondary:hover { background: #d2d2d7; }
+.btn-danger { background: #ff3b30; color: white; }
+.btn-danger:hover { background: #d63027; }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Text input full-width variant */
+.text-input { border: 0.5px solid #d2d2d7; border-radius: 6px; padding: 5px 10px; font-size: 13px; background: white; color: #1d1d1f; font-family: inherit; }
+
+/* Plugin cards */
+.plugin-card { display:flex; align-items:flex-start; padding:12px; border:1px solid #d2d2d7; border-radius:8px; margin-bottom:8px; gap:12px; background:white; }
+.plugin-icon { width:40px; height:40px; border-radius:8px; background:#f5f5f7; display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0; }
+.plugin-info { flex:1; min-width:0; }
+.plugin-name { font-weight:600; font-size:14px; }
+.plugin-version { font-size:12px; color:#86868b; margin-left:6px; }
+.plugin-author { font-size:12px; color:#86868b; }
+.plugin-desc { font-size:13px; margin-top:4px; color:#86868b; }
+.plugin-badge { font-size:10px; padding:2px 6px; border-radius:4px; display:inline-block; margin-left:6px; }
+.badge-official { background:#e8f5e9; color:#2e7d32; }
+.badge-unverified { background:#fff3e0; color:#e65100; }
+.plugin-actions { display:flex; gap:6px; align-items:center; flex-shrink:0; }
+.reload-banner { display:flex; align-items:center; justify-content:space-between; padding:10px 14px; margin-top:12px; background:#f5f5f7; border:1px solid #d2d2d7; border-radius:8px; }
+.manual-install-row { display:flex; gap:8px; align-items:center; }
+
+/* Dark mode */
+@media (prefers-color-scheme: dark) {
+  body { background: #1e1e1e; color: #f5f5f7; }
+  .sidebar { background: #2a2a2a; border-color: #3a3a3a; }
+  .sidebar-item { color: #f5f5f7; }
+  .sidebar-item:hover { background: rgba(255,255,255,0.08); }
+  .sidebar-item.active { background: rgba(100,149,237,0.25); color: #6ca0f6; }
+  .content { background: #1e1e1e; }
+  .content-title { color: #f5f5f7; }
+  .setting-group { background: #2a2a2a; border-color: #333; }
+  .setting-row { border-color: #333; }
+  .model-row { border-color: #333; }
+  .provider-header { border-color: #333; }
+  .add-row { border-color: #333; }
+  .setting-label { color: #f5f5f7; }
+  .setting-desc { color: #98989d; }
+  .group-title { color: #98989d; }
+  select, input[type="text"], input[type="number"] {
+    background: #3a3a3a; color: #f5f5f7; border-color: #4a4a4a;
+  }
+  .toolbar-btn { color: #6ca0f6; }
+  .btn-small { color: #6ca0f6; }
+  .btn-small:hover { background: rgba(100,149,237,0.12); }
+  .btn-small.danger { color: #ff453a; }
+  .btn-small.danger:hover { background: rgba(255,69,58,0.12); }
+  .hotkey-badge { background: #3a3a3a; color: #98989d; }
+  .toggle { background: #48484a; }
+  .toggle.on { background: #30d158; }
+  .model-row:hover { background: rgba(255,255,255,0.04); }
+  .model-tag { background: #3a3a3a; color: #98989d; }
+  .model-radio { border-color: #48484a; }
+  .model-row.selected .model-radio { border-color: #6ca0f6; }
+  .model-row.selected .model-radio::after { background: #6ca0f6; }
+  .provider-header { background: #333; }
+  .provider-name { color: #f5f5f7; }
+  .provider-badge.local { background: rgba(52,199,89,0.2); color: #30d158; }
+  .provider-badge.remote { background: rgba(100,149,237,0.2); color: #6ca0f6; }
+  .config-path { color: #98989d; }
+  .content::-webkit-scrollbar { width: 8px; }
+  .content::-webkit-scrollbar-track { background: transparent; }
+  .content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
+  .content::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.35); }
+  .section-title { color: #98989d; }
+  .btn-secondary { background: #3a3a3a; color: #f5f5f7; }
+  .btn-secondary:hover { background: #4a4a4a; }
+  .text-input { background: #3a3a3a; color: #f5f5f7; border-color: #4a4a4a; }
+  .plugin-card { background: #2a2a2a; border-color: #3a3a3a; }
+  .plugin-icon { background: #3a3a3a; }
+  .plugin-version { color: #98989d; }
+  .plugin-author { color: #98989d; }
+  .plugin-desc { color: #98989d; }
+  .badge-official { background:#1b5e20; color:#a5d6a7; }
+  .badge-unverified { background:#bf360c; color:#ffcc80; }
+  .reload-banner { background: #2a2a2a; border-color: #3a3a3a; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-item active" data-tab="general" onclick="switchTab('general')">
+      <div class="sidebar-icon" style="background:linear-gradient(135deg,#52a3fc,#007aff);">&#x2699;</div>
+      <span data-i18n="general_tab.title">General</span>
+    </div>
+    <div class="sidebar-item" data-tab="speech" onclick="switchTab('speech')">
+      <div class="sidebar-icon" style="background:linear-gradient(135deg,#ff6b6b,#ee5a24);">&#x1f3a4;</div>
+      <span data-i18n="stt_tab.title">Speech</span>
+    </div>
+    <div class="sidebar-item" data-tab="llm" onclick="switchTab('llm')">
+      <div class="sidebar-icon" style="background:linear-gradient(135deg,#a29bfe,#6c5ce7);">&#x1f9e0;</div>
+      <span data-i18n="llm_tab.title">LLM</span>
+    </div>
+    <div class="sidebar-item" data-tab="ai" onclick="switchTab('ai')">
+      <div class="sidebar-icon" style="background:linear-gradient(135deg,#55efc4,#00b894);">&#x2728;</div>
+      <span data-i18n="ai_tab.title">AI</span>
+    </div>
+    <div class="sidebar-item" data-tab="launcher" onclick="switchTab('launcher')">
+      <div class="sidebar-icon" style="background:linear-gradient(135deg,#fdcb6e,#e17055);">&#x1f680;</div>
+      <span data-i18n="launcher_tab.title">Launcher</span>
+    </div>
+    <div class="sidebar-item" data-tab="plugins" onclick="switchTab('plugins')">
+      <span class="sidebar-icon">&#x1f9e9;</span>
+      <span>Plugins</span>
+    </div>
+  </div>
+
+  <!-- Content -->
+  <div class="content">
+    <!-- General Tab -->
+    <div id="tab-general" class="tab-content active">
+      <div class="content-title" data-i18n="general_tab.title">General</div>
+
+      <div class="group-title" data-i18n="general_tab.language_label">Language</div>
+      <div class="setting-group">
+        <div class="setting-row">
+          <div class="setting-left">
+            <div class="setting-label" data-i18n="general_tab.language_label">Language</div>
+          </div>
+          <div class="setting-right">
+            <select id="ctl-language" onchange="postCallback('on_language_change', this.value)">
+              <option value="auto" data-i18n="general_tab.language_auto">Auto</option>
+              <option value="en">English</option>
+              <option value="zh">&#x4e2d;&#x6587;</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="group-title" data-i18n="general_tab.hotkeys_section">Hotkeys</div>
+      <div class="setting-group" id="hotkeys-group">
+        <!-- Dynamically populated by renderHotkeys() -->
+      </div>
+
+      <div class="group-title" data-i18n="general_tab.feedback_section">Feedback</div>
+      <div class="setting-group">
+        <div class="setting-row">
+          <div class="setting-left">
+            <div class="setting-label" data-i18n="general_tab.sound_feedback">Sound Feedback</div>
+            <div class="setting-desc" data-i18n="general_tab.sound_feedback_desc">Adds ~350ms delay before recording to avoid capturing the sound</div>
+          </div>
+          <div class="setting-right">
+            <div id="ctl-sound" class="toggle" onclick="toggleClick(this, 'on_sound_toggle')"></div>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-left">
+            <div class="setting-label" data-i18n="general_tab.visual_indicator">Visual Indicator</div>
+            <div class="setting-desc" data-i18n="general_tab.visual_indicator_desc">Show floating indicator while recording</div>
+          </div>
+          <div class="setting-right">
+            <div id="ctl-visual" class="toggle" onclick="toggleClick(this, 'on_visual_toggle')"></div>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-left">
+            <div class="setting-label" data-i18n="general_tab.show_device_name">Show Device Name</div>
+            <div class="setting-desc" data-i18n="general_tab.show_device_name_desc">Show the input device name on the recording indicator</div>
+          </div>
+          <div class="setting-right">
+            <div id="ctl-device-name" class="toggle" onclick="toggleClick(this, 'on_device_name_toggle')"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="group-title" data-i18n="general_tab.output_section">Output</div>
+      <div class="setting-group">
+        <div class="setting-row">
+          <div class="setting-left">
+            <div class="setting-label" data-i18n="general_tab.preview">Preview</div>
+            <div class="setting-desc" data-i18n="general_tab.preview_desc">Show a preview panel before inserting text, allowing edits</div>
+          </div>
+          <div class="setting-right">
+            <div id="ctl-preview" class="toggle" onclick="toggleClick(this, 'on_preview_toggle')"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="group-title" data-i18n="general_tab.scripting_section">Advanced</div>
+      <div class="setting-group">
+        <div class="setting-row">
+          <div class="setting-left">
+            <div class="setting-label" data-i18n="general_tab.enable_scripting">Scripting</div>
+            <div class="setting-desc" data-i18n="general_tab.enable_scripting_desc">Enable plugin scripting engine</div>
+          </div>
+          <div class="setting-right">
+            <div id="ctl-scripting" class="toggle" onclick="toggleClick(this, 'on_scripting_toggle')"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="group-title" data-i18n="general_tab.config_dir_section">Config Directory</div>
+      <div class="setting-group">
+        <div class="setting-row">
+          <div class="setting-left">
+            <div id="config-dir-display" class="config-path"></div>
+            <div class="setting-desc" data-i18n="general_tab.config_dir_hint">Changes require app restart to take effect</div>
+          </div>
+          <div class="setting-right">
+            <button class="btn-small" data-i18n="general_tab.browse" onclick="postCallback('on_config_dir_browse')">Browse...</button>
+            <button class="btn-small danger" data-i18n="general_tab.reset" onclick="postCallback('on_config_dir_reset')">Reset</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="bottom-bar">
+        <div style="display:flex; gap:16px; align-items:center;">
+          <button class="toolbar-btn" data-i18n="btn.reveal_config" onclick="postCallback('on_reveal_config_folder')">Reveal Config Folder</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Speech Tab -->
+    <div id="tab-speech" class="tab-content">
+      <div class="content-title" data-i18n="stt_tab.title">Speech Recognition</div>
+      <div class="setting-group" id="stt-model-list">
+        <!-- Dynamically populated by renderSttTab() -->
+      </div>
+    </div>
+
+    <!-- LLM Tab -->
+    <div id="tab-llm" class="tab-content">
+      <div class="content-title" data-i18n="llm_tab.title">LLM</div>
+      <div class="setting-group" id="llm-model-list">
+        <!-- Dynamically populated by renderLlmTab() -->
+      </div>
+      <div class="group-title" data-i18n="llm_tab.model_timeout">Connection</div>
+      <div class="setting-group">
+        <div class="setting-row">
+          <div class="setting-left">
+            <div class="setting-label" data-i18n="llm_tab.model_timeout">Timeout</div>
+            <div class="setting-desc" data-i18n="llm_tab.model_timeout_desc">Maximum time to wait for a model response</div>
+          </div>
+          <div class="setting-right">
+            <input id="ctl-model-timeout" type="number" value="10" style="width:60px;"
+                   onchange="postCallback('on_model_timeout', parseInt(this.value))">
+            <span style="color:#86868b;font-size:12px;">sec</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI Tab -->
+    <div id="tab-ai" class="tab-content">
+      <div class="content-title" data-i18n="ai_tab.title">AI Enhancement</div>
+
+      <div class="group-title" data-i18n="ai_tab.enhance_mode">Mode</div>
+      <div class="setting-group" id="ai-modes-group">
+        <!-- Dynamically populated by renderAiModes() -->
+      </div>
+
+      <div class="group-title" data-i18n="ai_tab.options_section">Options</div>
+      <div class="setting-group">
+        <div class="setting-row">
+          <div class="setting-left">
+            <div class="setting-label" data-i18n="ai_tab.thinking">Thinking</div>
+            <div class="setting-desc" data-i18n="ai_tab.thinking_desc">Enable extended thinking for more accurate AI processing (slower)</div>
+          </div>
+          <div class="setting-right">
+            <div id="ctl-thinking" class="toggle" onclick="toggleClick(this, 'on_thinking_toggle')"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="group-title" data-i18n="ai_tab.vocabulary">Vocabulary</div>
+      <div class="setting-group">
+        <div class="setting-row">
+          <div class="setting-left">
+            <div class="setting-label" data-i18n="ai_tab.vocabulary">Vocabulary</div>
+            <div class="setting-desc" data-i18n="ai_tab.vocabulary_desc">Use a custom vocabulary to improve recognition of domain-specific terms</div>
+          </div>
+          <div class="setting-right">
+            <span id="ctl-vocab-count" style="color:#86868b;font-size:12px;margin-right:8px;">0</span>
+            <div id="ctl-vocab" class="toggle" onclick="toggleClick(this, 'on_vocab_toggle')"></div>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-left">
+            <div class="setting-label" data-i18n="ai_tab.auto_build_vocab">Auto Build</div>
+            <div class="setting-desc" data-i18n="ai_tab.auto_build_vocab_desc">Automatically update vocabulary from your text input history</div>
+          </div>
+          <div class="setting-right">
+            <div id="ctl-auto-build" class="toggle" onclick="toggleClick(this, 'on_auto_build_toggle')"></div>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-left">
+            <div class="setting-label" data-i18n="ai_tab.build_model">Build Model</div>
+            <div class="setting-desc" data-i18n="ai_tab.build_model_desc">LLM used for vocabulary extraction (Default = same as AI enhance)</div>
+          </div>
+          <div class="setting-right">
+            <select id="ctl-vocab-build-model"
+                    onchange="postCallback('on_vocab_build_model_select', this.value)">
+            </select>
+          </div>
+        </div>
+        <div class="setting-row" style="justify-content:center; padding:8px;">
+          <button class="toolbar-btn" style="font-size:13px;" data-i18n="ai_tab.build_vocabulary" onclick="postCallback('on_vocab_build')">Build Vocabulary...</button>
+        </div>
+      </div>
+
+      <div class="group-title" data-i18n="ai_tab.conversation_history">Context</div>
+      <div class="setting-group">
+        <div class="setting-row">
+          <div class="setting-left">
+            <div class="setting-label" data-i18n="ai_tab.conversation_history">Conversation History</div>
+            <div class="setting-desc" data-i18n="ai_tab.conversation_history_desc">Include recent conversation context for better AI enhancement</div>
+          </div>
+          <div class="setting-right">
+            <div id="ctl-history" class="toggle" onclick="toggleClick(this, 'on_history_toggle')"></div>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-left">
+            <div class="setting-label" data-i18n="ai_tab.max_entries">Max Entries</div>
+          </div>
+          <div class="setting-right">
+            <input id="ctl-history-max" type="number" value="100" style="width:60px;"
+                   onchange="postCallback('on_history_max_entries', parseInt(this.value))">
+          </div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-left">
+            <div class="setting-label" data-i18n="ai_tab.base_entries">Refresh Threshold</div>
+          </div>
+          <div class="setting-right">
+            <input id="ctl-history-refresh" type="number" value="50" style="width:60px;"
+                   onchange="postCallback('on_history_refresh_threshold', parseInt(this.value))">
+          </div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-left">
+            <div class="setting-label" data-i18n="ai_tab.input_context">Input Context</div>
+            <div class="setting-desc" id="input-context-hint"></div>
+          </div>
+          <div class="setting-right">
+            <select id="ctl-input-context"
+                    onchange="updateInputContextHint(this.value); postCallback('on_input_context_change', this.value)">
+              <option value="off" data-i18n="ai_tab.input_context_off">Off</option>
+              <option value="basic" data-i18n="ai_tab.input_context_basic">Basic</option>
+              <option value="detailed" data-i18n="ai_tab.input_context_detailed">Detailed</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Launcher Tab -->
+    <div id="tab-launcher" class="tab-content">
+      <div class="content-title" data-i18n="launcher_tab.title">Launcher</div>
+
+      <div id="launcher-scripting-warning" class="setting-group" style="display:none; margin-bottom:16px; padding:10px 14px; color:#e17055;">
+        <span data-i18n="launcher_tab.scripting_warning">&#x26a0; Launcher requires Scripting to be enabled (General &#x2192; Scripting)</span>
+      </div>
+
+      <div class="setting-group">
+        <div class="setting-row">
+          <div class="setting-left">
+            <div class="setting-label" data-i18n="launcher_tab.enable_launcher">Enable Launcher</div>
+            <div class="setting-desc" data-i18n="launcher_tab.enable_launcher_desc">Disable to skip launcher registration and hotkey binding</div>
+          </div>
+          <div class="setting-right">
+            <div id="ctl-launcher-enabled" class="toggle" onclick="toggleClick(this, 'on_launcher_toggle')"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="group-title" data-i18n="launcher_tab.hotkey_section">Hotkey</div>
+      <div class="setting-group">
+        <div class="setting-row">
+          <div class="setting-left">
+            <div class="setting-label" data-i18n="launcher_tab.hotkey_label">Hotkey</div>
+            <div class="setting-desc" data-i18n="launcher_tab.hotkey_desc">Global hotkey to toggle the launcher panel</div>
+          </div>
+          <div class="setting-right">
+            <span id="ctl-launcher-hotkey" class="hotkey-badge">None</span>
+            <button class="btn-small" data-i18n="launcher_tab.record" onclick="postCallback('on_launcher_hotkey_record')">Record</button>
+            <button class="btn-small danger" data-i18n="launcher_tab.clear" onclick="postCallback('on_launcher_hotkey_clear')">Clear</button>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-left">
+            <div class="setting-label" data-i18n="launcher_tab.new_snippet_label">New Snippet</div>
+          </div>
+          <div class="setting-right">
+            <span id="ctl-new-snippet-hotkey" class="hotkey-badge">None</span>
+            <button class="btn-small" data-i18n="launcher_tab.record" onclick="postCallback('on_new_snippet_hotkey_record')">Record</button>
+            <button class="btn-small danger" data-i18n="launcher_tab.clear" onclick="postCallback('on_new_snippet_hotkey_clear')">Clear</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="group-title" data-i18n="launcher_tab.data_sources_section">Data Sources</div>
+      <div class="setting-group" id="launcher-sources-group">
+        <!-- Dynamically populated by renderLauncherSources() -->
+      </div>
+
+      <div class="group-title" data-i18n="launcher_tab.options_section">Options</div>
+      <div class="setting-group">
+        <div class="setting-row">
+          <div class="setting-left">
+            <div class="setting-label" data-i18n="launcher_tab.usage_learning">Usage Learning</div>
+            <div class="setting-desc" data-i18n="launcher_tab.usage_learning_desc">Learn from your selections to rank frequently used items higher</div>
+          </div>
+          <div class="setting-right">
+            <div id="ctl-launcher-usage-learning" class="toggle" onclick="toggleClick(this, 'on_launcher_usage_learning_toggle')"></div>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-left">
+            <div class="setting-label" data-i18n="launcher_tab.switch_english">Switch to English when open</div>
+            <div class="setting-desc" data-i18n="launcher_tab.switch_english_desc">Auto-switch to English input on open, restore previous IME on close</div>
+          </div>
+          <div class="setting-right">
+            <div id="ctl-launcher-switch-english" class="toggle" onclick="toggleClick(this, 'on_launcher_switch_english_toggle')"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="group-title" data-i18n="launcher_tab.maintenance_section">Maintenance</div>
+      <div class="setting-group">
+        <div class="setting-row" style="justify-content:center; padding:8px;">
+          <button class="toolbar-btn" style="font-size:13px;" data-i18n="launcher_tab.refresh_icon_cache" onclick="postCallback('on_launcher_refresh_icons')">Refresh Icon Cache</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Plugins Tab -->
+    <div id="tab-plugins" class="tab-content">
+      <div class="content-title">Plugins</div>
+
+      <div class="section">
+        <div class="section-title">Plugin Sources</div>
+        <div id="registry-list"></div>
+        <div class="manual-install-row" style="margin-top:8px;">
+          <input type="text" id="registry-url-input" placeholder="Registry URL..." class="text-input" style="flex:1;">
+          <button class="btn btn-secondary" onclick="addRegistry()">Add</button>
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-title">Plugins <span id="plugins-loading" style="display:none; font-size:12px; color:#86868b;">Loading...</span></div>
+        <div id="plugin-list"></div>
+        <div id="plugins-error" style="display:none; color:#ff3b30; margin-top:8px;"></div>
+      </div>
+      <div class="section">
+        <div class="section-title">Install from URL</div>
+        <div class="manual-install-row">
+          <input type="text" id="plugin-url-input" placeholder="plugin.toml URL..." class="text-input" style="flex:1;">
+          <button class="btn btn-primary" onclick="installFromUrl()">Install</button>
+        </div>
+      </div>
+      <div id="reload-banner" style="display:none;" class="reload-banner">
+        <span>Plugins changed. Reload to apply.</span>
+        <button class="btn btn-primary" onclick="postCallback('on_plugin_reload')">Reload Now</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ------------------------------------------------------------------ */
+/* i18n helper                                                         */
+/* ------------------------------------------------------------------ */
+
+var I18N = {};
+
+function _t(key, fallback) {
+  return I18N[key] || fallback || key;
+}
+
+function _initI18nLabels() {
+  document.querySelectorAll('[data-i18n]').forEach(function(el) {
+    var key = el.getAttribute('data-i18n');
+    var translated = I18N[key];
+    if (translated) el.textContent = translated;
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* Core helper functions                                               */
+/* ------------------------------------------------------------------ */
+
+function updateInputContextHint(value) {
+  var hints = {
+    off: _t('ai_tab.input_context_hint_off', 'No app info is sent to the AI model.'),
+    basic: _t('ai_tab.input_context_hint_basic', 'App name is sent to help the AI adapt to your context.'),
+    detailed: _t('ai_tab.input_context_hint_detailed', 'App name, window title, and other details are sent for better accuracy. May include sensitive info.')
+  };
+  var el = document.getElementById('input-context-hint');
+  if (el) el.textContent = hints[value] || '';
+}
+
+function postCallback(name) {
+  var args = Array.prototype.slice.call(arguments, 1);
+  window._postMessage({type: 'callback', name: name, args: args});
+}
+
+function toggleClick(el, callbackName) {
+  el.classList.toggle('on');
+  var isOn = el.classList.contains('on');
+  postCallback(callbackName, isOn);
+}
+
+function setToggle(id, value) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  if (value) { el.classList.add('on'); } else { el.classList.remove('on'); }
+}
+
+function switchTab(tabId) {
+  document.querySelectorAll('.tab-content').forEach(function(t) { t.classList.remove('active'); });
+  document.querySelectorAll('.sidebar-item').forEach(function(s) { s.classList.remove('active'); });
+  var tab = document.getElementById('tab-' + tabId);
+  if (tab) tab.classList.add('active');
+  var item = document.querySelector('.sidebar-item[data-tab="' + tabId + '"]');
+  if (item) item.classList.add('active');
+  postCallback('on_tab_change', tabId);
+  if (tabId === 'plugins') { postCallback('on_plugins_tab_open'); }
+}
+
+/* ------------------------------------------------------------------ */
+/* HTML escaping                                                       */
+/* ------------------------------------------------------------------ */
+
+function _esc(s) {
+  if (s === null || s === undefined) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#x27;');
+}
+
+/* ------------------------------------------------------------------ */
+/* General tab: Hotkeys                                                */
+/* ------------------------------------------------------------------ */
+
+function renderHotkeys() {
+  var container = document.getElementById('hotkeys-group');
+  if (!container) return;
+  var hotkeys = CONFIG.hotkeys || {};
+  var html = '';
+  var keys = Object.keys(hotkeys);
+  for (var i = 0; i < keys.length; i++) {
+    var key = keys[i];
+    var hk = hotkeys[key];
+    var enabled = hk.enabled !== undefined ? hk.enabled : true;
+    var mode = hk.mode || null;
+    var label = hk.label || key;
+    html += '<div class="setting-row">';
+    html += '  <div class="setting-left">';
+    html += '    <div class="setting-label">' + _esc(label) + '</div>';
+    html += '  </div>';
+    html += '  <div class="setting-right">';
+    // Mode dropdown: Default AI Mode, then available enhance modes
+    html += '    <select onchange="hotkeyModeChanged(\\x27' + _esc(key) + '\\x27, this.value)">';
+    html += '      <option value="_default"' + (!mode || mode === '_default' ? ' selected' : '') + '>' + _esc(_t('general_tab.default_ai_mode', 'Default AI Mode')) + '</option>';
+    html += '      <option value="off"' + (mode === 'off' ? ' selected' : '') + '>' + _esc(_t('general_tab.off', 'Off')) + '</option>';
+    var modes = CONFIG.enhance_modes || [];
+    for (var j = 0; j < modes.length; j++) {
+      html += '      <option value="' + _esc(modes[j].id) + '"' + (mode === modes[j].id ? ' selected' : '') + '>' + _esc(modes[j].name) + '</option>';
+    }
+    // Delete option for non-fn keys
+    if (key.toLowerCase() !== 'fn') {
+      html += '      <option value="_delete">' + _esc(_t('general_tab.delete_hotkey', 'Delete Hotkey')) + '</option>';
+    }
+    html += '    </select>';
+    html += '    <div class="toggle' + (enabled ? ' on' : '') + '" data-hotkey="' + _esc(key) + '"';
+    html += '         onclick="this.classList.toggle(\\x27on\\x27); postCallback(\\x27on_hotkey_toggle\\x27, \\x27' + _esc(key) + '\\x27, this.classList.contains(\\x27on\\x27))"></div>';
+    html += '  </div>';
+    html += '</div>';
+  }
+  // Record hotkey button
+  html += '<div class="setting-row" style="justify-content:center; padding:8px;">';
+  html += '  <button class="toolbar-btn" style="font-size:13px;" onclick="postCallback(\\x27on_record_hotkey\\x27)">' + _esc(_t('general_tab.record_hotkey', 'Record Hotkey...')) + '</button>';
+  html += '</div>';
+  // Restart key select
+  var restartKey = CONFIG.restart_key || 'cmd';
+  html += '<div class="setting-row">';
+  html += '  <div class="setting-left"><div class="setting-label">' + _esc(_t('general_tab.restart_key', 'Restart Key')) + '</div></div>';
+  html += '  <div class="setting-right">';
+  html += '    <select id="ctl-restart-key" onchange="postCallback(\\x27on_restart_key_select\\x27, this.value)">';
+  html += '      <option value="cmd"' + (restartKey === 'cmd' ? ' selected' : '') + '>\\u2318 Command</option>';
+  html += '      <option value="alt"' + (restartKey === 'alt' ? ' selected' : '') + '>\\u2325 Option</option>';
+  html += '      <option value="ctrl"' + (restartKey === 'ctrl' ? ' selected' : '') + '>\\u2303 Control</option>';
+  html += '    </select>';
+  html += '  </div>';
+  html += '</div>';
+  // Cancel key select
+  var cancelKey = CONFIG.cancel_key || 'space';
+  html += '<div class="setting-row">';
+  html += '  <div class="setting-left"><div class="setting-label">' + _esc(_t('general_tab.cancel_key', 'Cancel Key')) + '</div></div>';
+  html += '  <div class="setting-right">';
+  html += '    <select id="ctl-cancel-key" onchange="postCallback(\\x27on_cancel_key_select\\x27, this.value)">';
+  html += '      <option value="space"' + (cancelKey === 'space' ? ' selected' : '') + '>Space</option>';
+  html += '      <option value="esc"' + (cancelKey === 'esc' ? ' selected' : '') + '>Esc</option>';
+  html += '    </select>';
+  html += '  </div>';
+  html += '</div>';
+  // Hint
+  html += '<div class="setting-row"><div class="setting-left"><div class="setting-desc">' + _esc(_t('general_tab.restart_cancel_hint', 'Hold hotkey + press key to restart or cancel recording')) + '</div></div></div>';
+  container.innerHTML = html;
+}
+
+function hotkeyModeChanged(keyName, value) {
+  if (value === '_delete') {
+    postCallback('on_hotkey_delete', keyName);
+  } else if (value === '_default') {
+    postCallback('on_hotkey_mode_select', keyName, null);
+  } else {
+    postCallback('on_hotkey_mode_select', keyName, value);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Speech tab                                                          */
+/* ------------------------------------------------------------------ */
+
+function renderSttTab() {
+  var container = document.getElementById('stt-model-list');
+  if (!container) return;
+  var presets = CONFIG.stt_presets || [];
+  var remotes = CONFIG.stt_remote_models || [];
+  var currentPreset = CONFIG.current_preset_id || '';
+  var currentRemote = CONFIG.current_remote_asr;
+  var html = '';
+
+  // Local engines
+  if (presets.length > 0) {
+    html += '<div class="provider-header">';
+    html += '  <span class="provider-name">' + _esc(_t('stt_tab.local_section', 'Local')) + '</span>';
+    html += '  <span class="provider-badge local">On-device</span>';
+    html += '</div>';
+    for (var i = 0; i < presets.length; i++) {
+      var p = presets[i];
+      var sel = (!currentRemote && p.id === currentPreset) ? ' selected' : '';
+      html += '<div class="model-row' + sel + '" onclick="selectStt(\\x27preset\\x27, \\x27' + _esc(p.id) + '\\x27, null, this)">';
+      html += '  <div class="model-radio"></div>';
+      html += '  <div class="model-info">';
+      html += '    <div class="model-name">' + _esc(p.name) + '</div>';
+      html += '  </div>';
+      if (p.available) {
+        html += '  <div class="model-tag" style="background:#d4edda;color:#1b7a3d;">Available</div>';
+      } else {
+        html += '  <div class="model-tag">Not Installed</div>';
+      }
+      html += '</div>';
+    }
+  }
+
+  // Remote providers
+  if (remotes.length > 0) {
+    html += '<div class="provider-header">';
+    html += '  <span class="provider-name">' + _esc(_t('stt_tab.remote_section', 'Remote')) + '</span>';
+    html += '  <span class="provider-badge remote">Cloud</span>';
+    html += '</div>';
+    for (var j = 0; j < remotes.length; j++) {
+      var r = remotes[j];
+      // currentRemote is a [provider, model] pair or null
+      var rsel = (currentRemote && currentRemote[0] === r.provider && currentRemote[1] === r.model) ? ' selected' : '';
+      html += '<div class="model-row' + rsel + '" onclick="selectStt(\\x27remote\\x27, \\x27' + _esc(r.provider) + '\\x27, \\x27' + _esc(r.model) + '\\x27, this)">';
+      html += '  <div class="model-radio"></div>';
+      html += '  <div class="model-info">';
+      html += '    <div class="model-name">' + _esc(r.display) + '</div>';
+      html += '  </div>';
+      html += '  <div class="model-actions">';
+      html += '    <button class="btn-small danger" onclick="event.stopPropagation(); postCallback(\\x27on_stt_remove_provider\\x27, \\x27' + _esc(r.provider) + '\\x27)">' + _esc(_t('stt_tab.remove_provider', 'Remove...')) + '</button>';
+      html += '  </div>';
+      html += '</div>';
+    }
+  }
+
+  // Add provider button
+  html += '<div class="add-row">';
+  html += '  <button class="toolbar-btn" style="font-size:13px;" onclick="postCallback(\\x27on_stt_add_provider\\x27)">' + _esc(_t('stt_tab.add_provider', 'Add Provider...')) + '</button>';
+  html += '</div>';
+
+  container.innerHTML = html;
+}
+
+function selectStt(type, id, model, row) {
+  var card = row.closest('.setting-group');
+  card.querySelectorAll('.model-row').forEach(function(r) { r.classList.remove('selected'); });
+  row.classList.add('selected');
+  if (type === 'preset') {
+    postCallback('on_stt_select', id);
+  } else {
+    postCallback('on_stt_remote_select', id, model);
+  }
+}
+
+function _updateSttSelection(data) {
+  // Update CONFIG and re-render speech tab
+  if (data.current_preset_id !== undefined) CONFIG.current_preset_id = data.current_preset_id;
+  if (data.current_remote_asr !== undefined) CONFIG.current_remote_asr = data.current_remote_asr;
+  renderSttTab();
+}
+
+/* ------------------------------------------------------------------ */
+/* LLM tab                                                             */
+/* ------------------------------------------------------------------ */
+
+function renderLlmTab() {
+  var container = document.getElementById('llm-model-list');
+  if (!container) return;
+  var models = CONFIG.llm_models || [];
+  var current = CONFIG.current_llm || {};
+  var html = '';
+
+  // Group by provider
+  var groups = {};
+  var groupOrder = [];
+  for (var i = 0; i < models.length; i++) {
+    var m = models[i];
+    if (!groups[m.provider]) {
+      groups[m.provider] = [];
+      groupOrder.push(m.provider);
+    }
+    groups[m.provider].push(m);
+  }
+
+  for (var g = 0; g < groupOrder.length; g++) {
+    var provider = groupOrder[g];
+    var items = groups[provider];
+    html += '<div class="provider-header">';
+    html += '  <span class="provider-name">' + _esc(provider) + '</span>';
+    html += '  <button class="btn-small danger" style="margin-left:auto;" onclick="event.stopPropagation(); postCallback(\\x27on_llm_remove_provider\\x27, \\x27' + _esc(provider) + '\\x27)">' + _esc(_t('llm_tab.remove', 'Remove...')) + '</button>';
+    html += '</div>';
+    for (var k = 0; k < items.length; k++) {
+      var item = items[k];
+      var sel = (current.provider === item.provider && current.model === item.model) ? ' selected' : '';
+      html += '<div class="model-row' + sel + '" onclick="selectLlm(\\x27' + _esc(item.provider) + '\\x27, \\x27' + _esc(item.model) + '\\x27, this)">';
+      html += '  <div class="model-radio"></div>';
+      html += '  <div class="model-info">';
+      html += '    <div class="model-name">' + _esc(item.display) + '</div>';
+      html += '  </div>';
+      if (item.has_api_key) {
+        html += '  <div class="model-tag">API Key</div>';
+      }
+      html += '</div>';
+    }
+  }
+
+  // Add provider + remove
+  html += '<div class="add-row">';
+  html += '  <button class="toolbar-btn" style="font-size:13px;" onclick="postCallback(\\x27on_llm_add_provider\\x27)">' + _esc(_t('llm_tab.add_provider', 'Add Provider...')) + '</button>';
+  html += '</div>';
+
+  container.innerHTML = html;
+}
+
+function selectLlm(provider, model, row) {
+  var card = row.closest('.setting-group');
+  card.querySelectorAll('.model-row').forEach(function(r) { r.classList.remove('selected'); });
+  row.classList.add('selected');
+  postCallback('on_llm_select', provider, model);
+}
+
+/* ------------------------------------------------------------------ */
+/* AI tab: Enhance modes                                               */
+/* ------------------------------------------------------------------ */
+
+function renderAiModes() {
+  var container = document.getElementById('ai-modes-group');
+  if (!container) return;
+  var modes = CONFIG.enhance_modes || [];
+  var current = CONFIG.current_enhance_mode || '';
+  var html = '';
+
+  // "Off" option — always first
+  var offSel = (current === 'off') ? ' selected' : '';
+  html += '<div class="model-row' + offSel + '" onclick="selectEnhanceMode(\\x27off\\x27, this)">';
+  html += '  <div class="model-radio"></div>';
+  html += '  <div class="model-info">';
+  html += '    <div class="model-name">' + _esc(_t('ai_tab.off', 'Off')) + '</div>';
+  html += '  </div>';
+  html += '</div>';
+
+  for (var i = 0; i < modes.length; i++) {
+    var m = modes[i];
+    var sel = (m.id === current) ? ' selected' : '';
+    html += '<div class="model-row' + sel + '" onclick="selectEnhanceMode(\\x27' + _esc(m.id) + '\\x27, this)">';
+    html += '  <div class="model-radio"></div>';
+    html += '  <div class="model-info">';
+    html += '    <div class="model-name">' + _esc(m.name) + '</div>';
+    html += '  </div>';
+    html += '  <div class="model-actions">';
+    html += '    <button class="btn-small" onclick="event.stopPropagation(); postCallback(\\x27on_enhance_mode_edit\\x27, \\x27' + _esc(m.id) + '\\x27)">' + _esc(_t('ai_tab.edit', 'Edit')) + '</button>';
+    html += '  </div>';
+    html += '</div>';
+  }
+
+  html += '<div class="add-row">';
+  html += '  <button class="toolbar-btn" style="font-size:13px;" onclick="postCallback(\\x27on_enhance_add_mode\\x27)">' + _esc(_t('ai_tab.add_mode', 'Add Mode...')) + '</button>';
+  html += '</div>';
+
+  container.innerHTML = html;
+}
+
+function selectEnhanceMode(modeId, row) {
+  var card = row.closest('.setting-group');
+  card.querySelectorAll('.model-row').forEach(function(r) { r.classList.remove('selected'); });
+  row.classList.add('selected');
+  postCallback('on_enhance_mode_select', modeId);
+}
+
+/* ------------------------------------------------------------------ */
+/* Launcher tab: Sources                                               */
+/* ------------------------------------------------------------------ */
+
+function renderLauncherSources() {
+  var container = document.getElementById('launcher-sources-group');
+  if (!container) return;
+  var launcher = CONFIG.launcher || {};
+  var sources = launcher.sources || [];
+  var html = '';
+
+  // Source label i18n map
+  var sourceLabelMap = {
+    'applications': _t('launcher_tab.source.applications', 'Applications'),
+    'clipboard_history': _t('launcher_tab.source.clipboard_history', 'Clipboard History'),
+    'file_search': _t('launcher_tab.source.file_search', 'File Search'),
+    'snippets': _t('launcher_tab.source.snippets', 'Snippets'),
+    'bookmarks': _t('launcher_tab.source.bookmarks', 'Bookmarks')
+  };
+
+  for (var i = 0; i < sources.length; i++) {
+    var src = sources[i];
+    var enabled = src.enabled !== undefined ? src.enabled : true;
+    var label = sourceLabelMap[src.label_key] || src.config_key;
+    html += '<div class="setting-row">';
+    html += '  <div class="setting-left">';
+    html += '    <div class="setting-label">' + _esc(label) + '</div>';
+    if (src.prefix) {
+      html += '    <div class="setting-desc">' + _esc(_t('launcher_tab.prefix', 'Prefix:')) + ' <input type="text" value="' + _esc(src.prefix) + '" style="width:40px;font-size:11px;padding:1px 4px;" onchange="postCallback(\\x27on_launcher_prefix_change\\x27, \\x27' + _esc(src.prefix_key) + '\\x27, this.value)"></div>';
+    }
+    html += '  </div>';
+    html += '  <div class="setting-right">';
+    if (src.prefix_key) {
+      html += '    <span class="hotkey-badge" data-source-hotkey="' + _esc(src.prefix_key) + '">' + _esc(src.hotkey || _t('launcher_tab.none', 'None')) + '</span>';
+      html += '    <button class="btn-small" onclick="postCallback(\\x27on_launcher_source_hotkey_record\\x27, \\x27' + _esc(src.prefix_key) + '\\x27)">' + _esc(_t('launcher_tab.record', 'Record')) + '</button>';
+      html += '    <button class="btn-small danger" onclick="postCallback(\\x27on_launcher_source_hotkey_clear\\x27, \\x27' + _esc(src.prefix_key) + '\\x27)">' + _esc(_t('launcher_tab.clear', 'Clear')) + '</button>';
+    }
+    html += '    <div class="toggle' + (enabled ? ' on' : '') + '"';
+    html += '         onclick="this.classList.toggle(\\x27on\\x27); postCallback(\\x27on_launcher_source_toggle\\x27, \\x27' + _esc(src.config_key) + '\\x27, this.classList.contains(\\x27on\\x27))"></div>';
+    html += '  </div>';
+    html += '</div>';
+    // Clipboard warning
+    if (src.config_key === 'clipboard_history') {
+      html += '<div class="setting-row"><div class="setting-left"><div class="setting-desc" style="color:#e17055;">' + _esc(_t('launcher_tab.clipboard_warning', '')) + '</div></div></div>';
+    }
+  }
+
+  if (sources.length === 0) {
+    html += '<div class="setting-row"><div class="setting-left"><div class="setting-desc">No sources configured</div></div></div>';
+  }
+
+  // Registered script/plugin sources (read-only)
+  var regSources = (CONFIG.launcher || {}).registered_sources || [];
+  if (regSources.length > 0) {
+    html += '</div>';  // close current setting-group
+    html += '<div class="group-title">' + _esc(_t('launcher_tab.script_sources', 'Script & Plugin Sources')) + '</div>';
+    html += '<div class="setting-group">';
+    for (var r = 0; r < regSources.length; r++) {
+      var rs = regSources[r];
+      html += '<div class="setting-row" style="opacity:0.7;">';
+      html += '  <div class="setting-left">';
+      html += '    <div class="setting-label">' + _esc(rs.name) + '</div>';
+      if (rs.prefix) {
+        html += '    <div class="setting-desc">' + _esc(_t('launcher_tab.prefix', 'Prefix:')) + ' ' + _esc(rs.prefix) + '</div>';
+      }
+      html += '  </div>';
+      html += '  <div class="setting-right">';
+      html += '    <div class="toggle on" style="pointer-events:none;opacity:0.5;"></div>';
+      html += '  </div>';
+      html += '</div>';
+    }
+    html += '</div>';  // close registered sources setting-group
+  }
+
+  container.innerHTML = html;
+}
+
+/* ------------------------------------------------------------------ */
+/* Launcher disable state                                              */
+/* ------------------------------------------------------------------ */
+
+function updateLauncherDisabledState() {
+  var launcherTab = document.getElementById('tab-launcher');
+  if (!launcherTab) return;
+  var scriptingOn = CONFIG.scripting_enabled;
+  var launcherOn = (CONFIG.launcher || {}).enabled;
+
+  // Get all interactive controls in the launcher tab
+  var allControls = launcherTab.querySelectorAll('.toggle, select, input, .btn-small, .toolbar-btn');
+  var enableToggle = document.getElementById('ctl-launcher-enabled');
+
+  if (!scriptingOn) {
+    // Scripting off: disable ALL launcher controls
+    allControls.forEach(function(el) {
+      el.style.pointerEvents = 'none';
+      el.style.opacity = '0.4';
+    });
+  } else if (!launcherOn) {
+    // Launcher off: enable only the launcher toggle, disable sub-controls
+    allControls.forEach(function(el) {
+      el.style.pointerEvents = 'none';
+      el.style.opacity = '0.4';
+    });
+    // Re-enable the launcher enable toggle
+    if (enableToggle) {
+      enableToggle.style.pointerEvents = '';
+      enableToggle.style.opacity = '';
+    }
+  } else {
+    // Everything enabled
+    allControls.forEach(function(el) {
+      el.style.pointerEvents = '';
+      el.style.opacity = '';
+    });
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Initialization                                                      */
+/* ------------------------------------------------------------------ */
+
+function _initState(config) {
+  // i18n
+  if (config.i18n) {
+    I18N = config.i18n;
+    _initI18nLabels();
+  }
+
+  // Language
+  var langSel = document.getElementById('ctl-language');
+  if (langSel && config.language) langSel.value = config.language;
+
+  // Feedback
+  setToggle('ctl-sound', config.sound_enabled);
+  setToggle('ctl-visual', config.visual_indicator);
+  setToggle('ctl-device-name', config.show_device_name);
+
+  // Output
+  setToggle('ctl-preview', config.preview);
+
+  // Advanced
+  setToggle('ctl-scripting', config.scripting_enabled);
+
+  // Config dir
+  var configDir = document.getElementById('config-dir-display');
+  if (configDir && config.config_dir) configDir.textContent = config.config_dir;
+
+  // Hotkeys
+  renderHotkeys();
+
+  // Speech
+  renderSttTab();
+
+  // LLM
+  renderLlmTab();
+  var timeout = document.getElementById('ctl-model-timeout');
+  if (timeout && config.model_timeout !== undefined) timeout.value = config.model_timeout;
+
+  // AI
+  renderAiModes();
+  setToggle('ctl-thinking', config.thinking);
+  setToggle('ctl-vocab', config.vocab_enabled);
+  setToggle('ctl-auto-build', config.auto_build);
+  var vocabCount = document.getElementById('ctl-vocab-count');
+  if (vocabCount) vocabCount.textContent = config.vocab_count || '0';
+
+  // Vocab build model select
+  var vocabModelSel = document.getElementById('ctl-vocab-build-model');
+  if (vocabModelSel && config.llm_models) {
+    var opts = '';
+    for (var i = 0; i < config.llm_models.length; i++) {
+      var m = config.llm_models[i];
+      opts += '<option value="' + _esc(m.provider + '/' + m.model) + '">' + _esc(m.display) + '</option>';
+    }
+    vocabModelSel.innerHTML = opts;
+    if (config.vocab_build_model) vocabModelSel.value = config.vocab_build_model;
+  }
+
+  // Context
+  setToggle('ctl-history', config.history_enabled);
+  var histMax = document.getElementById('ctl-history-max');
+  if (histMax && config.history_max_entries !== undefined) histMax.value = config.history_max_entries;
+  var histRefresh = document.getElementById('ctl-history-refresh');
+  if (histRefresh && config.history_refresh_threshold !== undefined) histRefresh.value = config.history_refresh_threshold;
+  var inputCtx = document.getElementById('ctl-input-context');
+  if (inputCtx && config.input_context_level) {
+    inputCtx.value = config.input_context_level;
+    updateInputContextHint(config.input_context_level);
+  }
+
+  // Launcher
+  var launcher = config.launcher || {};
+  setToggle('ctl-launcher-enabled', launcher.enabled);
+  setToggle('ctl-launcher-usage-learning', launcher.usage_learning);
+  setToggle('ctl-launcher-switch-english', launcher.switch_english);
+  var launcherHk = document.getElementById('ctl-launcher-hotkey');
+  if (launcherHk) launcherHk.textContent = launcher.hotkey || _t('launcher_tab.none', 'None');
+  renderLauncherSources();
+
+  // Scripting warning for launcher
+  var scriptingWarning = document.getElementById('launcher-scripting-warning');
+  if (scriptingWarning) {
+    scriptingWarning.style.display = config.scripting_enabled ? 'none' : 'block';
+  }
+
+  // Snippets hotkey
+  var snippetHk = document.getElementById('ctl-new-snippet-hotkey');
+  if (snippetHk) snippetHk.textContent = launcher.new_snippet_hotkey || _t('launcher_tab.none', 'None');
+
+  // Disable launcher controls based on scripting/launcher state
+  updateLauncherDisabledState();
+
+  // Restore last tab
+  if (config.last_tab && config.last_tab !== 'general') {
+    var tabEl = document.getElementById('tab-' + config.last_tab);
+    if (tabEl) {
+      document.querySelectorAll('.tab-content').forEach(function(t) { t.classList.remove('active'); });
+      document.querySelectorAll('.sidebar-item').forEach(function(s) { s.classList.remove('active'); });
+      tabEl.classList.add('active');
+      var sideItem = document.querySelector('.sidebar-item[data-tab="' + config.last_tab + '"]');
+      if (sideItem) sideItem.classList.add('active');
+    }
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Plugins tab                                                         */
+/* ------------------------------------------------------------------ */
+
+function renderPlugins() {
+  var plugins = CONFIG.plugins || [];
+  var list = document.getElementById('plugin-list');
+  if (!list) return;
+  if (!plugins.length) {
+    list.innerHTML = '<div style="color:#86868b;padding:8px;">No plugins available.</div>';
+    return;
+  }
+  var html = '';
+  for (var i = 0; i < plugins.length; i++) { html += renderPluginCard(plugins[i]); }
+  list.innerHTML = html;
+}
+
+function renderPluginCard(p) {
+  var badge = p.is_official
+    ? '<span class="plugin-badge badge-official">Official</span>'
+    : '<span class="plugin-badge badge-unverified">Unverified</span>';
+  var actions = '';
+  if (p.status === 'incompatible') {
+    actions = '<button class="btn btn-secondary" disabled title="Requires WenZi >= ' + _esc(p.min_wenzi_version) + '">Install</button>';
+  } else if (p.status === 'not_installed') {
+    actions = '<button class="btn btn-primary" onclick="installPlugin(\\\'' + _esc(p.id) + '\\\')">Install</button>';
+  } else if (p.status === 'update_available') {
+    actions = '<button class="btn btn-primary" onclick="updatePlugin(\\\'' + _esc(p.id) + '\\\')">Update (' + _esc(p.installed_version) + ' \u2192 ' + _esc(p.version) + ')</button>';
+    actions += toggleHtml(p.id, p.enabled);
+    actions += '<button class="btn btn-danger" onclick="uninstallPlugin(\\\'' + _esc(p.id) + '\\\')">Uninstall</button>';
+  } else if (p.status === 'installed') {
+    actions += toggleHtml(p.id, p.enabled);
+    actions += '<button class="btn btn-danger" onclick="uninstallPlugin(\\\'' + _esc(p.id) + '\\\')">Uninstall</button>';
+  } else if (p.status === 'manually_placed') {
+    actions += toggleHtml(p.id, p.enabled);
+  }
+  return '<div class="plugin-card">'
+    + '<div class="plugin-icon">&#x1F9E9;</div>'
+    + '<div class="plugin-info">'
+    + '<div><span class="plugin-name">' + _esc(p.name) + '</span>'
+    + '<span class="plugin-version">v' + _esc(p.version) + '</span>'
+    + badge + '</div>'
+    + '<div class="plugin-author">' + _esc(p.author) + ' \u00B7 ' + _esc(p.registry_name) + '</div>'
+    + '<div class="plugin-desc">' + _esc(p.description) + '</div>'
+    + '</div>'
+    + '<div class="plugin-actions">' + actions + '</div>'
+    + '</div>';
+}
+
+function toggleHtml(pluginId, enabled) {
+  var cls = enabled ? 'toggle on' : 'toggle';
+  return '<div class="' + cls + '" onclick="togglePlugin(this, \\\'' + _esc(pluginId) + '\\\')"><div class="toggle-knob"></div></div>';
+}
+
+function installPlugin(id) { postCallback('on_plugin_install_by_id', id); }
+function updatePlugin(id) { postCallback('on_plugin_update', id); }
+function uninstallPlugin(id) {
+  if (confirm('Uninstall this plugin? This will delete all plugin files.')) {
+    postCallback('on_plugin_uninstall', id);
+  }
+}
+function togglePlugin(el, id) {
+  el.classList.toggle('on');
+  var enabled = el.classList.contains('on');
+  postCallback('on_plugin_toggle', id, enabled);
+}
+function installFromUrl() {
+  var input = document.getElementById('plugin-url-input');
+  var url = input.value.trim();
+  if (url) { postCallback('on_plugin_install_url', url); input.value = ''; }
+}
+
+function renderRegistries() {
+  var registries = CONFIG.registries || [];
+  var list = document.getElementById('registry-list');
+  if (!list) return;
+  var html = '';
+  for (var i = 0; i < registries.length; i++) {
+    var r = registries[i];
+    var removeBtn = r.removable
+      ? ' <button class="btn btn-small btn-danger" onclick="removeRegistry(' + i + ')">Remove</button>'
+      : '';
+    html += '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;">'
+      + '<span style="flex:1;font-size:13px;">' + _esc(r.name) + '</span>'
+      + removeBtn + '</div>';
+  }
+  list.innerHTML = html;
+}
+
+function addRegistry() {
+  var input = document.getElementById('registry-url-input');
+  var url = input.value.trim();
+  if (url) { postCallback('on_registry_add', url); input.value = ''; }
+}
+function removeRegistry(index) { postCallback('on_registry_remove', index); }
+
+function showPluginsLoading(show) {
+  var el = document.getElementById('plugins-loading');
+  if (el) el.style.display = show ? 'inline' : 'none';
+}
+function showPluginsError(msg) {
+  var el = document.getElementById('plugins-error');
+  if (!el) return;
+  if (msg) { el.textContent = msg; el.style.display = 'block'; }
+  else { el.style.display = 'none'; }
+}
+function showReloadBanner(show) {
+  var el = document.getElementById('reload-banner');
+  if (el) el.style.display = show ? 'flex' : 'none';
+}
+
+/* ------------------------------------------------------------------ */
+/* Incremental state update (called from Python)                       */
+/* ------------------------------------------------------------------ */
+
+function _updateState(state) {
+  if (state.sound_enabled !== undefined) setToggle('ctl-sound', state.sound_enabled);
+  if (state.visual_indicator !== undefined) setToggle('ctl-visual', state.visual_indicator);
+  if (state.show_device_name !== undefined) setToggle('ctl-device-name', state.show_device_name);
+  if (state.preview !== undefined) setToggle('ctl-preview', state.preview);
+  if (state.scripting_enabled !== undefined) {
+    setToggle('ctl-scripting', state.scripting_enabled);
+    var sw = document.getElementById('launcher-scripting-warning');
+    if (sw) sw.style.display = state.scripting_enabled ? 'none' : 'block';
+  }
+  if (state.thinking !== undefined) setToggle('ctl-thinking', state.thinking);
+  if (state.vocab_enabled !== undefined) setToggle('ctl-vocab', state.vocab_enabled);
+  if (state.auto_build !== undefined) setToggle('ctl-auto-build', state.auto_build);
+  if (state.history_enabled !== undefined) setToggle('ctl-history', state.history_enabled);
+
+  if (state.language !== undefined) {
+    var langSel = document.getElementById('ctl-language');
+    if (langSel) langSel.value = state.language;
+  }
+  if (state.model_timeout !== undefined) {
+    var to = document.getElementById('ctl-model-timeout');
+    if (to) to.value = state.model_timeout;
+  }
+  if (state.vocab_count !== undefined) {
+    var vc = document.getElementById('ctl-vocab-count');
+    if (vc) vc.textContent = state.vocab_count;
+  }
+  if (state.history_max_entries !== undefined) {
+    var hm = document.getElementById('ctl-history-max');
+    if (hm) hm.value = state.history_max_entries;
+  }
+  if (state.history_refresh_threshold !== undefined) {
+    var hr = document.getElementById('ctl-history-refresh');
+    if (hr) hr.value = state.history_refresh_threshold;
+  }
+  if (state.input_context_level !== undefined) {
+    var ic = document.getElementById('ctl-input-context');
+    if (ic) {
+      ic.value = state.input_context_level;
+      updateInputContextHint(state.input_context_level);
+    }
+  }
+  if (state.config_dir !== undefined) {
+    var cd = document.getElementById('config-dir-display');
+    if (cd) cd.textContent = state.config_dir;
+  }
+  if (state.restart_key !== undefined) {
+    var rk = document.getElementById('ctl-restart-key');
+    if (rk) rk.value = state.restart_key;
+  }
+  if (state.cancel_key !== undefined) {
+    var ck = document.getElementById('ctl-cancel-key');
+    if (ck) ck.value = state.cancel_key;
+  }
+
+  // Re-render dynamic sections if their data changed
+  if (state.hotkeys !== undefined) { CONFIG.hotkeys = state.hotkeys; renderHotkeys(); }
+  if (state.stt_presets !== undefined || state.stt_remote_models !== undefined ||
+      state.current_preset_id !== undefined || state.current_remote_asr !== undefined) {
+    if (state.stt_presets !== undefined) CONFIG.stt_presets = state.stt_presets;
+    if (state.stt_remote_models !== undefined) CONFIG.stt_remote_models = state.stt_remote_models;
+    if (state.current_preset_id !== undefined) CONFIG.current_preset_id = state.current_preset_id;
+    if (state.current_remote_asr !== undefined) CONFIG.current_remote_asr = state.current_remote_asr;
+    renderSttTab();
+  }
+  if (state.llm_models !== undefined || state.current_llm !== undefined) {
+    if (state.llm_models !== undefined) CONFIG.llm_models = state.llm_models;
+    if (state.current_llm !== undefined) CONFIG.current_llm = state.current_llm;
+    renderLlmTab();
+  }
+  if (state.enhance_modes !== undefined || state.current_enhance_mode !== undefined) {
+    if (state.enhance_modes !== undefined) CONFIG.enhance_modes = state.enhance_modes;
+    if (state.current_enhance_mode !== undefined) CONFIG.current_enhance_mode = state.current_enhance_mode;
+    renderAiModes();
+  }
+
+  // Launcher
+  if (state.launcher !== undefined) {
+    CONFIG.launcher = state.launcher;
+    var launcher = state.launcher;
+    if (launcher.enabled !== undefined) setToggle('ctl-launcher-enabled', launcher.enabled);
+    if (launcher.usage_learning !== undefined) setToggle('ctl-launcher-usage-learning', launcher.usage_learning);
+    if (launcher.switch_english !== undefined) setToggle('ctl-launcher-switch-english', launcher.switch_english);
+    var lhk = document.getElementById('ctl-launcher-hotkey');
+    if (lhk && launcher.hotkey !== undefined) lhk.textContent = launcher.hotkey || _t('launcher_tab.none', 'None');
+    renderLauncherSources();
+    var snHk = document.getElementById('ctl-new-snippet-hotkey');
+    if (snHk && launcher.new_snippet_hotkey !== undefined) snHk.textContent = launcher.new_snippet_hotkey || _t('launcher_tab.none', 'None');
+  }
+
+  // Update launcher disabled state if scripting or launcher changed
+  if (state.scripting_enabled !== undefined || state.launcher !== undefined) {
+    updateLauncherDisabledState();
+  }
+
+  // Plugins tab
+  if (state.plugins !== undefined) { CONFIG.plugins = state.plugins; renderPlugins(); }
+  if (state.registries !== undefined) { CONFIG.registries = state.registries; renderRegistries(); }
+  if (state.plugins_loading !== undefined) { showPluginsLoading(state.plugins_loading); }
+  if (state.plugins_error !== undefined) { showPluginsError(state.plugins_error); }
+  if (state.show_reload_banner !== undefined) { showReloadBanner(state.show_reload_banner); }
+}
+
+/* ------------------------------------------------------------------ */
+/* Boot                                                                */
+/* ------------------------------------------------------------------ */
+
+document.addEventListener('DOMContentLoaded', function() {
+  _initState(CONFIG);
+});
+</script>
+</body>
+</html>
