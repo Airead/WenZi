@@ -458,59 +458,6 @@ class TestAsrProviderDraft:
         assert os.path.basename(draft_path) == ModelController._ASR_PROVIDER_DRAFT_FILENAME
 
 
-class TestLlmProviderDraft:
-    """Tests for LLM provider draft load/save/remove."""
-
-    def test_load_returns_template_when_no_draft_file(self, tmp_path):
-        config_path = str(tmp_path / "config.json")
-        ctrl = _make_controller(config_path)
-        content = ctrl._load_provider_draft()
-        assert content == ModelController._ADD_PROVIDER_TEMPLATE
-
-    def test_save_and_load_draft(self, tmp_path):
-        config_path = str(tmp_path / "config.json")
-        ctrl = _make_controller(config_path)
-        ctrl._save_provider_draft("llm draft content")
-        loaded = ctrl._load_provider_draft()
-        assert loaded == "llm draft content"
-
-    def test_load_returns_template_when_draft_is_blank(self, tmp_path):
-        config_path = str(tmp_path / "config.json")
-        ctrl = _make_controller(config_path)
-        ctrl._save_provider_draft("\t\n")
-        content = ctrl._load_provider_draft()
-        assert content == ModelController._ADD_PROVIDER_TEMPLATE
-
-    def test_remove_draft_deletes_file(self, tmp_path):
-        config_path = str(tmp_path / "config.json")
-        ctrl = _make_controller(config_path)
-        ctrl._save_provider_draft("something")
-        draft_path = ctrl._get_provider_draft_path()
-        assert os.path.exists(draft_path)
-        ctrl._remove_provider_draft()
-        assert not os.path.exists(draft_path)
-
-    def test_remove_draft_does_not_raise_when_file_missing(self, tmp_path):
-        config_path = str(tmp_path / "config.json")
-        ctrl = _make_controller(config_path)
-        ctrl._remove_provider_draft()
-
-    def test_draft_stored_in_same_dir_as_config(self, tmp_path):
-        """Draft file lives in the same directory as the config file."""
-        config_path = str(tmp_path / "WenZi" / "config.json")
-        ctrl = _make_controller(config_path)
-        draft_path = ctrl._get_provider_draft_path()
-        expected_dir = str(tmp_path / "WenZi")
-        assert os.path.dirname(draft_path) == expected_dir
-        assert os.path.basename(draft_path) == ModelController._PROVIDER_DRAFT_FILENAME
-
-    def test_asr_and_llm_drafts_use_different_filenames(self, tmp_path):
-        """ASR and LLM drafts must not collide with each other."""
-        config_path = str(tmp_path / "config.json")
-        ctrl = _make_controller(config_path)
-        assert ctrl._get_asr_provider_draft_path() != ctrl._get_provider_draft_path()
-
-
 # ---------------------------------------------------------------------------
 # validate_provider_name
 # ---------------------------------------------------------------------------

@@ -339,18 +339,6 @@ class TestSttRemoveProvider:
         mock_app._model_controller.on_asr_remove_provider.assert_called_with(mock_item)
 
 
-class TestLlmRemoveProvider:
-    def test_no_enhancer(self, ctrl, mock_app):
-        mock_app._enhancer = None
-        ctrl.llm_remove_provider()  # Should not raise
-
-    def test_delegates_to_model_controller(self, ctrl, mock_app):
-        mock_item = MagicMock()
-        mock_app._llm_remove_provider_items = {"openai": mock_item}
-        ctrl.llm_remove_provider()
-        mock_app._model_controller.on_enhance_remove_provider.assert_called_with(mock_item)
-
-
 class TestTabChange:
     @patch("wenzi.controllers.settings_controller.save_config")
     def test_persist_tab(self, mock_save, ctrl, mock_app):

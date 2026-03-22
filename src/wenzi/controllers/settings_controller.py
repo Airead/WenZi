@@ -716,23 +716,6 @@ class SettingsController:
         self._save_and_reload()
         logger.info("LLM model set to: %s / %s (from settings)", provider, model)
 
-    def llm_remove_provider(self, provider: str = "") -> None:
-        """Handle LLM remove provider from Settings panel."""
-        app = self._app
-        if provider:
-            item = app._llm_remove_provider_items.get(provider)
-            if item:
-                app._model_controller.on_enhance_remove_provider(item)
-                return
-        # Fallback: remove first provider if no name given
-        if app._enhancer:
-            providers = app._enhancer.providers_with_models
-            if providers:
-                first_name = next(iter(providers))
-                item = app._llm_remove_provider_items.get(first_name)
-                if item:
-                    app._model_controller.on_enhance_remove_provider(item)
-
     def llm_verify_save(self, data: dict) -> None:
         """Handle verify & save from WebView provider form.
 
