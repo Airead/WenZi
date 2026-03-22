@@ -542,33 +542,17 @@ class TestCloseReactivation:
         mock_app = MagicMock()
         panel._previous_app = mock_app
 
-        call_order = []
-        with patch("PyObjCTools.AppHelper.callAfter", side_effect=lambda fn, *a, **kw: (call_order.append(fn), fn(*a, **kw))):
-            with patch("wenzi.scripting.ui.chooser_panel.reactivate_app") as mock_reactivate, \
-                 patch("wenzi.scripting.ui.chooser_panel.restore_accessory") as mock_restore:
+        with patch("PyObjCTools.AppHelper.callAfter", side_effect=lambda fn, *a, **kw: fn(*a, **kw)):
+            with patch("wenzi.scripting.ui.chooser_panel.reactivate_app") as mock_reactivate:
                 panel.close()
                 mock_reactivate.assert_called_once_with(mock_app)
-                mock_restore.assert_called_once()
-                # reactivate must be called before restore_accessory
-                reactivate_idx = next(
-                    i for i, fn in enumerate(call_order)
-                    if hasattr(fn, '__code__') and 'reactivate' in (fn.__code__.co_names if hasattr(fn.__code__, 'co_names') else ())
-                    or 'activate' in getattr(fn, '__name__', '')
-                )
-                restore_idx = next(
-                    i for i, fn in enumerate(call_order)
-                    if hasattr(fn, '__code__') and 'restore' in (fn.__code__.co_names if hasattr(fn.__code__, 'co_names') else ())
-                    or 'accessory' in getattr(fn, '__name__', '')
-                )
-                assert reactivate_idx < restore_idx
 
     def test_close_clears_previous_app(self):
         """close() should clear _previous_app after use."""
         panel = _make_panel()
         panel._previous_app = MagicMock()
         with patch("PyObjCTools.AppHelper.callAfter", side_effect=lambda fn, *a, **kw: fn(*a, **kw)), \
-             patch("wenzi.scripting.ui.chooser_panel.reactivate_app"), \
-             patch("wenzi.scripting.ui.chooser_panel.restore_accessory"):
+             patch("wenzi.scripting.ui.chooser_panel.reactivate_app"):
             panel.close()
         assert panel._previous_app is None
 
@@ -577,8 +561,7 @@ class TestCloseReactivation:
         panel = _make_panel()
         panel._previous_app = None
         with patch("PyObjCTools.AppHelper.callAfter", side_effect=lambda fn, *a, **kw: fn(*a, **kw)), \
-             patch("wenzi.scripting.ui.chooser_panel.reactivate_app") as mock_reactivate, \
-             patch("wenzi.scripting.ui.chooser_panel.restore_accessory"):
+             patch("wenzi.scripting.ui.chooser_panel.reactivate_app") as mock_reactivate:
             panel.close()
         mock_reactivate.assert_called_once_with(None)
 
@@ -711,8 +694,7 @@ class TestQuickLookIntegration:
         mock_ql = MagicMock()
         panel._ql_panel = mock_ql
         with patch("PyObjCTools.AppHelper.callAfter", side_effect=lambda fn, *a, **kw: fn(*a, **kw)), \
-             patch("wenzi.scripting.ui.chooser_panel.reactivate_app"), \
-             patch("wenzi.scripting.ui.chooser_panel.restore_accessory"):
+             patch("wenzi.scripting.ui.chooser_panel.reactivate_app"):
             panel.close()
         mock_ql.close.assert_called_once()
         assert panel._ql_panel is None
@@ -993,8 +975,7 @@ class TestQueryHistory:
         panel = _make_panel()
         panel._history_index = 5
         with patch("PyObjCTools.AppHelper.callAfter", side_effect=lambda fn, *a, **kw: fn(*a, **kw)), \
-             patch("wenzi.scripting.ui.chooser_panel.reactivate_app"), \
-             patch("wenzi.scripting.ui.chooser_panel.restore_accessory"):
+             patch("wenzi.scripting.ui.chooser_panel.reactivate_app"):
             panel.close()
         assert panel._history_index == -1
 
@@ -1057,64 +1038,10 @@ class TestCalcMode:
         ]
         assert panel._has_calc_results() is True
 
-    def test_update_hides_on_deactivate_with_calc(self):
-        """hidesOnDeactivate should be False when calc results are present."""
-        panel = _make_panel()
-        panel._panel = MagicMock()
-        panel._current_items = [_make_calc_item()]
-        panel._update_hides_on_deactivate()
-        panel._panel.setHidesOnDeactivate_.assert_called_with(False)
-
-    def test_update_hides_on_deactivate_without_calc(self):
-        """hidesOnDeactivate should be True when no calc results."""
-        panel = _make_panel()
-        panel._panel = MagicMock()
-        panel._current_items = [ChooserItem(title="Safari")]
-        panel._update_hides_on_deactivate()
-        panel._panel.setHidesOnDeactivate_.assert_called_with(True)
-
-    def test_update_hides_on_deactivate_no_panel(self):
-        """Should not crash when panel is None."""
-        panel = _make_panel()
-        panel._panel = None
-        panel._current_items = [_make_calc_item()]
-        panel._update_hides_on_deactivate()  # Should not raise
-
-    def test_do_search_sets_hides_on_deactivate_for_calc(self):
-        """_do_search should set hidesOnDeactivate=False when calc results appear."""
-        panel = _make_panel()
-        panel._panel = MagicMock()
-        calc_source = _make_source(
-            "calculator",
-            items=[_make_calc_item()],
-            priority=12,
-        )
-        panel.register_source(calc_source)
-        panel._do_search("2 + 3")
-        panel._panel.setHidesOnDeactivate_.assert_called_with(False)
-
-    def test_do_search_sets_hides_on_deactivate_for_non_calc(self):
-        """_do_search should set hidesOnDeactivate=True when no calc results."""
-        panel = _make_panel()
-        panel._panel = MagicMock()
-        panel.register_source(
-            _make_source("apps", items=[ChooserItem(title="Safari")])
-        )
-        panel._do_search("Safari")
-        panel._panel.setHidesOnDeactivate_.assert_called_with(True)
-
-    def test_do_search_empty_query_resets_hides_on_deactivate(self):
-        """Empty query should reset hidesOnDeactivate to True."""
-        panel = _make_panel()
-        panel._panel = MagicMock()
-        panel._do_search("")
-        panel._panel.setHidesOnDeactivate_.assert_called_with(True)
-
     def test_enter_calc_mode(self):
         panel = _make_panel()
         panel._start_esc_tap = MagicMock()
-        with patch("wenzi.scripting.ui.chooser_panel.restore_accessory"):
-            panel._enter_calc_mode()
+        panel._enter_calc_mode()
         assert panel._calc_mode is True
         assert panel._previous_app is None
         panel._start_esc_tap.assert_called_once()
@@ -1123,9 +1050,8 @@ class TestCalcMode:
         """Calling _enter_calc_mode twice should not start a second ESC tap."""
         panel = _make_panel()
         panel._start_esc_tap = MagicMock()
-        with patch("wenzi.scripting.ui.chooser_panel.restore_accessory"):
-            panel._enter_calc_mode()
-            panel._enter_calc_mode()
+        panel._enter_calc_mode()
+        panel._enter_calc_mode()
         panel._start_esc_tap.assert_called_once()
 
     def test_exit_calc_mode(self):
@@ -1142,15 +1068,6 @@ class TestCalcMode:
         panel._exit_calc_mode()
         panel._stop_esc_tap.assert_not_called()
 
-    def test_exit_calc_mode_does_not_touch_hides_on_deactivate(self):
-        """_exit_calc_mode must NOT change hidesOnDeactivate."""
-        panel = _make_panel()
-        panel._panel = MagicMock()
-        panel._calc_mode = True
-        panel._stop_esc_tap = MagicMock()
-        panel._exit_calc_mode()
-        panel._panel.setHidesOnDeactivate_.assert_not_called()
-
     def test_maybe_close_enters_calc_mode_with_calc_results(self):
         """_maybe_close should enter calc mode instead of closing."""
         panel = _make_panel()
@@ -1158,8 +1075,7 @@ class TestCalcMode:
         panel._current_items = [_make_calc_item()]
         panel._start_esc_tap = MagicMock()
 
-        with patch("PyObjCTools.AppHelper.callLater") as mock_later, \
-             patch("wenzi.scripting.ui.chooser_panel.restore_accessory"):
+        with patch("PyObjCTools.AppHelper.callLater") as mock_later:
             panel._maybe_close()
             # Extract and run the deferred _check callback
             _check = mock_later.call_args[0][1]
@@ -1188,7 +1104,6 @@ class TestCalcMode:
         panel._calc_mode = True
         panel._stop_esc_tap = MagicMock()
         with patch("PyObjCTools.AppHelper.callAfter", side_effect=lambda fn, *a, **kw: fn(*a, **kw)), \
-             patch("wenzi.scripting.ui.chooser_panel.restore_accessory"), \
              patch("wenzi.scripting.ui.chooser_panel.reactivate_app"):
             panel.close()
         assert panel._calc_mode is False
@@ -1206,7 +1121,7 @@ class TestCalcMode:
         assert panel._calc_sticky is True
 
     def test_calc_sticky_persists_for_incomplete_expression(self):
-        """_calc_sticky should keep hidesOnDeactivate=False for incomplete expressions."""
+        """_calc_sticky should persist for incomplete expressions with digits."""
         panel = _make_panel()
         panel._panel = MagicMock()
         calc_source = _make_source(
@@ -1222,7 +1137,6 @@ class TestCalcMode:
         panel._current_items = []  # simulate no calc result
         panel._do_search("2 + 3 +")
         assert panel._calc_sticky is True
-        panel._panel.setHidesOnDeactivate_.assert_called_with(False)
 
     def test_calc_sticky_cleared_on_empty_query(self):
         panel = _make_panel()
@@ -1257,7 +1171,6 @@ class TestCalcMode:
         panel = _make_panel()
         panel._calc_sticky = True
         with patch("PyObjCTools.AppHelper.callAfter", side_effect=lambda fn, *a, **kw: fn(*a, **kw)), \
-             patch("wenzi.scripting.ui.chooser_panel.restore_accessory"), \
              patch("wenzi.scripting.ui.chooser_panel.reactivate_app"):
             panel.close()
         assert panel._calc_sticky is False
@@ -1270,8 +1183,7 @@ class TestCalcMode:
         panel._calc_sticky = True  # But sticky from previous calc
         panel._start_esc_tap = MagicMock()
 
-        with patch("PyObjCTools.AppHelper.callLater") as mock_later, \
-             patch("wenzi.scripting.ui.chooser_panel.restore_accessory"):
+        with patch("PyObjCTools.AppHelper.callLater") as mock_later:
             panel._maybe_close()
             _check = mock_later.call_args[0][1]
             _check()
@@ -1364,8 +1276,7 @@ class TestPanelResize:
         panel = _make_panel()
         panel._is_expanded = True
         with patch("PyObjCTools.AppHelper.callAfter", side_effect=lambda fn, *a, **kw: fn(*a, **kw)), \
-             patch("wenzi.scripting.ui.chooser_panel.reactivate_app"), \
-             patch("wenzi.scripting.ui.chooser_panel.restore_accessory"):
+             patch("wenzi.scripting.ui.chooser_panel.reactivate_app"):
             panel.close()
         assert panel._is_expanded is False
 
@@ -1483,8 +1394,7 @@ class TestPanelPreviewWidth:
         panel = _make_panel()
         panel._show_preview = True
         with patch("PyObjCTools.AppHelper.callAfter", side_effect=lambda fn, *a, **kw: fn(*a, **kw)), \
-             patch("wenzi.scripting.ui.chooser_panel.reactivate_app"), \
-             patch("wenzi.scripting.ui.chooser_panel.restore_accessory"):
+             patch("wenzi.scripting.ui.chooser_panel.reactivate_app"):
             panel.close()
         assert panel._show_preview is False
 
@@ -1645,8 +1555,7 @@ class TestCompactCalcHeight:
         panel = _make_panel()
         panel._compact_results = True
         with patch("PyObjCTools.AppHelper.callAfter", side_effect=lambda fn, *a, **kw: fn(*a, **kw)), \
-             patch("wenzi.scripting.ui.chooser_panel.reactivate_app"), \
-             patch("wenzi.scripting.ui.chooser_panel.restore_accessory"):
+             patch("wenzi.scripting.ui.chooser_panel.reactivate_app"):
             panel.close()
         assert panel._compact_results is False
 

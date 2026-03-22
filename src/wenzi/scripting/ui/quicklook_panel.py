@@ -138,7 +138,7 @@ class QuickLookPanel:
 
             # Panel properties
             panel.setLevel_(NSStatusWindowLevel + 1)
-            panel.setHidesOnDeactivate_(True)
+            panel.setHidesOnDeactivate_(False)
             panel.setFloatingPanel_(True)
             panel.setCollectionBehavior_(1 << 4)  # canJoinAllSpaces
 

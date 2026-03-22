@@ -13,7 +13,7 @@ from typing import Callable, Dict, List, Optional
 
 from wenzi.i18n import t
 from wenzi.scripting.sources import ChooserItem, ChooserSource
-from wenzi.ui_helpers import get_frontmost_app, reactivate_app, restore_accessory
+from wenzi.ui_helpers import get_frontmost_app, reactivate_app
 
 logger = logging.getLogger(__name__)
 
@@ -335,20 +335,8 @@ class ChooserPanel:
         """Whether the panel should stay visible for calculator use."""
         return self._has_calc_results() or self._calc_sticky
 
-    def _update_hides_on_deactivate(self) -> None:
-        """Set hidesOnDeactivate based on whether calc results are present.
-
-        Must be called preemptively (before the panel loses focus) so the
-        panel stays visible when the app deactivates.
-        """
-        if self._panel is not None:
-            try:
-                self._panel.setHidesOnDeactivate_(not self._should_pin_for_calc())
-            except Exception:
-                pass
-
     def _enter_calc_mode(self) -> None:
-        """Pin the panel and listen for a global ESC to dismiss.
+        """Keep the panel open despite losing focus, and listen for ESC.
 
         Called from ``_maybe_close`` when the panel loses key-window
         status while calculator results are displayed.
@@ -357,16 +345,11 @@ class ChooserPanel:
             return
         self._calc_mode = True
         self._previous_app = None  # Don't reactivate a stale app on close
-        restore_accessory()
         self._start_esc_tap()
         logger.debug("Entered calculator pin mode")
 
     def _exit_calc_mode(self) -> None:
-        """Stop the ESC listener and reset the calc-mode flag.
-
-        Does NOT change ``hidesOnDeactivate`` — that is managed solely
-        by ``_update_hides_on_deactivate`` (driven by search results).
-        """
+        """Stop the ESC listener and reset the calc-mode flag."""
         if not self._calc_mode:
             return
         self._calc_mode = False
@@ -498,7 +481,6 @@ class ChooserPanel:
         self._panel.makeKeyAndOrderFront_(None)
 
         from AppKit import NSApp
-        NSApp.setActivationPolicy_(0)  # Regular (foreground)
         NSApp.activateIgnoringOtherApps_(True)
 
         if self._snippet_expander is not None:
@@ -573,22 +555,14 @@ class ChooserPanel:
             select_input_source(self._saved_input_source)
             self._saved_input_source = None
 
-        # Reactivate the previous app's focused window, then restore accessory mode.
-        # Order matters: activate first (without AllWindows) so macOS doesn't
-        # trigger its own all-windows activation when we drop to accessory.
+        # Reactivate the previous app's focused window.
+        # No need to restore accessory mode — we never left it.
         from PyObjCTools import AppHelper
 
         previous_app = self._previous_app
         self._previous_app = None
 
-        def _activate_prev():
-            reactivate_app(previous_app)
-
-        def _go_accessory():
-            restore_accessory()
-
-        AppHelper.callAfter(_activate_prev)
-        AppHelper.callAfter(_go_accessory)
+        AppHelper.callAfter(reactivate_app, previous_app)
 
         self._fire_event("close")
 
@@ -650,7 +624,6 @@ class ChooserPanel:
                 if self._show_preview:
                     self._resize_panel(self._is_expanded, show_preview=False)
                 self._eval_js("setResults([]);setPreviewVisible(false)")
-                self._update_hides_on_deactivate()
                 return
             all_items = []
             sorted_sources = sorted(
@@ -684,8 +657,6 @@ class ChooserPanel:
             self._calc_sticky = True
         elif not any(ch.isdigit() for ch in query):
             self._calc_sticky = False
-
-        self._update_hides_on_deactivate()
 
         # Determine preview mode and compact mode
         # Once in compact mode, stay until input is cleared (handled by
@@ -1259,7 +1230,7 @@ class ChooserPanel:
         panel.setOpaque_(False)
         panel.setHasShadow_(True)
         panel.setFloatingPanel_(True)
-        panel.setHidesOnDeactivate_(True)
+        panel.setHidesOnDeactivate_(False)
         panel.setMovableByWindowBackground_(False)
         panel.setCollectionBehavior_(1 << 4)  # canJoinAllSpaces
 
