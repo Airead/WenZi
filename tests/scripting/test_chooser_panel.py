@@ -1197,35 +1197,27 @@ class TestCalcMode:
 
 
 class TestPanelResize:
-    def test_initial_state_is_collapsed(self):
-        panel = _make_panel()
-        assert panel._is_expanded is False
-
-    def test_resize_expand(self):
-        """panelResize expand should set _is_expanded and call setFrame_display_."""
+    def test_resize_applies_frame(self):
+        """resize message should call setFrame_display_ with given dimensions."""
         panel = _make_panel()
         mock_panel = MagicMock()
         mock_panel.frame.return_value = MagicMock(
             origin=MagicMock(x=200, y=500),
-            size=MagicMock(width=600, height=48),
+            size=MagicMock(width=600, height=80),
         )
         panel._panel = mock_panel
-        panel._is_expanded = False
 
-        panel._handle_js_message({"type": "panelResize", "expanded": True})
+        panel._handle_js_message({"type": "resize", "width": 600, "height": 400})
 
-        assert panel._is_expanded is True
         mock_panel.setFrame_display_.assert_called_once()
         frame_arg = mock_panel.setFrame_display_.call_args[0][0]
-        # Height should be expanded (400)
-        assert frame_arg[1][1] == panel._PANEL_HEIGHT_EXPANDED
-        # Width stays narrow (600) since show_preview is False
-        assert frame_arg[1][0] == panel._PANEL_WIDTH_NARROW
-        # Top edge preserved: new_y = 500 + 48 - 400 = 148
-        assert frame_arg[0][1] == 148
+        assert frame_arg[1][1] == 400
+        assert frame_arg[1][0] == 600
+        # Top edge preserved: new_y = 500 + 80 - 400 = 180
+        assert frame_arg[0][1] == 180
 
-    def test_resize_collapse(self):
-        """panelResize collapse should set _is_expanded and call setFrame_display_."""
+    def test_resize_keeps_centered(self):
+        """Width change should keep panel horizontally centered."""
         panel = _make_panel()
         mock_panel = MagicMock()
         mock_panel.frame.return_value = MagicMock(
@@ -1233,52 +1225,32 @@ class TestPanelResize:
             size=MagicMock(width=600, height=400),
         )
         panel._panel = mock_panel
-        panel._is_expanded = True
 
-        panel._handle_js_message({"type": "panelResize", "expanded": False})
+        panel._handle_js_message({"type": "resize", "width": 960, "height": 400})
 
-        assert panel._is_expanded is False
-        mock_panel.setFrame_display_.assert_called_once()
         frame_arg = mock_panel.setFrame_display_.call_args[0][0]
-        # Height should be collapsed (48)
-        assert frame_arg[1][1] == panel._PANEL_HEIGHT_COLLAPSED
-        # Top edge preserved: new_y = 148 + 400 - 48 = 500
-        assert frame_arg[0][1] == 500
+        # Center preserved: new_x = 200 + (600 - 960)/2 = 20
+        assert frame_arg[0][0] == 20
+        assert frame_arg[1][0] == 960
 
-    def test_resize_noop_when_already_expanded(self):
-        """Redundant expand should not call setFrame_display_."""
+    def test_resize_noop_when_same_size(self):
+        """Resize to same dimensions should not call setFrame_display_."""
         panel = _make_panel()
         mock_panel = MagicMock()
+        mock_panel.frame.return_value = MagicMock(
+            origin=MagicMock(x=200, y=148),
+            size=MagicMock(width=600, height=400),
+        )
         panel._panel = mock_panel
-        panel._is_expanded = True
 
-        panel._resize_panel(True)
-        mock_panel.setFrame_display_.assert_not_called()
-
-    def test_resize_noop_when_already_collapsed(self):
-        """Redundant collapse should not call setFrame_display_."""
-        panel = _make_panel()
-        mock_panel = MagicMock()
-        panel._panel = mock_panel
-        panel._is_expanded = False
-
-        panel._resize_panel(False)
+        panel._handle_js_message({"type": "resize", "width": 600, "height": 400})
         mock_panel.setFrame_display_.assert_not_called()
 
     def test_resize_noop_when_no_panel(self):
         """Resize with panel=None should not crash."""
         panel = _make_panel()
         panel._panel = None
-        panel._resize_panel(True)  # Should not raise
-
-    def test_close_resets_is_expanded(self):
-        """close() should reset _is_expanded to False."""
-        panel = _make_panel()
-        panel._is_expanded = True
-        with patch("PyObjCTools.AppHelper.callAfter", side_effect=lambda fn, *a, **kw: fn(*a, **kw)), \
-             patch("wenzi.scripting.ui.chooser_panel.reactivate_app"):
-            panel.close()
-        assert panel._is_expanded is False
+        panel._apply_frame(600, 400)  # Should not raise
 
 
 # ---------------------------------------------------------------------------
@@ -1291,16 +1263,9 @@ class TestPanelPreviewWidth:
         panel = _make_panel()
         assert panel._show_preview is False
 
-    def test_search_with_preview_source_widens_panel(self):
-        """Prefix source with show_preview=True should widen the panel."""
+    def test_search_with_preview_source_sets_preview(self):
+        """Prefix source with show_preview=True should send setPreviewVisible(true) to JS."""
         panel = _make_panel()
-        mock_panel = MagicMock()
-        mock_panel.frame.return_value = MagicMock(
-            origin=MagicMock(x=200, y=148),
-            size=MagicMock(width=600, height=400),
-        )
-        panel._panel = mock_panel
-        panel._is_expanded = True
         items = [ChooserItem(title="clip1")]
         src = _make_source("clipboard", prefix="cb", items=items)
         src.show_preview = True
@@ -1309,16 +1274,12 @@ class TestPanelPreviewWidth:
         panel._do_search("cb ")
 
         assert panel._show_preview is True
-        mock_panel.setFrame_display_.assert_called_once()
-        frame_arg = mock_panel.setFrame_display_.call_args[0][0]
-        assert frame_arg[1][0] == panel._PANEL_WIDTH_WIDE
+        js_call = panel._eval_js.call_args[0][0]
+        assert "setPreviewVisible(true)" in js_call
 
     def test_search_without_preview_source_stays_narrow(self):
-        """General search should keep panel narrow."""
+        """General search should keep preview off."""
         panel = _make_panel()
-        mock_panel = MagicMock()
-        panel._panel = mock_panel
-        panel._is_expanded = True
         panel.register_source(
             _make_source("apps", items=[ChooserItem(title="Safari")])
         )
@@ -1326,30 +1287,22 @@ class TestPanelPreviewWidth:
         panel._do_search("Safari")
 
         assert panel._show_preview is False
-        # No resize needed since already narrow
-        mock_panel.setFrame_display_.assert_not_called()
+        js_call = panel._eval_js.call_args[0][0]
+        assert "setPreviewVisible(false)" in js_call
 
     def test_switch_from_preview_to_no_preview(self):
-        """Switching from preview source to general search should narrow."""
+        """Switching from preview source to general search should send preview false."""
         panel = _make_panel()
-        mock_panel = MagicMock()
-        mock_panel.frame.return_value = MagicMock(
-            origin=MagicMock(x=100, y=148),
-            size=MagicMock(width=960, height=400),
-        )
-        panel._panel = mock_panel
-        panel._is_expanded = True
         panel._show_preview = True  # Was in preview mode
-
         panel.register_source(
             _make_source("apps", items=[ChooserItem(title="Safari")])
         )
+
         panel._do_search("Safari")
 
         assert panel._show_preview is False
-        mock_panel.setFrame_display_.assert_called_once()
-        frame_arg = mock_panel.setFrame_display_.call_args[0][0]
-        assert frame_arg[1][0] == panel._PANEL_WIDTH_NARROW
+        js_call = panel._eval_js.call_args[0][0]
+        assert "setPreviewVisible(false)" in js_call
 
     def test_push_items_includes_setPreviewVisible(self):
         """_push_items_to_js should include setPreviewVisible call."""
@@ -1374,20 +1327,14 @@ class TestPanelPreviewWidth:
         assert "setPreviewVisible(false)" in js_call
 
     def test_empty_query_resets_preview(self):
-        """Empty query should reset preview mode and narrow the panel."""
+        """Empty query should send setPreviewVisible(false) to JS."""
         panel = _make_panel()
-        mock_panel = MagicMock()
-        mock_panel.frame.return_value = MagicMock(
-            origin=MagicMock(x=100, y=148),
-            size=MagicMock(width=960, height=400),
-        )
-        panel._panel = mock_panel
-        panel._is_expanded = True
         panel._show_preview = True
 
         panel._do_search("")
 
-        assert panel._show_preview is False
+        js_call = panel._eval_js.call_args[0][0]
+        assert "setPreviewVisible(false)" in js_call
 
     def test_close_resets_show_preview(self):
         """close() should reset _show_preview to False."""
@@ -1398,27 +1345,6 @@ class TestPanelPreviewWidth:
             panel.close()
         assert panel._show_preview is False
 
-    def test_resize_width_keeps_centered(self):
-        """Width change should keep panel horizontally centered."""
-        panel = _make_panel()
-        mock_panel = MagicMock()
-        # Panel at x=200, width=600 → center at x=500
-        mock_panel.frame.return_value = MagicMock(
-            origin=MagicMock(x=200, y=148),
-            size=MagicMock(width=600, height=400),
-        )
-        panel._panel = mock_panel
-        panel._is_expanded = True
-        panel._show_preview = False
-
-        panel._resize_panel(True, show_preview=True)
-
-        frame_arg = mock_panel.setFrame_display_.call_args[0][0]
-        # Center preserved: old_center = 200 + 600/2 = 500
-        # new_x = 200 + (600 - 960)/2 = 200 - 180 = 20
-        assert frame_arg[0][0] == 20
-        assert frame_arg[1][0] == panel._PANEL_WIDTH_WIDE
-
 
 # ---------------------------------------------------------------------------
 # Compact height for calculator-only results
@@ -1426,16 +1352,9 @@ class TestPanelPreviewWidth:
 
 
 class TestCompactCalcHeight:
-    def test_calc_only_results_use_compact_height(self):
-        """When all results are calc items, panel should use compact height."""
+    def test_calc_only_results_send_compact_to_js(self):
+        """When all results are calc items, setCompact(true) should be sent to JS."""
         panel = _make_panel()
-        mock_panel = MagicMock()
-        mock_panel.frame.return_value = MagicMock(
-            origin=MagicMock(x=200, y=148),
-            size=MagicMock(width=600, height=400),
-        )
-        panel._panel = mock_panel
-        panel._is_expanded = True
         calc_source = _make_source(
             "calculator", items=[_make_calc_item()], priority=12,
         )
@@ -1444,9 +1363,8 @@ class TestCompactCalcHeight:
         panel._do_search("2 + 3")
 
         assert panel._compact_results is True
-        mock_panel.setFrame_display_.assert_called_once()
-        frame_arg = mock_panel.setFrame_display_.call_args[0][0]
-        assert frame_arg[1][1] == panel._PANEL_HEIGHT_COMPACT
+        js_call = panel._eval_js.call_args[0][0]
+        assert "setCompact(true)" in js_call
 
     def test_calc_results_use_calc_action_hints(self):
         """Calc-only results should show calculator action hints, not defaults."""

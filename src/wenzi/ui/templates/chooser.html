@@ -43,7 +43,10 @@ body { display: flex; flex-direction: column; }
 
 /* Main content: left panel + preview */
 .main-content {
-    display: flex; flex: 1; min-height: 0;
+    display: none; flex: 1; min-height: 0;
+}
+.main-content.visible {
+    display: flex;
 }
 .left-panel {
     width: 400px; flex-shrink: 0;
@@ -319,6 +322,8 @@ var emptyState = document.getElementById('empty-state');
 var previewPanel = document.getElementById('preview-panel');
 var footerLeft = document.getElementById('footer-left');
 var footerRight = document.getElementById('footer-right');
+var mainContent = document.querySelector('.main-content');
+var leftPanel = document.querySelector('.left-panel');
 var createGroup = document.getElementById('create-group');
 var createBtn = document.getElementById('create-btn');
 
@@ -590,14 +595,39 @@ function updateSelection(newIndex) {
     }
 }
 
-// --- Panel resize (collapsed ↔ expanded) ---
+// --- Panel resize ---
+var PANEL_WIDTH_NARROW = 600;
+var PANEL_WIDTH_WIDE = 960;
+var PANEL_HEIGHT_EXPANDED = 400;
+var PANEL_HEIGHT_COMPACT = 120;
+
 var _panelExpanded = false;
+var _previewVisible = false;
+var _compact = false;
+
+var _resizePending = false;
+function _requestResize() {
+    if (_resizePending) return;
+    _resizePending = true;
+    Promise.resolve().then(function() {
+        _resizePending = false;
+        var w, h;
+        if (!_panelExpanded) {
+            w = PANEL_WIDTH_NARROW;
+            h = _measureCollapsedHeight();
+        } else {
+            w = _previewVisible ? PANEL_WIDTH_WIDE : PANEL_WIDTH_NARROW;
+            h = _compact ? PANEL_HEIGHT_COMPACT : PANEL_HEIGHT_EXPANDED;
+        }
+        post('resize', { width: w, height: h });
+    });
+}
 
 function _checkPanelResize() {
     var shouldExpand = searchInput.value.length > 0;
     if (shouldExpand !== _panelExpanded) {
         _panelExpanded = shouldExpand;
-        post('panelResize', { expanded: shouldExpand });
+        _requestResize();
     }
 }
 
@@ -777,6 +807,9 @@ function setResults(newItems, version, selectedIdx) {
     items = newItems || [];
     itemsVersion = version || 0;
     hasAnyIcon = items.some(function(it) { return !!it.icon; });
+    // Show/hide result area
+    if (items.length > 0) { mainContent.classList.add('visible'); }
+    else { mainContent.classList.remove('visible'); }
     if (typeof selectedIdx === 'number') {
         // Preserve scroll position for delete/refresh operations
         selectedIndex = Math.max(0, Math.min(selectedIdx, items.length - 1));
@@ -803,6 +836,12 @@ function setResults(newItems, version, selectedIdx) {
     }
 }
 
+function _measureCollapsedHeight() {
+    var searchBar = document.querySelector('.search-bar');
+    var footer = document.getElementById('footer');
+    return searchBar.offsetHeight + footer.offsetHeight;
+}
+
 function setPrefixHints(hints) {
     prefixHints = hints || [];
     if (hints.length > 0) {
@@ -812,6 +851,10 @@ function setPrefixHints(hints) {
         }).join('  ');
     } else {
         footerRight.innerHTML = '';
+    }
+    // Footer height may have changed; update panel size if collapsed
+    if (!_panelExpanded) {
+        requestAnimationFrame(function() { _requestResize(); });
     }
 }
 
@@ -869,7 +912,15 @@ function exitHistoryMode() {
     inHistoryMode = false;
 }
 
+function setFooterRightVisible(visible) {
+    footerRight.style.display = visible ? '' : 'none';
+}
+
 // --- Action hints (dynamic per source) ---
+function clearActionHints() {
+    footerLeft.innerHTML = '';
+}
+
 function setActionHints(hints) {
     var parts = ['<kbd>\u2191\u2193</kbd> ' + i18n('footer.navigate')];
     if (hints.enter) {
@@ -895,13 +946,23 @@ function setActionHints(hints) {
 }
 
 function setPreviewVisible(visible) {
-    var leftPanel = document.querySelector('.left-panel');
     if (visible) {
         previewPanel.classList.remove('hidden');
         leftPanel.classList.remove('full-width');
     } else {
         previewPanel.classList.add('hidden');
         leftPanel.classList.add('full-width');
+    }
+    if (_previewVisible !== visible) {
+        _previewVisible = visible;
+        _requestResize();
+    }
+}
+
+function setCompact(compact) {
+    if (_compact !== compact) {
+        _compact = compact;
+        _requestResize();
     }
 }
 
@@ -963,7 +1024,7 @@ function _initI18nLabels() {
 _initI18nLabels();
 
 // --- Init ---
-setActionHints({ enter: 'Open', cmd_enter: 'Reveal' });
+// footer-left starts empty; populated when results appear
 searchInput.focus();
 </script>
 </body>

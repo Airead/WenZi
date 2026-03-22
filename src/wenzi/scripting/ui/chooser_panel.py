@@ -158,11 +158,8 @@ class ChooserPanel:
     registered ChooserSource instances, and executes item actions.
     """
 
-    _PANEL_WIDTH_WIDE = 960  # With preview panel
-    _PANEL_WIDTH_NARROW = 600  # Without preview panel
-    _PANEL_HEIGHT_EXPANDED = 400
-    _PANEL_HEIGHT_COMPACT = 120  # Search bar + one result row + footer
-    _PANEL_HEIGHT_COLLAPSED = 48
+    _INITIAL_WIDTH = 600
+    _INITIAL_HEIGHT = 80  # bootstrap; JS updates after page load
     _MAX_TOTAL_RESULTS = 50
 
     def __init__(self, usage_tracker=None) -> None:
@@ -194,60 +191,33 @@ class ChooserPanel:
         self._calc_sticky: bool = False  # Sticky: keep pinned for incomplete expressions
         self._esc_tap = None  # CGEventTap for global ESC
         self._esc_source = None  # CFRunLoopSource for ESC tap
-        self._is_expanded: bool = False  # Panel height state
-        self._show_preview: bool = False  # Preview panel visibility
+        self._show_preview: bool = False
+        self._compact_results: bool = False
         self._switch_english: bool = True
         self._saved_input_source: Optional[str] = None
-        self._compact_results: bool = False  # Compact height for calc-only results
         self._active_source: Optional[ChooserSource] = None  # currently prefix-activated source
 
     # ------------------------------------------------------------------
-    # Panel resize (collapsed ↔ expanded, narrow ↔ wide)
+    # Panel resize (driven by JS)
     # ------------------------------------------------------------------
 
-    def _resize_panel(
-        self,
-        expanded: bool,
-        show_preview: Optional[bool] = None,
-        compact: Optional[bool] = None,
-    ) -> None:
-        """Resize the panel in one step (height and/or width)."""
+    def _apply_frame(self, width: int, height: int) -> None:
+        """Resize the panel to the given dimensions (from JS)."""
         if self._panel is None:
             return
-        if show_preview is None:
-            show_preview = self._show_preview
-        if compact is None:
-            compact = self._compact_results
-
-        if (
-            self._is_expanded == expanded
-            and self._show_preview == show_preview
-            and self._compact_results == compact
-        ):
-            return
-
-        self._is_expanded = expanded
-        self._show_preview = show_preview
-        self._compact_results = compact
-
         from Foundation import NSMakeRect
 
         old = self._panel.frame()
-        if not expanded:
-            new_height = self._PANEL_HEIGHT_COLLAPSED
-        elif compact:
-            new_height = self._PANEL_HEIGHT_COMPACT
-        else:
-            new_height = self._PANEL_HEIGHT_EXPANDED
-        new_width = (
-            self._PANEL_WIDTH_WIDE if show_preview
-            else self._PANEL_WIDTH_NARROW
-        )
+        if (
+            round(old.size.width) == width
+            and round(old.size.height) == height
+        ):
+            return
         # Keep the top edge fixed (macOS coords: origin is bottom-left)
-        new_y = old.origin.y + old.size.height - new_height
+        new_y = old.origin.y + old.size.height - height
         # Keep horizontally centered
-        new_x = old.origin.x + (old.size.width - new_width) / 2
-        new_frame = NSMakeRect(new_x, new_y, new_width, new_height)
+        new_x = old.origin.x + (old.size.width - width) / 2
+        new_frame = NSMakeRect(new_x, new_y, width, height)
         self._panel.setFrame_display_(new_frame, True)
 
     # ------------------------------------------------------------------
@@ -544,7 +514,6 @@ class ChooserPanel:
         self._pending_js = []
         self._current_items = []
         self._history_index = -1
-        self._is_expanded = False
         self._show_preview = False
         self._compact_results = False
         self._closing = False
@@ -609,8 +578,11 @@ class ChooserPanel:
                 source is not None
                 and source.create_action is not None
             )
+            # Hide prefix hints when inside a source, show otherwise
+            show_right = "true" if source is None else "false"
             self._eval_js(
-                f"setCreateButton({'true' if has_create else 'false'})"
+                f"setCreateButton({'true' if has_create else 'false'});"
+                f"setFooterRightVisible({show_right})"
             )
 
         # When searching across all non-prefix sources (no specific source),
@@ -621,9 +593,11 @@ class ChooserPanel:
                 self._current_items = []
                 self._calc_sticky = False
                 self._compact_results = False
-                if self._show_preview:
-                    self._resize_panel(self._is_expanded, show_preview=False)
-                self._eval_js("setResults([]);setPreviewVisible(false)")
+                self._show_preview = False
+                self._eval_js(
+                    "setResults([]);setPreviewVisible(false);"
+                    "setCompact(false);clearActionHints()"
+                )
                 return
             all_items = []
             sorted_sources = sorted(
@@ -672,15 +646,8 @@ class ChooserPanel:
             )
         else:
             compact = True
-        if (
-            self._show_preview != show_preview
-            or self._compact_results != compact
-        ):
-            self._resize_panel(
-                self._is_expanded,
-                show_preview=show_preview,
-                compact=compact,
-            )
+        self._compact_results = compact
+        self._show_preview = show_preview
 
         self._push_items_to_js(source=source)
 
@@ -775,6 +742,8 @@ class ChooserPanel:
 
         show = "true" if self._show_preview else "false"
         parts.append(f"setPreviewVisible({show})")
+        compact = "true" if self._compact_results else "false"
+        parts.append(f"setCompact({compact})")
 
         self._eval_js(";".join(parts))
 
@@ -832,9 +801,10 @@ class ChooserPanel:
         elif msg_type == "exitHistory":
             self._history_index = -1
 
-        elif msg_type == "panelResize":
-            expanded = body.get("expanded", False)
-            self._resize_panel(expanded)
+        elif msg_type == "resize":
+            w = body.get("width", self._INITIAL_WIDTH)
+            h = body.get("height", self._INITIAL_HEIGHT)
+            self._apply_frame(w, h)
 
         elif msg_type == "tab":
             index = body.get("index", -1)
@@ -1212,14 +1182,9 @@ class ChooserPanel:
         from WebKit import WKUserContentController, WKWebView, WKWebViewConfiguration
 
         PanelClass = _get_keyable_panel_class()
-        initial_expanded = self._pending_initial_query is not None
-        self._is_expanded = initial_expanded
-        self._show_preview = False  # Always start without preview
-        initial_height = (
-            self._PANEL_HEIGHT_EXPANDED if initial_expanded
-            else self._PANEL_HEIGHT_COLLAPSED
-        )
-        initial_width = self._PANEL_WIDTH_NARROW
+        # Bootstrap size; JS will send the correct size after page load
+        initial_width = self._INITIAL_WIDTH
+        initial_height = self._INITIAL_HEIGHT
         panel = PanelClass.alloc().initWithContentRect_styleMask_backing_defer_(
             NSMakeRect(0, 0, initial_width, initial_height),
             0,  # Borderless
