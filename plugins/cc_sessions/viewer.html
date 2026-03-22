@@ -114,6 +114,20 @@
   }
   .copy-btn:hover { opacity: 0.85; }
 
+  .parent-link {
+    color: var(--copy-btn-color);
+    text-decoration: none;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-right: 4px;
+  }
+  .parent-link:hover {
+    background: var(--copy-btn-bg);
+  }
+
   .main-content {
     display: flex;
     flex: 1;
@@ -514,6 +528,7 @@
 
 <div class="app">
   <div class="info-bar" id="info-bar">
+    <a class="parent-link" id="parent-link" style="display:none;" href="#">&#8592; Parent Session</a>
     <span class="label">Project:</span>
     <span class="value" id="info-project">—</span>
     <span class="sep">|</span>
@@ -745,16 +760,29 @@ async function loadSession(info) {
   if (info.git_branch) document.getElementById("info-branch").textContent = info.git_branch;
   if (info.version) document.getElementById("info-version").textContent = info.version;
 
-  // Setup copy-resume button
-  document.getElementById("btn-copy-resume").addEventListener("click", () => {
-    const cwd = (info.cwd || ".").replace(/'/g, "'\\''");
-    const cmd = `cd '${cwd}' && claude --resume ${info.session_id || ""}`;
-    wz.send("copy_resume", { text: cmd });
-    const btn = document.getElementById("btn-copy-resume");
-    const orig = btn.textContent;
-    btn.textContent = "\u2713 Copied!";
-    setTimeout(() => { btn.textContent = orig; }, 1500);
-  });
+  // Subagent mode: show parent link, hide resume button
+  if (info.is_subagent) {
+    const parentLink = document.getElementById("parent-link");
+    parentLink.style.display = "";
+    parentLink.addEventListener("click", (e) => {
+      e.preventDefault();
+      wz.call("open_parent_session", {
+        parent_file_path: info.parent_file_path,
+      });
+    });
+    document.getElementById("btn-copy-resume").style.display = "none";
+  } else {
+    // Setup copy-resume button
+    document.getElementById("btn-copy-resume").addEventListener("click", () => {
+      const cwd = (info.cwd || ".").replace(/'/g, "'\\''");
+      const cmd = `cd '${cwd}' && claude --resume ${info.session_id || ""}`;
+      wz.send("copy_resume", { text: cmd });
+      const btn = document.getElementById("btn-copy-resume");
+      const orig = btn.textContent;
+      btn.textContent = "\u2713 Copied!";
+      setTimeout(() => { btn.textContent = orig; }, 1500);
+    });
+  }
 
   // Load JSONL via wz-file:// custom scheme (file:// fetch is blocked in WKWebView)
   let text;
