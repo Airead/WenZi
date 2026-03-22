@@ -21,18 +21,30 @@ Subagent sessions are NOT listed in the launcher's session list — they are onl
 
 ## Data Flow
 
-### agentId Extraction (viewer.html JS)
+### agentId Extraction and Pre-resolution (viewer.html JS)
 
-agentId extraction happens in `renderStats(messages)`, NOT in `computeStats()`, because it needs access to `globalResultMap` which is built in `renderConversation` scope.
+agentId extraction must complete **before** `renderConversation` and `renderStats`, because both need the data (`createToolSingle` renders View Session buttons, `buildStatsHTML` renders clickable links in the Stats card).
 
-Approach: `renderStats` builds its own lightweight result map from messages (scan user messages for `tool_result` entries), then:
+New async function `resolveSubagents(messages)` in `loadSession`, called before rendering:
 
-1. Call `computeStats(messages)` as before — extended to also record `toolUseId` on each subagent entry
-2. For each subagent with a `toolUseId`, look up the corresponding `tool_result` in the result map
-3. Extract agentId via regex `agentId:\s*([a-fA-F0-9]+)` from tool_result text content
-4. Attach agentId to the subagent record
+1. Build a lightweight tool_result map from user messages (scan for `tool_result` entries, keyed by `tool_use_id`)
+2. Scan assistant messages for Agent `tool_use` blocks, recording `toolUseId: p.id` on each
+3. For each Agent tool_use, look up the corresponding `tool_result`, extract agentId via regex `agentId:\s*([a-fA-F0-9]+)`
+4. Collect all extracted agentIds, call `wz.call("check_subagent_exists", ...)` to batch-check file existence
+5. Store result in `window._subagentMap`: `{ toolUseId → { agentId, description, type, model, exists } }`
 
-The extracted subagent-agentId mapping is stored in a module-level variable (e.g. `window._subagentMap`) so that both `buildStatsHTML` and `createToolSingle` can access it.
+Updated `loadSession` call order:
+```js
+async function loadSession(info) {
+  // ... info bar setup, JSONL loading ...
+  const messages = parseMessages(text);
+  await resolveSubagents(messages, info);  // NEW: pre-resolve before rendering
+  renderConversation(messages);
+  renderStats(messages);
+}
+```
+
+Both `createToolSingle` and `buildStatsHTML` read from `window._subagentMap` to decide whether to render clickable links.
 
 ### File Existence Check
 
