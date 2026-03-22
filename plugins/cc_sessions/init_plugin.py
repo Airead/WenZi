@@ -85,10 +85,10 @@ def register(wz) -> None:
     from .scanner import SessionScanner
 
     scanner = SessionScanner()
+    from .identicon import generate as generate_identicon
+
     plugin_dir = os.path.dirname(os.path.abspath(__file__))
     viewer_html_path = os.path.join(plugin_dir, "viewer.html")
-    icon_path = os.path.join(plugin_dir, "claude_icon.png")
-    icon_url = f"file://{icon_path}" if os.path.isfile(icon_path) else ""
 
     def _open_viewer(session: Dict[str, Any]) -> None:
         """Open the session viewer panel using pull model."""
@@ -211,7 +211,7 @@ def register(wz) -> None:
             items.append({
                 "title": s["title"],
                 "subtitle": " \u00b7 ".join(subtitle_parts),
-                "icon": icon_url,
+                "icon": generate_identicon(s["project"]),
                 "icon_badge": str(msg_count) if msg_count else "",
                 "item_id": f"cc-{s['session_id']}",
                 "action": lambda sess=s: _open_viewer(sess),

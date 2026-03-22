@@ -155,3 +155,24 @@ class TestTimeAgo:
 
         assert _time_ago("not-a-date") == ""
         assert _time_ago("") == ""
+
+
+def test_search_items_use_identicon_not_static_png():
+    """After integration, search items must have data URI icons, not file:// PNGs."""
+    from cc_sessions.init_plugin import _filter_sessions, _time_ago
+    from cc_sessions.identicon import generate
+
+    sessions = _make_sessions()
+    filtered = _filter_sessions(sessions, None, "")
+
+    # Build items the same way init_plugin.search() does
+    for s in filtered:
+        icon = generate(s["project"])
+        assert icon.startswith("data:image/svg+xml;base64,"), (
+            f"Icon for {s['project']} should be a data URI, got: {icon[:50]}"
+        )
+        assert "file://" not in icon
+
+    # Same project name → same icon
+    vt_icons = [generate(s["project"]) for s in filtered if s["project"] == "VoiceText"]
+    assert len(set(vt_icons)) == 1, "Same project must produce same icon"
