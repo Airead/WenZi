@@ -18,6 +18,9 @@ from wenzi.scripting.plugin_meta import (
 
 logger = logging.getLogger(__name__)
 
+TEMP_DIR_PREFIX = "_tmp_"
+BACKUP_SUFFIX = ".bak"
+
 
 class PluginInstaller:
     """Install, update, and uninstall plugins."""
@@ -80,8 +83,6 @@ class PluginInstaller:
             raise ValueError(f"Plugin {plugin_id!r} not found")
         shutil.rmtree(plugin_dir)
 
-    # -- private helpers --
-
     def _download_to_temp(
         self, base_url: str, files: list[str], raw_toml: bytes,
         source_url: str, version: str,
@@ -91,7 +92,7 @@ class PluginInstaller:
         Returns the temp directory path. Cleans up on failure.
         """
         os.makedirs(self._plugins_dir, exist_ok=True)
-        tempdir = tempfile.mkdtemp(dir=self._plugins_dir, prefix="_tmp_")
+        tempdir = tempfile.mkdtemp(dir=self._plugins_dir, prefix=TEMP_DIR_PREFIX)
         try:
             self._download_files(base_url, files, tempdir)
             with open(os.path.join(tempdir, "plugin.toml"), "wb") as f:
@@ -105,10 +106,9 @@ class PluginInstaller:
     @staticmethod
     def _atomic_replace(tempdir: str, target: str) -> None:
         """Atomically replace *target* with *tempdir*, backing up if needed."""
-        backup = target + ".bak"
+        backup = target + BACKUP_SUFFIX
         if os.path.isdir(target):
-            if os.path.isdir(backup):
-                shutil.rmtree(backup)
+            shutil.rmtree(backup, ignore_errors=True)
             os.rename(target, backup)
             try:
                 os.rename(tempdir, target)
