@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import shutil
 import tempfile
 import tomllib
@@ -20,6 +21,31 @@ logger = logging.getLogger(__name__)
 
 TEMP_DIR_PREFIX = "_tmp_"
 BACKUP_SUFFIX = ".bak"
+
+
+def resolve_ref(ref: str) -> str:
+    """Classify a user-provided ref string into a GitHub-compatible ref path.
+
+    - 40-char hex -> commit SHA (lowercased)
+    - vX.Y.Z or X.Y.Z -> refs/tags/vX.Y.Z
+    - everything else -> refs/heads/{ref}
+
+    Raises ValueError for empty input or short SHA-like strings (7-39 hex chars).
+    """
+    if not ref:
+        raise ValueError("ref must not be empty")
+    lower = ref.lower()
+    if re.fullmatch(r"[0-9a-f]{40}", lower):
+        return lower
+    if re.fullmatch(r"[0-9a-f]{7,39}", lower):
+        raise ValueError(
+            f"Looks like an abbreviated commit SHA ({ref!r}). "
+            "Please provide the full 40-character SHA."
+        )
+    if re.fullmatch(r"v?\d+\.\d+(?:\.\d+)*", ref):
+        tag = ref if ref.startswith("v") else f"v{ref}"
+        return f"refs/tags/{tag}"
+    return f"refs/heads/{ref}"
 
 
 class PluginInstaller:

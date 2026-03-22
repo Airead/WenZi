@@ -8,7 +8,7 @@ import threading
 
 import pytest
 
-from wenzi.scripting.plugin_installer import PluginInstaller
+from wenzi.scripting.plugin_installer import PluginInstaller, resolve_ref
 from wenzi.scripting.plugin_meta import INSTALL_TOML, load_plugin_meta
 
 
@@ -292,3 +292,40 @@ class TestUninstall:
         installer = PluginInstaller(plugins_dir)
         with pytest.raises(ValueError, match="not found"):
             installer.uninstall("com.example.nonexistent")
+
+
+class TestResolveRef:
+    def test_version_number(self):
+        assert resolve_ref("0.1.0") == "refs/tags/v0.1.0"
+
+    def test_version_with_v_prefix(self):
+        assert resolve_ref("v0.1.0") == "refs/tags/v0.1.0"
+
+    def test_two_part_version(self):
+        assert resolve_ref("1.0") == "refs/tags/v1.0"
+
+    def test_commit_sha_lowercase(self):
+        sha = "a" * 40
+        assert resolve_ref(sha) == sha
+
+    def test_commit_sha_uppercase(self):
+        sha = "A" * 40
+        assert resolve_ref(sha) == "a" * 40
+
+    def test_branch_name(self):
+        assert resolve_ref("main") == "refs/heads/main"
+
+    def test_branch_with_slash(self):
+        assert resolve_ref("feat/foo") == "refs/heads/feat/foo"
+
+    def test_short_sha_raises(self):
+        with pytest.raises(ValueError, match="full 40-character"):
+            resolve_ref("abc1234")
+
+    def test_short_sha_12_chars_raises(self):
+        with pytest.raises(ValueError, match="full 40-character"):
+            resolve_ref("a" * 12)
+
+    def test_empty_raises(self):
+        with pytest.raises(ValueError, match="empty"):
+            resolve_ref("")
