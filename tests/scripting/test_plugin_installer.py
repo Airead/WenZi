@@ -6,6 +6,8 @@ import http.server
 import os
 import threading
 
+import tomllib
+
 import pytest
 
 from wenzi.scripting.plugin_installer import (
@@ -192,6 +194,51 @@ class TestInstall:
 
 
 # ---------------------------------------------------------------------------
+# TestPinnedInstall
+# ---------------------------------------------------------------------------
+
+
+class TestPinnedInstall:
+    def test_install_with_pinned_ref_writes_field(self, plugins_dir, serve_dir, http_server):
+        """install(url, pinned_ref=...) writes pinned_ref to install.toml."""
+        (serve_dir / "myplugin").mkdir()
+        (serve_dir / "myplugin" / "__init__.py").write_bytes(b"# plugin")
+        (serve_dir / "myplugin" / "plugin.toml").write_text(
+            '[plugin]\n'
+            'id = "com.example.pinned"\n'
+            'name = "Pinned"\n'
+            'version = "1.0.0"\n'
+            'files = ["__init__.py"]\n'
+        )
+        installer = PluginInstaller(plugins_dir)
+        install_dir = installer.install(
+            f"{http_server}/myplugin/plugin.toml", pinned_ref="1.0.0"
+        )
+        install_toml = os.path.join(install_dir, INSTALL_TOML)
+        with open(install_toml, "rb") as f:
+            data = tomllib.load(f)
+        assert data["install"]["pinned_ref"] == "1.0.0"
+
+    def test_install_without_pinned_ref_omits_field(self, plugins_dir, serve_dir, http_server):
+        """install(url) without pinned_ref does not write pinned_ref."""
+        (serve_dir / "myplugin").mkdir()
+        (serve_dir / "myplugin" / "__init__.py").write_bytes(b"# plugin")
+        (serve_dir / "myplugin" / "plugin.toml").write_text(
+            '[plugin]\n'
+            'id = "com.example.normal"\n'
+            'name = "Normal"\n'
+            'version = "1.0.0"\n'
+            'files = ["__init__.py"]\n'
+        )
+        installer = PluginInstaller(plugins_dir)
+        install_dir = installer.install(f"{http_server}/myplugin/plugin.toml")
+        install_toml = os.path.join(install_dir, INSTALL_TOML)
+        with open(install_toml, "rb") as f:
+            data = tomllib.load(f)
+        assert "pinned_ref" not in data["install"]
+
+
+# ---------------------------------------------------------------------------
 # TestUpdate
 # ---------------------------------------------------------------------------
 
@@ -233,6 +280,29 @@ class TestUpdate:
         assert not any(
             e.startswith("_tmp_") for e in os.listdir(plugins_dir)
         )
+
+    def test_update_preserves_pinned_ref(self, plugins_dir, serve_dir, http_server):
+        """update() on a pinned plugin preserves pinned_ref in install.toml."""
+        (serve_dir / "pinned").mkdir()
+        (serve_dir / "pinned" / "__init__.py").write_bytes(b"# v1")
+        (serve_dir / "pinned" / "plugin.toml").write_text(
+            '[plugin]\n'
+            'id = "com.example.pinned"\n'
+            'name = "Pinned"\n'
+            'version = "1.0.0"\n'
+            'files = ["__init__.py"]\n'
+        )
+        installer = PluginInstaller(plugins_dir)
+        install_dir = installer.install(
+            f"{http_server}/pinned/plugin.toml", pinned_ref="1.0.0"
+        )
+        with open(os.path.join(install_dir, INSTALL_TOML), "rb") as f:
+            assert tomllib.load(f)["install"]["pinned_ref"] == "1.0.0"
+
+        installer.update("com.example.pinned")
+        with open(os.path.join(install_dir, INSTALL_TOML), "rb") as f:
+            data = tomllib.load(f)
+        assert data["install"]["pinned_ref"] == "1.0.0"
 
     def test_update_overwrites_files(self, plugins_dir, serve_dir, http_server):
         """Update downloads a newer version and overwrites existing files."""

@@ -82,10 +82,12 @@ class PluginInstaller:
     def __init__(self, plugins_dir: str):
         self._plugins_dir = plugins_dir
 
-    def install(self, source_url: str) -> str:
+    def install(self, source_url: str, pinned_ref: str | None = None) -> str:
         """Install a plugin from a plugin.toml URL (remote or local path).
 
         Returns the install directory path. Rolls back on failure.
+        If *pinned_ref* is given, it is persisted in install.toml so that
+        future updates can preserve the pin.
         """
         raw, section = self._fetch_plugin_toml(source_url)
         plugin_id = section.get("id", "")
@@ -97,7 +99,9 @@ class PluginInstaller:
         install_dir = self._resolve_install_dir(plugin_id)
         base_url = source_url.rsplit("/", 1)[0]
 
-        tempdir = self._download_to_temp(base_url, files, raw, source_url, version)
+        tempdir = self._download_to_temp(
+            base_url, files, raw, source_url, version, pinned_ref=pinned_ref,
+        )
         try:
             self._atomic_replace(tempdir, install_dir)
         except BaseException:
@@ -117,12 +121,16 @@ class PluginInstaller:
         if not source_url:
             raise ValueError(f"Plugin {plugin_id!r} has no source_url in install.toml")
 
+        pinned_ref = info.get("pinned_ref") or None
+
         raw, section = self._fetch_plugin_toml(source_url)
         version = str(section.get("version", ""))
         files = self._parse_files(section)
         base_url = source_url.rsplit("/", 1)[0]
 
-        tempdir = self._download_to_temp(base_url, files, raw, source_url, version)
+        tempdir = self._download_to_temp(
+            base_url, files, raw, source_url, version, pinned_ref=pinned_ref,
+        )
         try:
             self._atomic_replace(tempdir, plugin_dir)
         except BaseException:
@@ -140,6 +148,7 @@ class PluginInstaller:
     def _download_to_temp(
         self, base_url: str, files: list[str], raw_toml: bytes,
         source_url: str, version: str,
+        *, pinned_ref: str | None = None,
     ) -> str:
         """Download plugin files to a temp directory inside plugins_dir.
 
@@ -151,7 +160,9 @@ class PluginInstaller:
             self._download_files(base_url, files, tempdir)
             with open(os.path.join(tempdir, "plugin.toml"), "wb") as f:
                 f.write(raw_toml)
-            self._write_install_toml(tempdir, source_url, version)
+            self._write_install_toml(
+                tempdir, source_url, version, pinned_ref=pinned_ref,
+            )
         except BaseException:
             shutil.rmtree(tempdir, ignore_errors=True)
             raise
@@ -210,7 +221,10 @@ class PluginInstaller:
         return value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
 
     @staticmethod
-    def _write_install_toml(plugin_dir: str, source_url: str, version: str) -> None:
+    def _write_install_toml(
+        plugin_dir: str, source_url: str, version: str,
+        *, pinned_ref: str | None = None,
+    ) -> None:
         esc = PluginInstaller._escape_toml_string
         content = (
             "[install]\n"
@@ -218,5 +232,7 @@ class PluginInstaller:
             f'installed_version = "{esc(version)}"\n'
             f'installed_at = "{datetime.now(timezone.utc).isoformat()}"\n'
         )
+        if pinned_ref is not None:
+            content += f'pinned_ref = "{esc(pinned_ref)}"\n'
         with open(os.path.join(plugin_dir, INSTALL_TOML), "w") as f:
             f.write(content)
