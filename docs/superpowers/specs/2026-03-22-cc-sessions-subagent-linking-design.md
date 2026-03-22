@@ -23,18 +23,23 @@ Subagent sessions are NOT listed in the launcher's session list — they are onl
 
 ### agentId Extraction (viewer.html JS)
 
-In `computeStats()`, extend subagent records:
-- Record `toolUseId` (the Agent tool_use `id`)
-- After stats computation, iterate `globalResultMap` to find each Agent's tool_result
-- Extract agentId via regex `agentId:\s*([a-f0-9]+)` from tool_result text content
-- Associate agentId with the subagent record
+agentId extraction happens in `renderStats(messages)`, NOT in `computeStats()`, because it needs access to `globalResultMap` which is built in `renderConversation` scope.
+
+Approach: `renderStats` builds its own lightweight result map from messages (scan user messages for `tool_result` entries), then:
+
+1. Call `computeStats(messages)` as before — extended to also record `toolUseId` on each subagent entry
+2. For each subagent with a `toolUseId`, look up the corresponding `tool_result` in the result map
+3. Extract agentId via regex `agentId:\s*([a-fA-F0-9]+)` from tool_result text content
+4. Attach agentId to the subagent record
+
+The extracted subagent-agentId mapping is stored in a module-level variable (e.g. `window._subagentMap`) so that both `buildStatsHTML` and `createToolSingle` can access it.
 
 ### File Existence Check
 
 On viewer load, after extracting all agentIds, call:
 ```js
 const existsMap = await wz.call("check_subagent_exists", {
-  parent_file_path: sessionFilePath,
+  root_session_path: sessionInfo.root_session_path,
   agent_ids: [id1, id2, ...]
 });
 // Returns: { "ae2a981d3905efa69": true, "bf3c...": false }
@@ -44,47 +49,83 @@ Only subagents with `existsMap[agentId] === true` are rendered as clickable link
 
 ### Subagent JSONL Path Resolution (Python)
 
-Given `parent_file_path` and `agent_id`:
+All subagent files live flat under the **root** (top-level) session's subagents directory. Path resolution always uses `root_session_path`:
+
 ```
-parent_dir  = dirname(parent_file_path)
-session_id  = stem(parent_file_path)
-subagent_path = parent_dir / session_id / "subagents" / f"agent-{agent_id}.jsonl"
+root_dir    = dirname(root_session_path)     # e.g. ~/.claude/projects/{project}/
+session_id  = stem(root_session_path)        # e.g. UUID of root session
+subagent_path = root_dir / session_id / "subagents" / f"agent-{agent_id}.jsonl"
 ```
+
+This handles nested subagents correctly: even if a subagent spawns sub-subagents, the file is resolved from the root session, not the immediate parent.
 
 ## Python Bridge API (init_plugin.py)
 
-### `check_subagent_exists(parent_file_path, agent_ids)`
+### Panel creation pattern
 
-- For each agent_id, resolve subagent path and check file existence
+Both `_open_viewer` (existing) and `open_subagent` (new) create a `wz.ui.webview_panel()` and register bridge handlers on it via `@panel.handle` closures. The `get_session_info` handler on each panel returns the data specific to that panel's session.
+
+For subagent panels, `get_session_info` returns additional fields:
+- `parent_file_path` — the immediate parent's JSONL file path (for the "Parent Session" link)
+- `root_session_path` — the root (top-level) session JSONL path (for subagent path resolution)
+- `is_subagent: true` — flag for viewer UI mode switching
+
+For root session panels, `get_session_info` returns:
+- `root_session_path` = same as `file` (it IS the root)
+- `is_subagent: false` (or absent)
+
+### `check_subagent_exists(root_session_path, agent_ids)`
+
+- For each agent_id, resolve subagent path from `root_session_path` and check file existence
 - Returns `{agent_id: bool}` map
+- Registered as a global bridge handler (not per-panel), since it only does file existence checks
 
-### `open_subagent(parent_file_path, agent_id, description)`
+### `open_subagent(root_session_path, parent_file_path, agent_id, description)`
 
-1. Resolve subagent JSONL path
-2. Open a new `wz.ui.webview_panel()` with viewer.html
-3. Pass parameters to viewer:
-   - `file_path` = subagent JSONL path
-   - `parent_file_path` = parent session JSONL path
-   - `agent_id` = agentId
-4. Panel title: `"Subagent: {description}"`
+1. Resolve subagent JSONL path from `root_session_path` + `agent_id`
+2. Verify file exists (guard)
+3. Create new `wz.ui.webview_panel()` with viewer.html
+4. Register `get_session_info` handler on the new panel returning:
+   - `file` = subagent JSONL path
+   - `parent_file_path` = caller's file path
+   - `root_session_path` = passed through unchanged
+   - `is_subagent: true`
+   - `project`, `cwd`, `session_id`, `git_branch`, `version` extracted from subagent JSONL (first few lines, same as scanner logic)
+5. Register `copy_resume` handler (same as existing)
+6. Set `allowed_read_paths = [os.path.expanduser("~/.claude/")]`
+7. Panel title: `"Subagent: {description}"`
+8. `panel.show()`
 
-### `open_parent_session(parent_file_path)`
+Each panel captures its own reference in the `open_parent_session` closure (see below).
 
-1. Close current subagent viewer panel
-2. If parent session viewer is already open → focus it
-3. If not → open a new viewer panel for the parent session
+### `open_parent_session(parent_file_path)` — per-panel handler
+
+Registered on each **subagent** panel via closure that captures the panel reference:
+
+```python
+@panel.handle("open_parent_session")
+def _open_parent(_data):
+    panel.close()  # close this subagent viewer
+    # Find or re-open parent viewer (implementation detail)
+```
+
+For simplicity in v1: just close the current subagent panel. The parent panel is already open underneath (user opened it first). If the parent was closed, the user can reopen from the launcher. This avoids complex panel tracking.
 
 ## Viewer UI Changes (viewer.html)
 
 ### Info Bar — Parent Link (subagent mode only)
 
-When `parent_file_path` is present in viewer params, render at the left of info bar:
+When `sessionInfo.is_subagent` is true, render at the left of info bar:
 
 ```
 [← Parent Session]  Project: VoiceText  Branch: main  ...
 ```
 
-Click calls `wz.call("open_parent_session", { parent_file_path })`.
+Click calls `wz.call("open_parent_session", { parent_file_path: sessionInfo.parent_file_path })`.
+
+### Info Bar — Copy Resume Button (subagent mode)
+
+When `sessionInfo.is_subagent` is true, hide the "Copy Resume Command" button since `claude --resume` does not work for subagent sessions.
 
 ### Stats Panel — Subagents Card
 
@@ -95,7 +136,7 @@ Each subagent description line becomes a clickable link (when agentId exists and
    Some other task  (opus)                    ← plain text if file missing
 ```
 
-Click calls `wz.call("open_subagent", { parent_file_path, agent_id, description })`.
+Click calls `wz.call("open_subagent", { root_session_path, parent_file_path: sessionInfo.file, agent_id, description })`.
 
 ### Conversation Flow — Agent Tool Block
 
@@ -124,14 +165,17 @@ Handled by `check_subagent_exists` at load time. Non-existent subagent files are
 Multiple subagent viewers can be open simultaneously. Each is independent with its own title.
 
 ### Nested subagents
-If a subagent itself spawns sub-subagents, the design works recursively — the subagent viewer will also render `[View Session]` links for its own Agent tool calls, resolving paths relative to the subagent's own JSONL location. However, Claude Code currently stores all subagents flat under the parent session's `subagents/` directory, so nested resolution needs to account for this: sub-subagent files would still live under the original parent's subagents dir.
+All subagent files are stored flat under the root session's `subagents/` directory. `root_session_path` is passed through unchanged from parent to child, so path resolution always works regardless of nesting depth.
+
+### Copy Resume in subagent mode
+Button is hidden since `claude --resume` does not support subagent sessions.
 
 ## Files Changed
 
 | File | Change |
 |------|--------|
-| `plugins/cc_sessions/viewer.html` | agentId extraction, subagent link rendering, parent link, View Session button, bridge calls |
-| `plugins/cc_sessions/init_plugin.py` | New bridge handlers: `check_subagent_exists`, `open_subagent`, `open_parent_session` |
+| `plugins/cc_sessions/viewer.html` | agentId extraction, subagent link rendering, parent link, View Session button, bridge calls, hide resume button in subagent mode |
+| `plugins/cc_sessions/init_plugin.py` | New bridge handlers: `check_subagent_exists`, `open_subagent`, `open_parent_session`; `get_session_info` extended with `root_session_path`, `parent_file_path`, `is_subagent` |
 
 ## Not Changed
 
