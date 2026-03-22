@@ -128,6 +128,23 @@
     background: var(--copy-btn-bg);
   }
 
+  .view-session-btn {
+    font-size: 10px;
+    color: var(--copy-btn-color);
+    background: var(--copy-btn-bg);
+    border: none;
+    border-radius: 3px;
+    padding: 1px 6px;
+    cursor: pointer;
+    margin-left: auto;
+    margin-right: 4px;
+    font-family: inherit;
+    white-space: nowrap;
+  }
+  .view-session-btn:hover {
+    opacity: 0.85;
+  }
+
   .main-content {
     display: flex;
     flex: 1;
@@ -1090,6 +1107,28 @@ function createToolSingle(call, result) {
     <span class="tool-detail">${escapeHtml(detail)}</span>
     <span class="tool-arrow">&#9654;</span>
   `;
+
+  // Add "View Session" button for Agent tool calls with resolved subagent
+  if (call.name === "Agent" && call.id) {
+    const sub = window._subagentMap[call.id];
+    if (sub && sub.exists) {
+      const viewBtn = document.createElement("button");
+      viewBtn.className = "view-session-btn";
+      viewBtn.textContent = "View Session";
+      viewBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        wz.call("open_subagent", {
+          root_session_path: sessionInfo.root_session_path,
+          parent_file_path: sessionInfo.file,
+          agent_id: sub.agentId,
+          description: sub.description,
+        });
+      });
+      const arrow = headerEl.querySelector(".tool-arrow");
+      headerEl.insertBefore(viewBtn, arrow);
+    }
+  }
+
   block.appendChild(headerEl);
 
   const body = document.createElement("div");
