@@ -103,7 +103,9 @@ Expected: FAIL with `ImportError` (functions don't exist yet)
 
 - [ ] **Step 3: Implement path resolution and existence check functions**
 
-Add two functions at module level in `plugins/cc_sessions/init_plugin.py` (before the `register` function, after the imports):
+First, add `import json` to the imports section of `plugins/cc_sessions/init_plugin.py` (after `import os`).
+
+Then add two functions at module level (before the `register` function, after the imports):
 
 ```python
 def _resolve_subagent_path(root_session_path: str, agent_id: str) -> str:
@@ -116,8 +118,8 @@ def _resolve_subagent_path(root_session_path: str, agent_id: str) -> str:
 
 
 def _check_subagent_exists(
-    root_session_path: str, agent_ids: list[str]
-) -> Dict[str, bool]:
+    root_session_path: str, agent_ids: list,
+) -> dict:
     """Check which subagent JSONL files exist on disk."""
     return {
         aid: os.path.isfile(_resolve_subagent_path(root_session_path, aid))
@@ -247,22 +249,22 @@ Add in `init_plugin.py` after `_check_subagent_exists`:
 ```python
 def _parse_subagent_meta(jsonl_path: str) -> Dict[str, str]:
     """Extract basic metadata from the first few lines of a subagent JSONL."""
-    meta: Dict[str, str] = {"cwd": "", "version": "", "git_branch": "", "project": ""}
+    meta: dict = {"cwd": "", "version": "", "git_branch": "", "project": ""}
     try:
-        import json as _json
-
         with open(jsonl_path) as f:
             for i, line in enumerate(f):
                 if i >= 20:
                     break
                 try:
-                    msg = _json.loads(line)
+                    msg = json.loads(line)
                 except (ValueError, TypeError):
                     continue
                 if not meta["cwd"] and msg.get("cwd"):
                     meta["cwd"] = msg["cwd"]
                 if not meta["version"] and msg.get("version"):
                     meta["version"] = msg["version"]
+                if not meta["git_branch"] and msg.get("git_branch"):
+                    meta["git_branch"] = msg["git_branch"]
     except OSError:
         pass
     return meta
