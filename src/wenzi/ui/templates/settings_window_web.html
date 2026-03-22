@@ -504,6 +504,212 @@ input[type="range"] {
 .modal-message { font-size:14px; color:#1d1d1f; margin-bottom:16px; }
 .modal-actions { display:flex; gap:8px; justify-content:center; }
 .modal-traceback { text-align:left; font-family:monospace; font-size:11px; background:#f5f5f7; border-radius:6px; padding:10px; max-height:300px; overflow:auto; white-space:pre-wrap; word-break:break-all; color:#1d1d1f; margin-bottom:16px; }
+
+/* LLM Provider slide views */
+.llm-view-container {
+  position: relative;
+  overflow: hidden;
+}
+.llm-list-view, .llm-form-view {
+  width: 100%;
+  transition: transform 0.3s ease;
+}
+.llm-form-view {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform: translateX(100%);
+}
+.llm-view-container.show-form .llm-list-view {
+  transform: translateX(-100%);
+}
+.llm-view-container.show-form .llm-form-view {
+  transform: translateX(0);
+}
+
+/* Provider form styles */
+.provider-form-nav {
+  display: flex;
+  align-items: center;
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid #d2d2d7;
+}
+.provider-form-back {
+  color: #007aff;
+  cursor: pointer;
+  font-size: 13px;
+  -webkit-user-select: none;
+}
+.provider-form-title {
+  flex: 1;
+  text-align: center;
+  font-weight: 600;
+  font-size: 15px;
+}
+.provider-form-group {
+  margin-bottom: 12px;
+}
+.provider-form-label {
+  font-size: 11px;
+  color: #6e6e73;
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+.provider-form-label .required { color: #ff3b30; }
+.provider-form-input,
+.provider-form-textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #d2d2d7;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: inherit;
+  background: #f5f5f7;
+  color: #1d1d1f;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.provider-form-input:focus,
+.provider-form-textarea:focus {
+  border-color: #007aff;
+  background: #fff;
+}
+.provider-form-input.error,
+.provider-form-textarea.error {
+  border-color: #ff3b30;
+}
+.provider-form-error {
+  font-size: 11px;
+  color: #ff3b30;
+  margin-top: 3px;
+  display: none;
+}
+.provider-form-error.visible { display: block; }
+.provider-form-textarea { min-height: 60px; resize: vertical; }
+.provider-form-hint {
+  font-size: 11px;
+  color: #86868b;
+  margin-top: 2px;
+}
+
+.btn-verify-save {
+  width: 100%;
+  padding: 10px;
+  border: none;
+  border-radius: 8px;
+  background: #007aff;
+  color: white;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: center;
+  margin-top: 16px;
+  transition: opacity 0.15s;
+}
+.btn-verify-save:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.btn-verify-save.loading {
+  background: #86868b;
+}
+
+.provider-delete-link {
+  text-align: center;
+  margin-top: 14px;
+  color: #ff3b30;
+  font-size: 13px;
+  cursor: pointer;
+}
+.provider-delete-confirm {
+  background: #fff5f5;
+  border: 1px solid #ff3b30;
+  border-radius: 8px;
+  padding: 12px;
+  text-align: center;
+  margin-top: 14px;
+}
+.provider-delete-confirm .confirm-msg { margin-bottom: 10px; }
+.provider-delete-confirm .confirm-btns { display: flex; gap: 8px; justify-content: center; }
+.provider-delete-confirm .btn-confirm-remove {
+  background: #ff3b30;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 20px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.provider-delete-confirm .btn-confirm-cancel {
+  background: #e5e5ea;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 20px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.provider-success-banner {
+  background: #e8f8ea;
+  border: 1px solid #34c759;
+  border-radius: 8px;
+  padding: 12px;
+  text-align: center;
+  margin-top: 16px;
+}
+.provider-success-banner .check { color: #34c759; font-size: 18px; }
+.provider-success-banner .msg { font-weight: 500; color: #1d7a2f; margin-top: 4px; }
+
+/* Provider list row */
+.provider-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.provider-row:hover { background: rgba(0,0,0,0.03); }
+.provider-row:not(:last-child) { border-bottom: 1px solid #e5e5ea; }
+.provider-row-info .provider-row-name { font-weight: 500; }
+.provider-row-info .provider-row-meta { font-size: 11px; color: #86868b; }
+.provider-row-chevron { color: #007aff; font-size: 18px; }
+.provider-row-meta .verified { color: #34c759; }
+
+/* API key visibility toggle */
+.api-key-wrapper { position: relative; }
+.api-key-toggle {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: pointer;
+  color: #86868b;
+  font-size: 14px;
+  -webkit-user-select: none;
+}
+
+/* Dark mode overrides */
+@media (prefers-color-scheme: dark) {
+  .provider-form-input,
+  .provider-form-textarea {
+    background: #2c2c2e;
+    border-color: #48484a;
+    color: #f5f5f7;
+  }
+  .provider-form-input:focus,
+  .provider-form-textarea:focus {
+    border-color: #007aff;
+    background: #1c1c1e;
+  }
+  .provider-form-nav { border-color: #48484a; }
+  .provider-row:hover { background: rgba(255,255,255,0.05); }
+  .provider-row:not(:last-child) { border-color: #48484a; }
+  .provider-delete-confirm { background: #3a1c1c; border-color: #ff453a; }
+  .provider-success-banner { background: #1a3a1c; border-color: #30d158; }
+  .provider-delete-confirm .btn-confirm-cancel { background: #48484a; color: #f5f5f7; }
+}
 </style>
 </head>
 <body>
@@ -651,22 +857,32 @@ input[type="range"] {
 
     <!-- LLM Tab -->
     <div id="tab-llm" class="tab-content">
-      <div class="content-title-row"><div class="content-title" data-i18n="llm_tab.title">LLM</div><span class="help-icon" data-doc="provider-model-guide.html#ai-llm-provider-configuration">?</span></div>
-      <div class="setting-group" id="llm-model-list">
-        <!-- Dynamically populated by renderLlmTab() -->
-      </div>
-      <div class="group-title" data-i18n="llm_tab.model_timeout">Connection</div>
-      <div class="setting-group">
-        <div class="setting-row">
-          <div class="setting-left">
-            <div class="setting-label" data-i18n="llm_tab.model_timeout">Timeout</div>
-            <div class="setting-desc" data-i18n="llm_tab.model_timeout_desc">Maximum time to wait for a model response</div>
+      <div class="llm-view-container" id="llm-view-container">
+        <!-- List View -->
+        <div class="llm-list-view" id="llm-list-view">
+          <div class="content-title-row"><div class="content-title" data-i18n="llm_tab.title">LLM</div><span class="help-icon" data-doc="provider-model-guide.html#ai-llm-provider-configuration">?</span></div>
+          <div class="setting-group" id="llm-model-list">
+            <!-- Dynamically populated by renderLlmTab() -->
           </div>
-          <div class="setting-right">
-            <input id="ctl-model-timeout" type="number" value="10" style="width:60px;"
-                   onchange="postCallback('on_model_timeout', parseInt(this.value))">
-            <span style="color:#86868b;font-size:12px;">sec</span>
+          <div class="group-title" data-i18n="llm_tab.model_timeout">Connection</div>
+          <div class="setting-group">
+            <div class="setting-row">
+              <div class="setting-left">
+                <div class="setting-label" data-i18n="llm_tab.model_timeout">Timeout</div>
+                <div class="setting-desc" data-i18n="llm_tab.model_timeout_desc">Maximum time to wait for a model response</div>
+              </div>
+              <div class="setting-right">
+                <input id="ctl-model-timeout" type="number" value="10" style="width:60px;"
+                       onchange="postCallback('on_model_timeout', parseInt(this.value))">
+                <span style="color:#86868b;font-size:12px;">sec</span>
+              </div>
+            </div>
           </div>
+        </div>
+
+        <!-- Form View (add/edit) -->
+        <div class="llm-form-view" id="llm-form-view">
+          <!-- Dynamically populated by _showProviderForm() -->
         </div>
       </div>
     </div>
@@ -1200,9 +1416,10 @@ function renderLlmTab() {
   if (!container) return;
   var models = CONFIG.llm_models || [];
   var current = CONFIG.current_llm || {};
+  var providers = CONFIG.llm_providers || {};
   var html = '';
 
-  // Group by provider
+  // Group models by provider
   var groups = {};
   var groupOrder = [];
   for (var i = 0; i < models.length; i++) {
@@ -1214,31 +1431,46 @@ function renderLlmTab() {
     groups[m.provider].push(m);
   }
 
+  // Default model dropdown
+  html += '<div class="group-title">' + _esc(_t('llm_tab.default_model', 'Default Model')) + '</div>';
+  html += '<div class="setting-group"><div class="setting-row">';
+  html += '<div class="setting-left"><div class="setting-label">' + _esc(_t('llm_tab.model', 'Model')) + '</div></div>';
+  html += '<div class="setting-right"><select id="ctl-llm-model" data-action="llm-model-select">';
   for (var g = 0; g < groupOrder.length; g++) {
-    var provider = groupOrder[g];
-    var items = groups[provider];
-    html += '<div class="provider-header">';
-    html += '  <span class="provider-name">' + _esc(provider) + '</span>';
-    html += '  <button class="btn-small danger" style="margin-left:auto;" data-action="llm-remove" data-provider="' + _esc(provider) + '">' + _esc(_t('llm_tab.remove', 'Remove...')) + '</button>';
-    html += '</div>';
+    var prov = groupOrder[g];
+    var items = groups[prov];
     for (var k = 0; k < items.length; k++) {
       var item = items[k];
       var sel = (current.provider === item.provider && current.model === item.model) ? ' selected' : '';
-      html += '<div class="model-row' + sel + '" data-action="llm-select" data-provider="' + _esc(item.provider) + '" data-model="' + _esc(item.model) + '">';
-      html += '  <div class="model-radio"></div>';
-      html += '  <div class="model-info">';
-      html += '    <div class="model-name">' + _esc(item.display) + '</div>';
-      html += '  </div>';
-      if (item.has_api_key) {
-        html += '  <div class="model-tag">API Key</div>';
-      }
-      html += '</div>';
+      html += '<option value="' + _esc(item.provider) + '/' + _esc(item.model) + '"' + sel + '>';
+      html += _esc(item.display);
+      html += '</option>';
     }
   }
+  html += '</select></div></div></div>';
 
-  // Add provider
-  html += '<div class="add-row">';
-  html += '  <button class="toolbar-btn" style="font-size:13px;" data-action="llm-add">' + _esc(_t('llm_tab.add_provider', 'Add Provider...')) + '</button>';
+  // Provider list
+  html += '<div class="group-title">' + _esc(_t('llm_tab.providers', 'Providers')) + '</div>';
+  html += '<div class="setting-group" style="padding:0;overflow:hidden;">';
+  for (var g = 0; g < groupOrder.length; g++) {
+    var prov = groupOrder[g];
+    var items = groups[prov];
+    var modelCount = items.length;
+    html += '<div class="provider-row" data-action="llm-edit-provider" data-provider="' + _esc(prov) + '">';
+    html += '  <div class="provider-row-info">';
+    html += '    <div class="provider-row-name">' + _esc(prov) + '</div>';
+    html += '    <div class="provider-row-meta">' + modelCount + (modelCount === 1 ? ' model' : ' models') + '</div>';
+    html += '  </div>';
+    html += '  <div class="provider-row-chevron">&#8250;</div>';
+    html += '</div>';
+  }
+  html += '</div>';
+
+  // Add provider button
+  html += '<div style="margin-top:12px;">';
+  html += '  <button class="toolbar-btn" style="font-size:13px;width:100%;padding:10px;border-radius:8px;background:#007aff;color:white;border:none;cursor:pointer;" data-action="llm-add">';
+  html += '+ ' + _esc(_t('llm_tab.add_provider', 'Add Provider'));
+  html += '  </button>';
   html += '</div>';
 
   container.innerHTML = html;
@@ -1248,24 +1480,285 @@ function renderLlmTab() {
 (function() {
   var container = document.getElementById('llm-model-list');
   if (!container) return;
+
   container.addEventListener('click', function(e) {
-    var removeBtn = e.target.closest('[data-action="llm-remove"]');
-    if (removeBtn) {
-      e.stopPropagation();
-      postCallback('on_llm_remove_provider', removeBtn.dataset.provider);
+    var row = e.target.closest('[data-action="llm-edit-provider"]');
+    if (row) {
+      _showProviderForm('edit', row.dataset.provider);
       return;
     }
     if (e.target.closest('[data-action="llm-add"]')) {
-      postCallback('on_llm_add_provider');
+      _showProviderForm('add', null);
       return;
     }
-    var row = e.target.closest('[data-action="llm-select"]');
-    if (row) {
-      selectModelRow(row);
-      postCallback('on_llm_select', row.dataset.provider, row.dataset.model);
+  });
+
+  container.addEventListener('change', function(e) {
+    var sel = e.target.closest('[data-action="llm-model-select"]');
+    if (sel) {
+      var parts = sel.value.split('/');
+      if (parts.length >= 2) {
+        postCallback('on_llm_select', parts[0], parts.slice(1).join('/'));
+      }
     }
   });
 })();
+
+function _showProviderForm(mode, providerName) {
+  var container = document.getElementById('llm-form-view');
+  if (!container) return;
+  var providers = CONFIG.llm_providers || {};
+  var data = (mode === 'edit' && providerName) ? (providers[providerName] || {}) : {};
+  var title = mode === 'edit'
+    ? _esc(_t('llm_tab.edit_provider', 'Edit')) + ': ' + _esc(providerName)
+    : _esc(_t('llm_tab.add_provider_title', 'Add Provider'));
+
+  var nameVal = mode === 'edit' ? _esc(providerName) : '';
+  var urlVal = _esc(data.base_url || '');
+  var modelsVal = _esc((data.models || []).join('\n'));
+  var extraVal = data.extra_body && Object.keys(data.extra_body).length
+    ? _esc(JSON.stringify(data.extra_body, null, 2))
+    : '';
+
+  var html = '';
+  html += '<div class="provider-form-nav">';
+  html += '  <span class="provider-form-back" data-action="provider-back">&larr; LLM</span>';
+  html += '  <span class="provider-form-title">' + title + '</span>';
+  html += '  <span style="width:50px;"></span>';
+  html += '</div>';
+
+  html += '<div class="provider-form-group">';
+  html += '  <div class="provider-form-label">Name <span class="required">*</span></div>';
+  html += '  <input class="provider-form-input" id="pf-name" type="text" value="' + nameVal + '"';
+  html += '         placeholder="my-provider"' + (mode === 'edit' ? ' readonly' : '') + '>';
+  html += '  <div class="provider-form-error" id="pf-name-err"></div>';
+  html += '</div>';
+
+  html += '<div class="provider-form-group">';
+  html += '  <div class="provider-form-label">Base URL <span class="required">*</span></div>';
+  html += '  <input class="provider-form-input" id="pf-base-url" type="url" value="' + urlVal + '"';
+  html += '         placeholder="https://api.openai.com/v1">';
+  html += '  <div class="provider-form-error" id="pf-base-url-err"></div>';
+  html += '</div>';
+
+  html += '<div class="provider-form-group">';
+  html += '  <div class="provider-form-label">API Key';
+  if (mode === 'add') html += ' <span class="required">*</span>';
+  html += '  </div>';
+  html += '  <div class="api-key-wrapper">';
+  html += '    <input class="provider-form-input" id="pf-api-key" type="password"';
+  html += '           placeholder="' + (mode === 'edit' ? 'Leave empty to keep current key' : 'sk-...') + '">';
+  html += '    <span class="api-key-toggle" data-action="toggle-api-key">&#128065;</span>';
+  html += '  </div>';
+  html += '  <div class="provider-form-error" id="pf-api-key-err"></div>';
+  html += '</div>';
+
+  html += '<div class="provider-form-group">';
+  html += '  <div class="provider-form-label">Models <span class="required">*</span></div>';
+  html += '  <textarea class="provider-form-textarea" id="pf-models" placeholder="gpt-4o&#10;gpt-4o-mini">' + modelsVal + '</textarea>';
+  html += '  <div class="provider-form-hint">One model per line</div>';
+  html += '  <div class="provider-form-error" id="pf-models-err"></div>';
+  html += '</div>';
+
+  html += '<div class="provider-form-group">';
+  html += '  <div class="provider-form-label">Extra Body <span style="color:#86868b;font-weight:normal;">(JSON, optional)</span></div>';
+  html += '  <textarea class="provider-form-textarea" id="pf-extra-body" placeholder="{}" style="font-family:monospace;font-size:12px;">' + extraVal + '</textarea>';
+  html += '  <div class="provider-form-error" id="pf-extra-body-err"></div>';
+  html += '</div>';
+
+  html += '<button class="btn-verify-save" id="pf-submit" data-action="provider-submit" data-mode="' + mode + '" data-provider="' + _esc(providerName || '') + '">';
+  html += _esc(_t('llm_tab.verify_save', 'Verify & Save'));
+  html += '</button>';
+
+  if (mode === 'edit') {
+    html += '<div id="pf-delete-area">';
+    html += '  <div class="provider-delete-link" data-action="provider-delete-start">';
+    html += _esc(_t('llm_tab.delete_provider', 'Delete Provider'));
+    html += '  </div>';
+    html += '</div>';
+  }
+
+  html += '<div id="pf-result"></div>';
+
+  container.innerHTML = html;
+  container.dataset.formMode = mode;
+  container.dataset.formProvider = providerName || '';
+
+  document.getElementById('llm-view-container').classList.add('show-form');
+}
+
+function _hideProviderForm() {
+  document.getElementById('llm-view-container').classList.remove('show-form');
+}
+
+// Event delegation for provider form view
+(function() {
+  var formView = document.getElementById('llm-form-view');
+  if (!formView) return;
+
+  formView.addEventListener('click', function(e) {
+    if (e.target.closest('[data-action="provider-back"]')) {
+      _hideProviderForm();
+      return;
+    }
+    var toggle = e.target.closest('[data-action="toggle-api-key"]');
+    if (toggle) {
+      var input = document.getElementById('pf-api-key');
+      if (input) input.type = input.type === 'password' ? 'text' : 'password';
+      return;
+    }
+    if (e.target.closest('[data-action="provider-submit"]')) {
+      _submitProviderForm();
+      return;
+    }
+    if (e.target.closest('[data-action="provider-delete-start"]')) {
+      var area = document.getElementById('pf-delete-area');
+      var prov = formView.dataset.formProvider;
+      if (area && prov) {
+        area.innerHTML = '<div class="provider-delete-confirm">'
+          + '<div class="confirm-msg">Remove <strong>' + _esc(prov) + '</strong> and all its models?</div>'
+          + '<div class="confirm-btns">'
+          + '<button class="btn-confirm-remove" data-action="provider-delete-confirm">Remove</button>'
+          + '<button class="btn-confirm-cancel" data-action="provider-delete-cancel">Cancel</button>'
+          + '</div></div>';
+      }
+      return;
+    }
+    if (e.target.closest('[data-action="provider-delete-confirm"]')) {
+      var prov = formView.dataset.formProvider;
+      if (prov) postCallback('on_llm_delete_provider', prov);
+      _hideProviderForm();
+      return;
+    }
+    if (e.target.closest('[data-action="provider-delete-cancel"]')) {
+      var area = document.getElementById('pf-delete-area');
+      if (area) {
+        area.innerHTML = '<div class="provider-delete-link" data-action="provider-delete-start">'
+          + _esc(_t('llm_tab.delete_provider', 'Delete Provider')) + '</div>';
+      }
+      return;
+    }
+  });
+})();
+
+function _submitProviderForm() {
+  // Clear previous errors
+  var errFields = ['pf-name-err', 'pf-base-url-err', 'pf-api-key-err', 'pf-models-err', 'pf-extra-body-err'];
+  for (var i = 0; i < errFields.length; i++) {
+    var el = document.getElementById(errFields[i]);
+    if (el) { el.textContent = ''; el.classList.remove('visible'); }
+  }
+  var inputs = document.querySelectorAll('.provider-form-input, .provider-form-textarea');
+  for (var i = 0; i < inputs.length; i++) inputs[i].classList.remove('error');
+
+  var formView = document.getElementById('llm-form-view');
+  var mode = formView.dataset.formMode;
+  var name = (document.getElementById('pf-name').value || '').trim();
+  var baseUrl = (document.getElementById('pf-base-url').value || '').trim();
+  var apiKey = (document.getElementById('pf-api-key').value || '').trim();
+  var modelsRaw = (document.getElementById('pf-models').value || '').trim();
+  var extraBodyRaw = (document.getElementById('pf-extra-body').value || '').trim();
+
+  var errors = [];
+
+  if (!name) {
+    errors.push({field: 'pf-name', err: 'pf-name-err', msg: 'Name is required'});
+  } else if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
+    errors.push({field: 'pf-name', err: 'pf-name-err', msg: 'Only letters, digits, hyphens, and underscores allowed'});
+  } else if (mode === 'add') {
+    var providers = CONFIG.llm_providers || {};
+    if (providers[name]) {
+      errors.push({field: 'pf-name', err: 'pf-name-err', msg: 'Provider "' + name + '" already exists'});
+    }
+  }
+
+  if (!baseUrl) {
+    errors.push({field: 'pf-base-url', err: 'pf-base-url-err', msg: 'Base URL is required'});
+  }
+
+  if (mode === 'add' && !apiKey) {
+    errors.push({field: 'pf-api-key', err: 'pf-api-key-err', msg: 'API Key is required'});
+  }
+
+  var models = modelsRaw.split('\n').map(function(s) { return s.trim(); }).filter(Boolean);
+  if (models.length === 0) {
+    errors.push({field: 'pf-models', err: 'pf-models-err', msg: 'At least one model is required'});
+  }
+
+  var extraBody = {};
+  if (extraBodyRaw) {
+    try {
+      extraBody = JSON.parse(extraBodyRaw);
+      if (typeof extraBody !== 'object' || Array.isArray(extraBody)) {
+        errors.push({field: 'pf-extra-body', err: 'pf-extra-body-err', msg: 'Must be a JSON object'});
+      }
+    } catch (e) {
+      errors.push({field: 'pf-extra-body', err: 'pf-extra-body-err', msg: 'Invalid JSON: ' + e.message});
+    }
+  }
+
+  if (errors.length > 0) {
+    for (var i = 0; i < errors.length; i++) {
+      var e = errors[i];
+      document.getElementById(e.field).classList.add('error');
+      var errEl = document.getElementById(e.err);
+      errEl.textContent = e.msg;
+      errEl.classList.add('visible');
+    }
+    document.getElementById(errors[0].field).focus();
+    return;
+  }
+
+  var btn = document.getElementById('pf-submit');
+  btn.disabled = true;
+  btn.classList.add('loading');
+  btn.textContent = 'Verifying...';
+  var allInputs = formView.querySelectorAll('input, textarea');
+  for (var i = 0; i < allInputs.length; i++) allInputs[i].disabled = true;
+
+  postCallback('on_llm_verify_save', {
+    name: name,
+    base_url: baseUrl,
+    api_key: apiKey,
+    models: models,
+    extra_body: extraBody,
+    mode: mode
+  });
+}
+
+function _providerSaveResult(result) {
+  var formView = document.getElementById('llm-form-view');
+  var btn = document.getElementById('pf-submit');
+  var resultArea = document.getElementById('pf-result');
+
+  if (result.ok) {
+    if (btn) btn.style.display = 'none';
+    if (resultArea) {
+      resultArea.innerHTML = '<div class="provider-success-banner">'
+        + '<div class="check">&#10003;</div>'
+        + '<div class="msg">Provider saved successfully</div>'
+        + '</div>';
+    }
+    setTimeout(function() {
+      _hideProviderForm();
+    }, 1500);
+  } else {
+    if (btn) {
+      btn.disabled = false;
+      btn.classList.remove('loading');
+      btn.textContent = _t('llm_tab.verify_save', 'Verify & Save');
+    }
+    var allInputs = formView.querySelectorAll('input, textarea');
+    for (var i = 0; i < allInputs.length; i++) allInputs[i].disabled = false;
+
+    var errEl = document.getElementById('pf-base-url-err');
+    if (errEl) {
+      errEl.textContent = result.error || 'Verification failed';
+      errEl.classList.add('visible');
+      document.getElementById('pf-base-url').classList.add('error');
+    }
+  }
+}
 
 /* ------------------------------------------------------------------ */
 /* AI tab: Enhance modes                                               */
@@ -1984,9 +2477,10 @@ function _updateState(state) {
     if (state.current_remote_asr !== undefined) CONFIG.current_remote_asr = state.current_remote_asr;
     renderSttTab();
   }
-  if (state.llm_models !== undefined || state.current_llm !== undefined) {
-    if (state.llm_models !== undefined) CONFIG.llm_models = state.llm_models;
-    if (state.current_llm !== undefined) CONFIG.current_llm = state.current_llm;
+  if (state.llm_models !== undefined) CONFIG.llm_models = state.llm_models;
+  if (state.current_llm !== undefined) CONFIG.current_llm = state.current_llm;
+  if (state.llm_providers !== undefined) CONFIG.llm_providers = state.llm_providers;
+  if (state.llm_models !== undefined || state.current_llm !== undefined || state.llm_providers !== undefined) {
     renderLlmTab();
   }
   if (state.enhance_modes !== undefined || state.current_enhance_mode !== undefined) {
