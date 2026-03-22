@@ -412,6 +412,10 @@ input[type="range"] {
   .provider-badge.local { background: rgba(52,199,89,0.2); color: #30d158; }
   .provider-badge.remote { background: rgba(100,149,237,0.2); color: #6ca0f6; }
   .config-path { color: #98989d; }
+  .content::-webkit-scrollbar { width: 8px; }
+  .content::-webkit-scrollbar-track { background: transparent; }
+  .content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
+  .content::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.35); }
 }
 </style>
 </head>
