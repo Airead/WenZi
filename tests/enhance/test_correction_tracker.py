@@ -1,4 +1,4 @@
-"""Tests for CorrectionTracker: SQLite schema and word-level diff extraction."""
+"""Tests for CorrectionTracker: SQLite schema, diff extraction, and record logic."""
 
 import sqlite3
 
@@ -67,3 +67,74 @@ def test_extract_skip_large_replace():
 def test_extract_identical_texts():
     pairs = extract_word_pairs("hello world", "hello world")
     assert pairs == []
+
+
+# ---------------------------------------------------------------------------
+# record() method
+# ---------------------------------------------------------------------------
+
+
+def test_record_creates_session(tmp_path):
+    tracker = CorrectionTracker(db_path=str(tmp_path / "t.db"))
+    tracker.record(asr_text="我在用cloud做开发", enhanced_text="我在用claude做开发",
+        final_text="我在用claude做开发", asr_model="FunASR", llm_model="gpt-4o",
+        app_bundle_id="com.apple.Terminal", enhance_mode="proofread",
+        audio_duration=2.0, user_corrected=False)
+    conn = sqlite3.connect(str(tmp_path / "t.db"))
+    assert conn.execute("SELECT COUNT(*) FROM correction_sessions").fetchone()[0] == 1
+    conn.close()
+
+
+def test_record_creates_asr_pairs(tmp_path):
+    tracker = CorrectionTracker(db_path=str(tmp_path / "t.db"))
+    tracker.record(asr_text="我在用cloud做开发", enhanced_text="我在用claude做开发",
+        final_text="我在用claude做开发", asr_model="FunASR", llm_model="gpt-4o",
+        app_bundle_id="", enhance_mode="proofread", audio_duration=None, user_corrected=False)
+    conn = sqlite3.connect(str(tmp_path / "t.db"))
+    pairs = conn.execute("SELECT source, original_word, corrected_word FROM correction_pairs").fetchall()
+    conn.close()
+    asr_pairs = [(o, c) for s, o, c in pairs if s == "asr"]
+    assert ("cloud", "claude") in asr_pairs
+
+
+def test_record_no_llm_pairs_when_not_user_corrected(tmp_path):
+    tracker = CorrectionTracker(db_path=str(tmp_path / "t.db"))
+    tracker.record(asr_text="我在用cloud做开发", enhanced_text="我在用claude做开发",
+        final_text="我在用claude做开发", asr_model="FunASR", llm_model="gpt-4o",
+        app_bundle_id="", enhance_mode="proofread", audio_duration=None, user_corrected=False)
+    conn = sqlite3.connect(str(tmp_path / "t.db"))
+    assert conn.execute("SELECT COUNT(*) FROM correction_pairs WHERE source='llm'").fetchone()[0] == 0
+    conn.close()
+
+
+def test_record_creates_llm_pairs_when_user_corrected(tmp_path):
+    tracker = CorrectionTracker(db_path=str(tmp_path / "t.db"))
+    tracker.record(asr_text="我在用cloud做开发", enhanced_text="我在用cloud做开发",
+        final_text="我在用claude做开发", asr_model="FunASR", llm_model="gpt-4o",
+        app_bundle_id="", enhance_mode="proofread", audio_duration=None, user_corrected=True)
+    conn = sqlite3.connect(str(tmp_path / "t.db"))
+    llm_pairs = conn.execute("SELECT original_word, corrected_word FROM correction_pairs WHERE source='llm'").fetchall()
+    conn.close()
+    assert ("cloud", "claude") in llm_pairs
+
+
+def test_record_upsert_increments_count(tmp_path):
+    tracker = CorrectionTracker(db_path=str(tmp_path / "t.db"))
+    for _ in range(3):
+        tracker.record(asr_text="我在用cloud做开发", enhanced_text="我在用claude做开发",
+            final_text="我在用claude做开发", asr_model="FunASR", llm_model="gpt-4o",
+            app_bundle_id="", enhance_mode="proofread", audio_duration=None, user_corrected=False)
+    conn = sqlite3.connect(str(tmp_path / "t.db"))
+    count = conn.execute("SELECT count FROM correction_pairs WHERE corrected_word='claude' AND source='asr'").fetchone()[0]
+    conn.close()
+    assert count == 3
+
+
+def test_record_no_pairs_when_texts_identical(tmp_path):
+    tracker = CorrectionTracker(db_path=str(tmp_path / "t.db"))
+    tracker.record(asr_text="hello", enhanced_text="hello", final_text="hello",
+        asr_model="FunASR", llm_model="gpt-4o", app_bundle_id="",
+        enhance_mode="proofread", audio_duration=None, user_corrected=False)
+    conn = sqlite3.connect(str(tmp_path / "t.db"))
+    assert conn.execute("SELECT COUNT(*) FROM correction_pairs").fetchone()[0] == 0
+    conn.close()
