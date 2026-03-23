@@ -112,6 +112,7 @@ a = Analysis(
         'wenzi.scripting.registry',
         'wenzi.scripting.clipboard_monitor',
         'wenzi.scripting.snippet_expander',
+        'wenzi.scripting.ocr',
         'wenzi.scripting.plugin_installer',
         'wenzi.scripting.plugin_meta',
         'wenzi.scripting.plugin_registry',
