@@ -39,7 +39,7 @@ class TestRecorder:
         assert len(wav_data) > 0
 
         mock_stream.start.assert_called_once()
-        mock_stream.stop.assert_called_once()
+        mock_stream.abort.assert_called_once()
 
     @patch("wenzi.audio.recorder.sd.RawInputStream")
     def test_silence_detection_discards_quiet_audio(self, mock_stream_cls):
@@ -172,7 +172,7 @@ class TestRecorder:
         """stop() is non-blocking and returns audio data even if stream close hangs."""
         mock_stream = MagicMock()
         hang_event = threading.Event()
-        mock_stream.stop.side_effect = lambda: hang_event.wait()
+        mock_stream.abort.side_effect = lambda: hang_event.wait()
         mock_stream_cls.return_value = mock_stream
 
         r = Recorder(sample_rate=16000, block_ms=20)
@@ -249,7 +249,7 @@ class TestRecorder:
         monkeypatch.setattr(Recorder, "_CLOSE_WAIT_TIMEOUT", 0.01)
         mock_stream = MagicMock()
         hang_event = threading.Event()
-        mock_stream.stop.side_effect = lambda: hang_event.wait()
+        mock_stream.abort.side_effect = lambda: hang_event.wait()
         mock_stream_cls.return_value = mock_stream
 
         r = Recorder(sample_rate=16000, block_ms=20)
@@ -257,7 +257,7 @@ class TestRecorder:
         r.start()
         r._queue.put(np.full(320, 500, dtype=np.int16))
         r.stop()
-        # close is still pending (stream.stop() hangs)
+        # close is still pending (stream.abort() hangs)
         assert not r._close_done.is_set()
 
         # Second start should detect pending close and reinit

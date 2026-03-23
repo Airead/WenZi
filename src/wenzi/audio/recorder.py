@@ -195,7 +195,7 @@ class Recorder:
 
             def _close_stream() -> None:
                 try:
-                    stream.stop()
+                    stream.abort()
                     stream.close()
                 except Exception as e:
                     logger.warning("Error closing audio stream: %s", e)
