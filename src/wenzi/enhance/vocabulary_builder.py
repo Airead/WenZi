@@ -193,13 +193,14 @@ class VocabularyBuilder:
             callbacks.on_progress_init(len(records), self._batch_size)
 
         # Create a single client for all batches to avoid connection pool leaks
-        from openai import AsyncOpenAI
+        from openai import AsyncOpenAI, RateLimitError
 
         client = None
         if provider_cfg:
             client = AsyncOpenAI(
                 base_url=provider_cfg["base_url"],
                 api_key=provider_cfg["api_key"],
+                max_retries=0,
             )
 
         # Static system prompt — cacheable across all batches
@@ -250,6 +251,12 @@ class VocabularyBuilder:
                             on_stream_chunk=on_chunk, cancel_event=cancel_event,
                         )
                         break
+                    except RateLimitError as e:
+                        logger.error(
+                            "Batch %d/%d rate limited (429), aborting build: %s",
+                            i, len(batches), e,
+                        )
+                        break  # Don't retry on rate limit
                     except Exception as e:
                         if attempt == 0:
                             logger.warning(

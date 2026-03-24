@@ -330,7 +330,7 @@ class TextEnhancer:
             models = pcfg.get("models", [])
             extra_body = pcfg.get("extra_body", {})
 
-            client = AsyncOpenAI(base_url=base_url, api_key=api_key)
+            client = AsyncOpenAI(base_url=base_url, api_key=api_key, max_retries=0)
             self._providers[name] = (client, models, extra_body)
             logger.info(
                 "AI provider initialized: %s (models=%s, base_url=%s)",
@@ -533,9 +533,9 @@ class TextEnhancer:
 
         Returns None on success, or an error message string on failure.
         """
-        from openai import AsyncOpenAI
+        from openai import AsyncOpenAI, RateLimitError
 
-        client = AsyncOpenAI(base_url=base_url, api_key=api_key)
+        client = AsyncOpenAI(base_url=base_url, api_key=api_key, max_retries=0)
         try:
             kwargs: Dict[str, Any] = {
                 "model": model,
@@ -551,6 +551,8 @@ class TextEnhancer:
             return None
         except asyncio.TimeoutError:
             return f"Connection timed out after {timeout}s"
+        except RateLimitError:
+            return "Rate limited (429) — provider is temporarily throttling requests"
         except Exception as e:
             return str(e)
         finally:
@@ -1014,6 +1016,8 @@ class TextEnhancer:
         if not mode_def:
             return text, None
 
+        from openai import RateLimitError
+
         try:
             system_content = self._build_system_content(text, mode_def, input_context=input_context)
             kwargs = self._build_request_kwargs(text, system_content)
@@ -1054,7 +1058,12 @@ class TextEnhancer:
             logger.error("AI enhancement timed out after %ds", self._timeout)
             return text, None
         except Exception as e:
-            logger.error("AI enhancement failed: %s", e)
+            if isinstance(e, RateLimitError):
+                self._pool_monitor.log_stats("enhance:rate_limited", self._active_provider)
+                logger.error("AI enhancement rate limited (429): %s", e)
+            else:
+                self._pool_monitor.log_stats("enhance:error", self._active_provider)
+                logger.error("AI enhancement failed: %s", e)
             return text, None
 
     async def enhance_stream(
@@ -1081,6 +1090,8 @@ class TextEnhancer:
             yield text, None
             return
 
+        from openai import RateLimitError
+
         try:
             system_content = self._build_system_content(text, mode_def, input_context=input_context)
             kwargs = self._build_request_kwargs(
@@ -1096,15 +1107,17 @@ class TextEnhancer:
             self._pool_monitor.log_stats("stream:before_create", self._active_provider)
             for attempt in range(1 + self._max_retries):
                 if attempt > 0:
+                    delay = min(2 ** attempt, 8)  # 2s, 4s, 8s...
                     yield (
-                        f"(Connection timed out, retrying {attempt}/{self._max_retries}...)\n",
+                        f"(Connection timed out, retrying in {delay}s — {attempt}/{self._max_retries}...)\n",
                         None,
                         "retry",
                     )
                     logger.warning(
-                        "Retrying stream connection (attempt %d/%d)",
-                        attempt + 1, 1 + self._max_retries,
+                        "Retrying stream connection in %ds (attempt %d/%d)",
+                        delay, attempt + 1, 1 + self._max_retries,
                     )
+                    await asyncio.sleep(delay)
 
                 try:
                     stream = await asyncio.wait_for(
@@ -1113,6 +1126,15 @@ class TextEnhancer:
                     )
                     self._pool_monitor.log_stats("stream:after_create", self._active_provider)
                     break  # Connection succeeded
+                except RateLimitError as e:
+                    self._pool_monitor.log_stats("stream:rate_limited", self._active_provider)
+                    logger.error("Stream rate limited (429), not retrying: %s", e)
+                    yield (
+                        f"(Rate limited — {e})\n",
+                        None,
+                        "retry",
+                    )
+                    return
                 except asyncio.TimeoutError:
                     last_error = (
                         f"connection timed out after {self._connection_timeout}s"
@@ -1205,8 +1227,12 @@ class TextEnhancer:
             logger.error("AI stream enhancement timed out after %ds", self._timeout)
             yield text, None, False
         except Exception as e:
-            self._pool_monitor.log_stats("stream:error", self._active_provider)
-            logger.error("AI stream enhancement failed: %s", e)
+            if isinstance(e, RateLimitError):
+                self._pool_monitor.log_stats("stream:rate_limited", self._active_provider)
+                logger.error("AI stream rate limited (429): %s", e)
+            else:
+                self._pool_monitor.log_stats("stream:error", self._active_provider)
+                logger.error("AI stream enhancement failed: %s", e)
             yield f"(error: {e})", None, False
 
 

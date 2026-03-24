@@ -2029,13 +2029,16 @@ class TestConnectionTimeoutRetry:
             async for chunk, usage, is_thinking in enhancer.enhance_stream("hello"):
                 results.append((chunk, usage, is_thinking))
 
-        asyncio.run(collect())
+        with patch("wenzi.enhance.enhancer.asyncio.sleep", new_callable=AsyncMock):
+            asyncio.run(collect())
 
         # Should have 2 retry yields, then content chunks, then final usage
         retry_results = [r for r in results if r[2] == "retry"]
         assert len(retry_results) == 2
-        assert "retrying 1/2" in retry_results[0][0]
-        assert "retrying 2/2" in retry_results[1][0]
+        assert "retrying in 2s" in retry_results[0][0]
+        assert "1/2" in retry_results[0][0]
+        assert "retrying in 4s" in retry_results[1][0]
+        assert "2/2" in retry_results[1][0]
 
         content_chunks = [r[0] for r in results if r[2] is False and r[0]]
         assert "".join(content_chunks) == "ok text"
@@ -2064,18 +2067,77 @@ class TestConnectionTimeoutRetry:
             async for chunk, usage, is_thinking in enhancer.enhance_stream("hello"):
                 results.append((chunk, usage, is_thinking))
 
-        asyncio.run(collect())
+        with patch("wenzi.enhance.enhancer.asyncio.sleep", new_callable=AsyncMock):
+            asyncio.run(collect())
 
         # All yields should be retry (retry status + final error)
         assert all(r[2] == "retry" for r in results)
         # Should have 2 retry messages + 1 final error = 3 retry yields
         assert len(results) == 3
-        assert "retrying 1/2" in results[0][0]
-        assert "retrying 2/2" in results[1][0]
+        assert "retrying in 2s" in results[0][0]
+        assert "1/2" in results[0][0]
+        assert "retrying in 4s" in results[1][0]
+        assert "2/2" in results[1][0]
         assert "all 3 attempts failed" in results[2][0]
         # No content yields
         content = [r for r in results if r[2] is False]
         assert len(content) == 0
+
+
+class TestRateLimitHandling:
+    """429 rate limit should not be retried."""
+
+    def test_enhance_stream_rate_limit_no_retry(self, rate_limit_error):
+        """429 during stream connection — should yield error and stop immediately."""
+        mock_client = MagicMock()
+        mock_client.chat.completions.create = AsyncMock(side_effect=rate_limit_error)
+
+        with patch("wenzi.enhance.enhancer.TextEnhancer._init_providers"):
+            enhancer = TextEnhancer(_make_config(
+                enabled=True, mode="proofread",
+                connection_timeout=1, max_retries=2,
+            ))
+            enhancer._providers = {
+                "ollama": (mock_client, ["qwen2.5:7b"], {}),
+            }
+            enhancer._active_provider = "ollama"
+            enhancer._active_model = "qwen2.5:7b"
+
+        results = []
+
+        async def collect():
+            async for chunk, usage, is_thinking in enhancer.enhance_stream("hello"):
+                results.append((chunk, usage, is_thinking))
+
+        asyncio.run(collect())
+
+        # Should only be called once — no retry
+        assert mock_client.chat.completions.create.call_count == 1
+        # Single retry-type yield with rate limit message
+        assert len(results) == 1
+        assert results[0][2] == "retry"
+        assert "Rate limited" in results[0][0]
+
+    def test_enhance_nonstream_rate_limit(self, rate_limit_error):
+        """429 during non-streaming enhance — should return original text."""
+        mock_client = MagicMock()
+        mock_client.chat.completions.create = AsyncMock(side_effect=rate_limit_error)
+
+        with patch("wenzi.enhance.enhancer.TextEnhancer._init_providers"):
+            enhancer = TextEnhancer(_make_config(
+                enabled=True, mode="proofread",
+            ))
+            enhancer._providers = {
+                "ollama": (mock_client, ["qwen2.5:7b"], {}),
+            }
+            enhancer._active_provider = "ollama"
+            enhancer._active_model = "qwen2.5:7b"
+
+        result_text, usage = asyncio.run(enhancer.enhance("hello world"))
+
+        # Should return original text on rate limit
+        assert result_text == "hello world"
+        assert usage is None
 
 
 # --- strip_think_tags tests ---

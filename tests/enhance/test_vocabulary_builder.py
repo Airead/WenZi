@@ -1524,6 +1524,48 @@ class TestBuildRetryAndAbort:
         assert result["new_entries"] == 1
 
 
+class TestBuildRateLimit:
+    """429 rate limit should abort build immediately without retry."""
+
+    def _write_corrections(self, tmp_path, count=5, term="TestTerm"):
+        corrections_path = tmp_path / "conversation_history.jsonl"
+        records = []
+        for i in range(count):
+            records.append({
+                "timestamp": f"2026-01-01T{i:02d}:00:00+00:00",
+                "asr_text": f"test{i}",
+                "final_text": f"{term} test{i}",
+                "user_corrected": True,
+            })
+        with open(corrections_path, "w", encoding="utf-8") as f:
+            for r in records:
+                f.write(json.dumps(r, ensure_ascii=False) + "\n")
+
+    def test_rate_limit_aborts_without_retry(self, tmp_path, rate_limit_error):
+        """429 on first attempt — should abort immediately, no retry."""
+        self._write_corrections(tmp_path, count=5, term="PyObjC")
+
+        call_count = 0
+
+        async def mock_create(**kwargs):
+            nonlocal call_count
+            call_count += 1
+            raise rate_limit_error
+
+        mock_client = MagicMock()
+        mock_client.close = AsyncMock()
+        mock_client.chat.completions.create = mock_create
+
+        builder = VocabularyBuilder(_make_config(), data_dir=str(tmp_path))
+        with patch("openai.AsyncOpenAI", return_value=mock_client):
+            result = asyncio.run(builder.build())
+
+        # Should be called only once — no retry on 429
+        assert call_count == 1
+        assert result.get("aborted") is True
+        assert result["new_entries"] == 0
+
+
 class TestBuildModelSelection:
     def _make_multi_provider_config(self, **vocab_overrides):
         cfg = {
