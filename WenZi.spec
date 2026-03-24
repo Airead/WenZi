@@ -42,6 +42,7 @@ a = Analysis(
         'wenzi',
         'wenzi._build_info',
         'wenzi.app',
+        'wenzi.async_loop',
         'wenzi.config',
         'wenzi.hotkey',
         'wenzi.input',
@@ -81,6 +82,7 @@ a = Analysis(
         'wenzi.enhance.mode_loader',
         'wenzi.enhance.text_diff',
         'wenzi.enhance.correction_tracker',
+        'wenzi.enhance.pool_monitor',
         # wenzi.ui
         'wenzi.ui',
         'wenzi.ui.result_window_web',
@@ -106,6 +108,7 @@ a = Analysis(
         'wenzi.controllers.preview_controller',
         'wenzi.controllers.update_controller',
         'wenzi.controllers.menu_builder',
+        'wenzi.controllers.recording_flow',
         'wenzi.updater',
         # wenzi.scripting
         'wenzi.scripting',
