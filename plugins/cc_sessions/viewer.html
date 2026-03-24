@@ -92,6 +92,9 @@
     display: flex;
     flex-direction: column;
     height: 100vh;
+    position: relative;
+    border-radius: 10px;
+    overflow: hidden;
   }
 
   .info-bar {
@@ -195,8 +198,6 @@
     flex: 1;
     min-height: 0;
     position: relative;
-    border-radius: 10px;
-    overflow: hidden;
   }
 
   /* ── Outline ── */
@@ -508,8 +509,8 @@
     0%, 100% { opacity: 0.3; }
     50% { opacity: 0.6; }
   }
-  .main-content.thinking-active::before,
-  .main-content.thinking-active::after {
+  .app.thinking-active::before,
+  .app.thinking-active::after {
     content: '';
     position: absolute;
     inset: 0;
@@ -529,11 +530,11 @@
     pointer-events: none;
     animation: borderRotate 4s linear infinite;
   }
-  .main-content.thinking-active::after {
+  .app.thinking-active::after {
     padding: 3px;
     z-index: 20;
   }
-  .main-content.thinking-active::before {
+  .app.thinking-active::before {
     padding: 6px;
     filter: blur(10px);
     opacity: 0.6;
@@ -1140,7 +1141,7 @@ function renderConversation(messages) {
 function markLiveElements(conv, turns, globalResultMap) {
   const bar = document.getElementById("thinking-bar");
   const barText = document.getElementById("thinking-bar-text");
-  const mainContent = document.querySelector(".main-content");
+  const appEl = document.querySelector(".app");
   let isLive = false;
 
   if (turns.length > 0) {
@@ -1206,7 +1207,7 @@ function markLiveElements(conv, turns, globalResultMap) {
   }
 
   bar.classList.toggle("visible", isLive);
-  mainContent.classList.toggle("thinking-active", isLive);
+  appEl.classList.toggle("thinking-active", isLive);
 }
 
 // ── Collapsible long content ──
