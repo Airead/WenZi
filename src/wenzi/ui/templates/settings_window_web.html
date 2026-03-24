@@ -417,7 +417,8 @@ input[type="range"] {
 .plugin-body { width:100%; font-size:13px; color:#86868b; }
 .plugin-badge { font-size:10px; padding:2px 6px; border-radius:4px; display:inline-block; margin-left:6px; }
 .badge-official { background:#e8f5e9; color:#2e7d32; }
-.badge-unverified { background:#fff3e0; color:#e65100; }
+.badge-community { background:#fff3e0; color:#e65100; }
+.badge-local { background:#f3e5f5; color:#7b1fa2; }
 .badge-pinned { background:#e3f2fd; color:#1565c0; flex-shrink:0; max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .plugin-actions { display:flex; gap:6px; align-items:center; flex-shrink:0; position:relative; }
 .plugin-progress { height:2px; background:#e0e0e0; border-radius:1px; margin-top:4px; overflow:hidden; display:none; width:100%; }
@@ -485,7 +486,8 @@ input[type="range"] {
   .plugin-author { color: #98989d; }
   .plugin-body { color: #98989d; }
   .badge-official { background:#1b5e20; color:#a5d6a7; }
-  .badge-unverified { background:#bf360c; color:#ffcc80; }
+  .badge-community { background:#bf360c; color:#ffcc80; }
+  .badge-local { background:rgba(156,39,176,0.2); color:#ce93d8; }
   .badge-pinned { background:#0d47a1; color:#90caf9; }
   .version-popover { background:#2a2a2a; border-color:#3a3a3a; box-shadow:0 4px 12px rgba(0,0,0,0.4); }
   .version-popover label { color:#98989d; }
@@ -1069,14 +1071,6 @@ textarea.provider-form-textarea.error {
       <div class="content-title">Plugins</div>
 
       <div class="section">
-        <div class="section-title">Plugin Sources</div>
-        <div id="registry-list"></div>
-        <div class="manual-install-row" style="margin-top:8px;">
-          <input type="text" id="registry-url-input" placeholder="Registry URL..." class="text-input" style="flex:1;">
-          <button class="btn btn-secondary" onclick="addRegistry()">Add</button>
-        </div>
-      </div>
-      <div class="section">
         <div class="section-title">Plugins <span id="plugins-loading" style="display:none; font-size:12px; color:#86868b;">Loading...</span></div>
         <div id="plugin-list"></div>
         <div id="plugins-error" style="display:none; color:#ff3b30; margin-top:8px;"></div>
@@ -1167,15 +1161,19 @@ function selectModelRow(row) {
   row.classList.add('selected');
 }
 
-function switchTab(tabId) {
+function _activateTab(tabId) {
   document.querySelectorAll('.tab-content').forEach(function(t) { t.classList.remove('active'); });
   document.querySelectorAll('.sidebar-item').forEach(function(s) { s.classList.remove('active'); });
   var tab = document.getElementById('tab-' + tabId);
   if (tab) tab.classList.add('active');
   var item = document.querySelector('.sidebar-item[data-tab="' + tabId + '"]');
   if (item) item.classList.add('active');
-  postCallback('on_tab_change', tabId);
   if (tabId === 'plugins') { postCallback('on_plugins_tab_open'); }
+}
+
+function switchTab(tabId) {
+  _activateTab(tabId);
+  postCallback('on_tab_change', tabId);
 }
 
 /* ------------------------------------------------------------------ */
@@ -2290,16 +2288,9 @@ function _initState(config) {
   // Disable launcher controls based on scripting/launcher state
   updateLauncherDisabledState();
 
-  // Restore last tab
+  // Restore last tab (skip on_tab_change to avoid redundant config save)
   if (config.last_tab && config.last_tab !== 'general') {
-    var tabEl = document.getElementById('tab-' + config.last_tab);
-    if (tabEl) {
-      document.querySelectorAll('.tab-content').forEach(function(t) { t.classList.remove('active'); });
-      document.querySelectorAll('.sidebar-item').forEach(function(s) { s.classList.remove('active'); });
-      tabEl.classList.add('active');
-      var sideItem = document.querySelector('.sidebar-item[data-tab="' + config.last_tab + '"]');
-      if (sideItem) sideItem.classList.add('active');
-    }
+    _activateTab(config.last_tab);
   }
 }
 
@@ -2326,9 +2317,11 @@ function renderPlugins() {
 }
 
 function renderPluginCard(p) {
-  var badge = p.is_official
+  var badge = p.status === 'manually_placed'
+    ? '<span class="plugin-badge badge-local">Local</span>'
+    : p.is_official
     ? '<span class="plugin-badge badge-official">Official</span>'
-    : '<span class="plugin-badge badge-unverified">Unverified</span>';
+    : '<span class="plugin-badge badge-community">Community</span>';
   var pinnedBadge = '';
   if (p.pinned_ref) {
     pinnedBadge = ' <span class="plugin-badge badge-pinned">Pinned at ' + _esc(p.pinned_ref) + '</span>';
@@ -2382,29 +2375,6 @@ function installFromUrl() {
   var input = document.getElementById('plugin-url-input');
   var url = input.value.trim();
   if (url) { postCallback('on_plugin_install_url', url); input.value = ''; }
-}
-
-function renderRegistries() {
-  var registries = CONFIG.registries || [];
-  var list = document.getElementById('registry-list');
-  if (!list) return;
-  var html = '';
-  for (var i = 0; i < registries.length; i++) {
-    var r = registries[i];
-    var removeBtn = r.removable
-      ? ' <button class="btn btn-small btn-danger" data-action="registry-remove" data-index="' + i + '">Remove</button>'
-      : '';
-    html += '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;">'
-      + '<span style="flex:1;font-size:13px;">' + _esc(r.name) + '</span>'
-      + removeBtn + '</div>';
-  }
-  list.innerHTML = html;
-}
-
-function addRegistry() {
-  var input = document.getElementById('registry-url-input');
-  var url = input.value.trim();
-  if (url) { postCallback('on_registry_add', url); input.value = ''; }
 }
 
 // Alt-key state for version-specific install
@@ -2515,7 +2485,7 @@ function closeModal() {
   document.getElementById('app-modal').classList.remove('visible');
 }
 
-// Event delegation for plugin-list and registry-list
+// Event delegation for plugin-list
 (function() {
   var pluginList = document.getElementById('plugin-list');
   if (pluginList) {
@@ -2560,15 +2530,6 @@ function closeModal() {
     });
   }
 
-  var regList = document.getElementById('registry-list');
-  if (regList) {
-    regList.addEventListener('click', function(e) {
-      var btn = e.target.closest('[data-action="registry-remove"]');
-      if (btn) {
-        postCallback('on_registry_remove', parseInt(btn.dataset.index, 10));
-      }
-    });
-  }
 })();
 
 function showPluginsLoading(show) {
@@ -2735,7 +2696,6 @@ function _updateState(state) {
 
   // Plugins tab
   if (state.plugins !== undefined) { CONFIG.plugins = state.plugins; renderPlugins(); }
-  if (state.registries !== undefined) { CONFIG.registries = state.registries; renderRegistries(); }
   if (state.plugins_loading !== undefined) { showPluginsLoading(state.plugins_loading); }
   if (state.plugins_error !== undefined) { showPluginsError(state.plugins_error); }
   if (state.show_reload_banner !== undefined) { showReloadBanner(state.show_reload_banner); }
