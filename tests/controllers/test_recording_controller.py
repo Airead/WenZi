@@ -112,8 +112,10 @@ class TestOnHotkeyRelease:
         with patch("time.sleep", side_effect=sleep_sets_release_done):
             ctrl.on_hotkey_press()
 
-        # Let the _delayed_start thread complete (it's already started)
+        # Let the _delayed_start thread complete entirely (including orphan
+        # cleanup which runs after _recording_started.set()).
         mock_app._recording_started.wait(timeout=5.0)
+        ctrl._delayed_thread.join(timeout=5.0)
 
         # Orphaned recording should have been stopped
         mock_app._recorder.stop.assert_called_once()
