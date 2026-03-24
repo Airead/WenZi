@@ -102,6 +102,34 @@
   .info-bar .sep { color: var(--text-secondary); }
   .info-bar .actions { margin-left: auto; display: flex; gap: 6px; }
 
+  /* ── Jump to Bottom Button ── */
+  .jump-bottom-btn {
+    position: absolute;
+    bottom: 20px;
+    right: 24px;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 1px solid var(--border-color);
+    background: var(--bg-primary);
+    color: var(--text-secondary);
+    font-size: 16px;
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    z-index: 10;
+    transition: opacity 0.2s;
+  }
+  .jump-bottom-btn:hover {
+    color: var(--text-primary);
+    border-color: var(--text-secondary);
+  }
+  .jump-bottom-btn.visible {
+    display: flex;
+  }
+
   .copy-btn {
     padding: 2px 10px;
     background: var(--copy-btn-bg);
@@ -149,6 +177,7 @@
     display: flex;
     flex: 1;
     min-height: 0;
+    position: relative;
   }
 
   /* ── Outline ── */
@@ -443,6 +472,15 @@
   }
   .thinking-content.visible { display: block; }
 
+  /* ── Live Glow (thinking / pending tool) ── */
+  @keyframes liveGlow {
+    0%, 100% { filter: brightness(1) drop-shadow(0 0 0 transparent); }
+    50% { filter: brightness(1.4) drop-shadow(0 0 8px currentColor); }
+  }
+  .live-glow {
+    animation: liveGlow 1.5s ease-in-out infinite;
+  }
+
   /* ── Border colors for tool types ── */
   .tool-read    { --tool-border-color: #f59e0b; }
   .tool-bash    { --tool-border-color: #10b981; }
@@ -574,6 +612,7 @@
     <div class="conversation" id="conversation">
       <div class="loading" id="loading-msg">Loading session...</div>
     </div>
+    <button class="jump-bottom-btn" id="jump-bottom-btn" title="Jump to bottom">&#8595;</button>
   </div>
 </div>
 
@@ -679,6 +718,7 @@ function extractUserText(content) {
 
 // ── State ──
 let sessionInfo = null;
+let allMessages = [];  // full messages array for re-render on reload
 const outlineItems = [];  // { el, targetEl }
 let activeOutlineIdx = -1;
 
@@ -775,6 +815,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (typeof wz !== "undefined" && wz.call) {
       const info = await wz.call("get_session_info");
       sessionInfo = info;
+      setupAutoReload();
       await loadSession(info);
     } else {
       document.getElementById("loading-msg").textContent =
@@ -784,6 +825,53 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById("loading-msg").textContent = "Error: " + err.message;
   }
 });
+
+// ── Jump to Bottom ──
+let _convEl = null;
+let _jumpBtn = null;
+
+function _getConv() { return _convEl || (_convEl = document.getElementById("conversation")); }
+function _getJumpBtn() { return _jumpBtn || (_jumpBtn = document.getElementById("jump-bottom-btn")); }
+
+function isAtBottom() {
+  const c = _getConv();
+  return c.scrollTop + c.clientHeight >= c.scrollHeight - 30;
+}
+
+function updateJumpBtn() {
+  _getJumpBtn().classList.toggle("visible", !isAtBottom());
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  _getConv().addEventListener("scroll", updateJumpBtn);
+  _getJumpBtn().addEventListener("click", () => {
+    _getConv().scrollTop = _getConv().scrollHeight;
+  });
+});
+
+// ── Auto Reload ──
+function setupAutoReload() {
+  if (typeof wz === "undefined" || !wz.on) return;
+
+  wz.on("reload_update", (data) => {
+    const newLines = data.lines;
+    if (!newLines || newLines.length === 0) return;
+
+    const atBottom = isAtBottom();
+
+    allMessages = allMessages.concat(newLines);
+    resolveSubagents(allMessages, sessionInfo).then(() => {
+      renderConversation(allMessages);
+      renderStats(allMessages);
+
+      if (atBottom) {
+        const c = _getConv();
+        c.scrollTop = c.scrollHeight;
+      }
+      updateJumpBtn();
+    });
+  });
+}
 
 async function loadSession(info) {
   // Update info bar
@@ -838,6 +926,7 @@ async function loadSession(info) {
     try { return JSON.parse(line); } catch { return null; }
   }).filter(Boolean);
 
+  allMessages = messages;
   await resolveSubagents(messages, info);
   renderConversation(messages);
   renderStats(messages);
@@ -916,6 +1005,65 @@ function renderConversation(messages) {
 
   setupOutlineObserver();
   setupCollapsibles(conv);
+  markLiveElements(conv, turns, globalResultMap);
+}
+
+// ── Live glow for in-progress elements ──
+function markLiveElements(conv, turns, globalResultMap) {
+  if (turns.length === 0) return;
+
+  const lastMsg = turns[turns.length - 1];
+
+  // Last message is user → AI is processing
+  if (lastMsg.type === "user") {
+    const text = extractUserText(lastMsg.message?.content || lastMsg.content || "");
+    if (text.includes("[Request interrupted by user]")) return;
+
+    if (_isToolResultOnly(lastMsg)) {
+      // Tool result returned — glow the existing Claude badge (same turn)
+      const lastTurnEl = conv.lastElementChild;
+      const badge = lastTurnEl && lastTurnEl.querySelector(".badge-assistant");
+      if (badge) badge.classList.add("live-glow");
+    } else {
+      // Real user message — Claude hasn't started, show placeholder
+      const placeholder = document.createElement("div");
+      placeholder.className = "turn";
+      placeholder.innerHTML = `
+        <div class="turn-header">
+          <span class="badge badge-assistant live-glow">Claude</span>
+        </div>
+      `;
+      conv.appendChild(placeholder);
+    }
+    return;
+  }
+
+  if (lastMsg.type !== "assistant") return;
+
+  const lastTurnEl = conv.lastElementChild;
+  if (!lastTurnEl) return;
+
+  const content = lastMsg.message?.content;
+  if (!Array.isArray(content)) return;
+
+  // Glow tool icons for pending tool_use (no result yet)
+  let hasPending = false;
+  for (const part of content) {
+    if (part.type === "tool_use" && part.id && !globalResultMap[part.id]) {
+      hasPending = true;
+      const block = lastTurnEl.querySelector(`.tool-block[data-tool-use-id="${part.id}"]`);
+      const icon = block && block.querySelector(".tool-icon");
+      if (icon) icon.classList.add("live-glow");
+    }
+  }
+
+  // Glow Claude badge when thinking or has pending tools
+  const lastPart = content[content.length - 1];
+  const hasThinking = lastPart && lastPart.type === "thinking";
+  if (hasThinking || hasPending) {
+    const badge = lastTurnEl.querySelector(".badge-assistant");
+    if (badge) badge.classList.add("live-glow");
+  }
 }
 
 // ── Collapsible long content ──
@@ -1101,6 +1249,7 @@ function createToolSingle(call, result) {
 
   const block = document.createElement("div");
   block.className = `tool-block ${meta.css}`;
+  if (call.id) block.dataset.toolUseId = call.id;
 
   const headerEl = document.createElement("div");
   headerEl.className = "tool-header";

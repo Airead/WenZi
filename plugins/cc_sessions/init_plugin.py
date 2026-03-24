@@ -158,6 +158,19 @@ def register(wz) -> None:
         from wenzi.scripting.sources import copy_to_clipboard
         copy_to_clipboard(text)
 
+    def _start_auto_reload(panel, file_path: str) -> None:
+        """Start auto-reload watcher that pushes file changes to the panel."""
+        from .auto_reload import AutoReloadWatcher
+
+        watcher = AutoReloadWatcher(
+            file_path,
+            on_new_lines=lambda lines: panel.send(
+                "reload_update", {"lines": lines},
+            ),
+        )
+        watcher.start()
+        panel.on_close(watcher.request_stop)
+
     def _register_subagent_handlers(panel) -> None:
         """Register shared subagent bridge handlers on a viewer panel."""
 
@@ -206,6 +219,7 @@ def register(wz) -> None:
 
         panel.on("copy_resume", lambda data: _copy_text(data.get("text", "")))
         _register_subagent_handlers(panel)
+        _start_auto_reload(panel, session["file_path"])
         panel.show()
 
     def _open_subagent_viewer(
@@ -254,6 +268,7 @@ def register(wz) -> None:
 
         panel.on("copy_resume", lambda data: _copy_text(data.get("text", "")))
         _register_subagent_handlers(panel)
+        _start_auto_reload(panel, subagent_path)
         panel.show()
 
     def _delete_session(session: Dict[str, Any]) -> None:

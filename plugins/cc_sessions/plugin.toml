@@ -2,7 +2,7 @@
 id = "io.github.airead.wenzi.cc-sessions"
 name = "Claude Code Sessions"
 description = "Browse and view Claude Code session history through the launcher"
-version = "0.1.1"
+version = "0.1.2"
 author = "WenZi"
 url = "https://github.com/Airead/WenZi"
 icon = "claude_icon.png"
@@ -10,6 +10,7 @@ min_wenzi_version = "0.1.8"
 files = [
     "__init__.py",
     "init_plugin.py",
+    "auto_reload.py",
     "scanner.py",
     "reader.py",
     "cache.py",
