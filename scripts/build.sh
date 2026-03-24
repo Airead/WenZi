@@ -28,12 +28,18 @@ cd "$PROJECT_DIR"
 echo "==> Syncing dependencies (including local-asr extras)..."
 uv sync --all-extras
 
-echo "==> Cleaning previous build..."
-rm -rf build dist
-find "$PROJECT_DIR/src" -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+if [ "${1:-}" = "--fast" ]; then
+    echo "==> Fast build (incremental, skipping clean)..."
+    CLEAN_FLAG=""
+else
+    echo "==> Cleaning previous build..."
+    rm -rf build dist
+    find "$PROJECT_DIR/src" -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+    CLEAN_FLAG="--clean"
+fi
 
 echo "==> Running PyInstaller..."
-uv run pyinstaller WenZi.spec --clean --noconfirm
+uv run pyinstaller WenZi.spec $CLEAN_FLAG --noconfirm
 
 if [ "$SIGN_MODE" = "identity" ]; then
     echo "==> Re-signing app bundle (identity: $SIGN_IDENTITY)..."

@@ -1,4 +1,4 @@
-.PHONY: dev run-lite docs docs-serve lint test build build-lite build-dmg build-lite-dmg clean sync-registry
+.PHONY: dev run-lite docs docs-serve lint test build build-fast build-lite build-lite-fast build-dmg build-lite-dmg clean sync-registry
 
 # Overridable environment variables for development:
 # WENZI_CONFIG_DIR    — config directory path (default: ~/.config/WenZi)
@@ -41,9 +41,17 @@ test:
 build:
 	./scripts/build.sh
 
+# Build the .app bundle (Standard, incremental — no clean)
+build-fast:
+	./scripts/build.sh --fast
+
 # Build the Lite .app bundle
 build-lite:
 	./scripts/build-lite.sh
+
+# Build the Lite .app bundle (incremental — no clean)
+build-lite-fast:
+	./scripts/build-lite.sh --fast
 
 # Package .app into .dmg (run after build/build-lite)
 build-dmg:
