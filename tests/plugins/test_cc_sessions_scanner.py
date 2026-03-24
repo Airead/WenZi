@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 from cc_sessions.scanner import (
@@ -306,14 +307,19 @@ class TestSessionScanner:
     def test_sorted_by_modified_desc(self, tmp_path: Path):
         proj = tmp_path / "proj"
         proj.mkdir()
-        (proj / "old.jsonl").write_text(
+        old_file = proj / "old.jsonl"
+        old_file.write_text(
             json.dumps({"type": "user", "timestamp": "2026-01-01T00:00:00Z",
                         "message": {"content": "Old"}}) + "\n"
         )
-        (proj / "new.jsonl").write_text(
+        new_file = proj / "new.jsonl"
+        new_file.write_text(
             json.dumps({"type": "user", "timestamp": "2026-01-02T00:00:00Z",
                         "message": {"content": "New"}}) + "\n"
         )
+        # Set explicit mtime so sorting by file mtime is deterministic
+        os.utime(old_file, (1_000_000, 1_000_000))
+        os.utime(new_file, (2_000_000, 2_000_000))
 
         scanner = SessionScanner(base_dir=tmp_path, cache_path=None)
         sessions = scanner.scan_all()

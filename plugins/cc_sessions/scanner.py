@@ -343,7 +343,7 @@ def _scan_session_jsonl(
         first_prompt=first_user_message or "",
         git_branch=git_branch,
         created=first_timestamp or "",
-        modified=last_timestamp or file_modified,
+        modified=file_modified,
         message_count=user_msg_count,
         version=version,
         summary=summary,
