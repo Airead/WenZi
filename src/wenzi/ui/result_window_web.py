@@ -1071,10 +1071,7 @@ class ResultPreviewPanel:
 
     def _build_panel(self) -> None:
         """Build NSPanel + WKWebView, reusing pre-created objects from warmup()."""
-        from AppKit import (
-            NSApp,
-            NSScreen,
-        )
+        from AppKit import NSApp
         from Foundation import NSMakeRect, NSURL
 
         # Enable ⌘C/⌘V/⌘A via Edit menu in the responder chain
