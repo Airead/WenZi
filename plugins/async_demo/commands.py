@@ -67,14 +67,21 @@ def register(wz):
     )
 
     _timer_state = {"id": None, "count": 0}
+    _STOP_HOTKEY = "ctrl+cmd+t"
+
+    def _stop_timer():
+        if _timer_state["id"] is None:
+            return
+        wz.timer.cancel(_timer_state["id"])
+        wz.hotkey.unbind(_STOP_HOTKEY)
+        wz.notify("Async Timer", f"Stopped after {_timer_state['count']} ticks", sound=_rand_sound())
+        _timer_state["id"] = None
+        _timer_state["count"] = 0
 
     @wz.chooser.command("async-timer", title="Async Timer", subtitle="Start/stop an async repeating timer")
     async def cmd_timer(args):
         if _timer_state["id"] is not None:
-            wz.timer.cancel(_timer_state["id"])
-            wz.notify("Async Timer", f"Stopped after {_timer_state['count']} ticks", sound=_rand_sound())
-            _timer_state["id"] = None
-            _timer_state["count"] = 0
+            _stop_timer()
             return
 
         _timer_state["count"] = 0
@@ -82,11 +89,12 @@ def register(wz):
         async def tick():
             _timer_state["count"] += 1
             n = _timer_state["count"]
-            wz.alert(f"Tick #{n}", duration=1.5)
+            wz.alert(f"Tick #{n} — {_STOP_HOTKEY} to stop", duration=1.5)
             logger.info("Async timer tick #%d", n)
 
         _timer_state["id"] = wz.timer.every(2.0, tick)
-        wz.notify("Async Timer", "Started — run again to stop", sound=_rand_sound())
+        wz.hotkey.bind(_STOP_HOTKEY, _stop_timer)
+        wz.notify("Async Timer", f"Started — {_STOP_HOTKEY} to stop", sound=_rand_sound())
 
     @wz.on("transcription_done")
     async def on_transcription(data):

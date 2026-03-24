@@ -23,6 +23,7 @@ class HotkeyAPI:
         self._active_leader: Optional[LeaderConfig] = None
         self._leader_triggered: bool = False
         self._lock = threading.Lock()
+        self._started = False
 
     def define_key(self, name: str, keycode: int) -> None:
         """Define a custom key mapping for use in hotkeys and leader keys."""
@@ -43,6 +44,8 @@ class HotkeyAPI:
         event loop.
         """
         self._registry.register_hotkey(hotkey_str, wrap_async(callback))
+        if self._started:
+            self._start_hotkey_listeners()
 
     def unbind(self, hotkey_str: str) -> None:
         """Remove and stop a hotkey binding."""
@@ -50,11 +53,13 @@ class HotkeyAPI:
 
     def start(self) -> None:
         """Start all hotkey and leader-key listeners."""
+        self._started = True
         self._start_leader_listener()
         self._start_hotkey_listeners()
 
     def stop(self) -> None:
         """Stop all listeners."""
+        self._started = False
         if self._listener:
             self._listener.stop()
             self._listener = None
