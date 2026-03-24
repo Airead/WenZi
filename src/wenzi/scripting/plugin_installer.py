@@ -232,6 +232,7 @@ class PluginInstaller:
 
     _MAX_DOWNLOAD_RETRIES = 2
     _MAX_DOWNLOAD_WORKERS = 4
+    _RETRY_DELAY: float = 1.0
 
     @staticmethod
     def _download_files(
@@ -271,10 +272,10 @@ class PluginInstaller:
                     if cancel.is_set() or attempt >= PluginInstaller._MAX_DOWNLOAD_RETRIES:
                         raise
                     logger.warning(
-                        "Download %s failed (attempt %d), retrying in 1s...",
-                        fname, attempt + 1,
+                        "Download %s failed (attempt %d), retrying in %.1fs...",
+                        fname, attempt + 1, PluginInstaller._RETRY_DELAY,
                     )
-                    time.sleep(1)
+                    time.sleep(PluginInstaller._RETRY_DELAY)
 
             if cancel.is_set():
                 return

@@ -39,9 +39,12 @@ class AutoReloadWatcher:
         self,
         filepath: str,
         on_new_lines: Callable[[List[dict]], None],
+        *,
+        poll_interval: float = 1.0,
     ) -> None:
         self._filepath = filepath
         self._on_new_lines = on_new_lines
+        self._poll_interval = poll_interval
 
         self._offset: int = 0
         self._buffer: str = ""
@@ -127,7 +130,7 @@ class AutoReloadWatcher:
         assert self._kq is not None
         while not self._stop_event.is_set():
             try:
-                events = self._kq.control(None, 4, 1.0)  # 1s timeout
+                events = self._kq.control(None, 4, self._poll_interval)
             except OSError:
                 if self._stop_event.is_set():
                     break
@@ -173,8 +176,9 @@ class AutoReloadWatcher:
         """Re-open the file after delete/rename (e.g. atomic rewrite)."""
         self._close_fd()
         # Brief retry — the new file may not exist yet
+        reopen_wait = min(self._poll_interval, 0.1)
         for _ in range(10):
-            if self._stop_event.wait(0.1):
+            if self._stop_event.wait(reopen_wait):
                 return
             if self._open_fd():
                 self._offset = 0

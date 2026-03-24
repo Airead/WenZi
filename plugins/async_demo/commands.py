@@ -9,6 +9,12 @@ import time
 
 _SOUNDS = ["Glass", "Ping", "Hero", "Purr", "Pop", "Frog", "Funk", "Tink"]
 
+_CONCURRENT_DELAYS = (1.0, 1.5, 0.5)
+_ERROR_DELAY = 0.5
+_RUN_DELAY = 1.0
+_PICK_DELAY = 1.0
+_SOURCE_DELAY = 0.5
+
 logger = logging.getLogger(__name__)
 
 
@@ -115,9 +121,9 @@ def register(wz):
 
         start = time.monotonic()
         results = await asyncio.gather(
-            task("A", 1.0),
-            task("B", 1.5),
-            task("C", 0.5),
+            task("A", _CONCURRENT_DELAYS[0]),
+            task("B", _CONCURRENT_DELAYS[1]),
+            task("C", _CONCURRENT_DELAYS[2]),
         )
         elapsed = time.monotonic() - start
         wz.notify(
@@ -128,15 +134,15 @@ def register(wz):
 
     @wz.chooser.command("async-error", title="Async Error", subtitle="Raise an exception — check log for error output")
     async def cmd_error(args):
-        wz.alert("Raising error in 0.5s...", duration=2.0)
-        await asyncio.sleep(0.5)
+        wz.alert(f"Raising error in {_ERROR_DELAY}s...", duration=2.0)
+        await asyncio.sleep(_ERROR_DELAY)
         raise RuntimeError("Intentional async error from async-demo plugin")
 
     @wz.chooser.command("async-run", title="Async Run", subtitle="Submit a coroutine via wz.run()")
     def cmd_run(args):
         async def background_work():
             wz.alert("wz.run() started...", duration=2.0)
-            await asyncio.sleep(1.0)
+            await asyncio.sleep(_RUN_DELAY)
             wz.notify("Async Run", "wz.run() coroutine completed!", sound=_rand_sound())
 
         wz.run(background_work())
@@ -155,7 +161,7 @@ def register(wz):
                 return
             title = item.get("title", "?")
             wz.alert(f"Processing '{title}'...", duration=2.0)
-            await asyncio.sleep(1.0)
+            await asyncio.sleep(_PICK_DELAY)
             wz.notify("Async Pick", f"You picked: {title}", sound=_rand_sound())
 
         wz.chooser.pick(items, callback=on_picked, placeholder="Pick an option...")
@@ -179,7 +185,7 @@ def register(wz):
                     "subtitle": "Results load after 0.5s simulated delay",
                 },
             ]
-        await asyncio.sleep(0.5)  # Simulate network latency
+        await asyncio.sleep(_SOURCE_DELAY)  # Simulate network latency
         return [
             {
                 "title": f"Async result: {query}",

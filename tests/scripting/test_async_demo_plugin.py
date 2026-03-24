@@ -3,8 +3,22 @@
 import time
 from unittest.mock import patch
 
+import pytest
+
 from wenzi.scripting.api import _WZNamespace
 from wenzi.scripting.registry import ScriptingRegistry
+
+
+@pytest.fixture(autouse=True)
+def _fast_async_delays(monkeypatch):
+    """Reduce async_demo sleep durations to speed up tests."""
+    import async_demo.commands as cmds
+
+    monkeypatch.setattr(cmds, "_CONCURRENT_DELAYS", (0.01, 0.01, 0.01))
+    monkeypatch.setattr(cmds, "_ERROR_DELAY", 0.01)
+    monkeypatch.setattr(cmds, "_RUN_DELAY", 0.01)
+    monkeypatch.setattr(cmds, "_PICK_DELAY", 0.01)
+    monkeypatch.setattr(cmds, "_SOURCE_DELAY", 0.01)
 
 
 def _make_wz():

@@ -23,6 +23,12 @@ from wenzi.scripting.plugin_meta import INSTALL_TOML, load_plugin_meta
 # ---------------------------------------------------------------------------
 
 
+@pytest.fixture(autouse=True)
+def _fast_retry(monkeypatch):
+    """Reduce download retry delay to speed up failure tests."""
+    monkeypatch.setattr(PluginInstaller, "_RETRY_DELAY", 0.01)
+
+
 @pytest.fixture()
 def plugins_dir(tmp_path):
     """Return a temporary plugins directory."""
@@ -53,7 +59,7 @@ def http_server(serve_dir):
 
     server = http.server.HTTPServer(("127.0.0.1", 0), SilentHandler)
     port = server.server_address[1]
-    thread = threading.Thread(target=server.serve_forever)
+    thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.05})
     thread.daemon = True
     thread.start()
     yield f"http://127.0.0.1:{port}"

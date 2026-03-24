@@ -4,9 +4,13 @@ from __future__ import annotations
 
 import threading
 import time
+from functools import partial
 from pathlib import Path
 
 from cc_sessions.auto_reload import AutoReloadWatcher
+
+# Fast poll interval for tests — avoids 1s kqueue timeout per iteration
+_Watcher = partial(AutoReloadWatcher, poll_interval=0.01)
 
 
 class TestAutoReloadWatcher:
@@ -24,7 +28,7 @@ class TestAutoReloadWatcher:
             received.extend(lines)
             event.set()
 
-        w = AutoReloadWatcher(str(f), on_new_lines=on_new)
+        w = _Watcher(str(f), on_new_lines=on_new)
         w.start(skip_existing=True)
         try:
             # Append a new line
@@ -49,7 +53,7 @@ class TestAutoReloadWatcher:
             received.extend(lines)
             event.set()
 
-        w = AutoReloadWatcher(str(f), on_new_lines=on_new)
+        w = _Watcher(str(f), on_new_lines=on_new)
         w.start(skip_existing=True)
         try:
             # Append new content
@@ -74,7 +78,7 @@ class TestAutoReloadWatcher:
             received.extend(lines)
             event.set()
 
-        w = AutoReloadWatcher(str(f), on_new_lines=on_new)
+        w = _Watcher(str(f), on_new_lines=on_new)
         w.start(skip_existing=True)
         try:
             # Write a partial line (no trailing newline)
@@ -83,7 +87,7 @@ class TestAutoReloadWatcher:
                 fh.flush()
 
             # Give kqueue time to fire — should NOT trigger callback
-            time.sleep(0.5)
+            time.sleep(0.05)
             assert len(received) == 0, "partial line should not trigger callback"
 
             # Complete the line
@@ -110,7 +114,7 @@ class TestAutoReloadWatcher:
             if len(received) >= 3:
                 event.set()
 
-        w = AutoReloadWatcher(str(f), on_new_lines=on_new)
+        w = _Watcher(str(f), on_new_lines=on_new)
         w.start(skip_existing=True)
         try:
             with open(f, "a") as fh:
@@ -134,7 +138,7 @@ class TestAutoReloadWatcher:
             received.extend(lines)
             event.set()
 
-        w = AutoReloadWatcher(str(f), on_new_lines=on_new)
+        w = _Watcher(str(f), on_new_lines=on_new)
         w.start(skip_existing=True)
         try:
             with open(f, "a") as fh:
@@ -158,7 +162,7 @@ class TestAutoReloadWatcher:
             received.extend(lines)
             event.set()
 
-        w = AutoReloadWatcher(str(f), on_new_lines=on_new)
+        w = _Watcher(str(f), on_new_lines=on_new)
 
         # First run
         w.start(skip_existing=True)
@@ -185,7 +189,7 @@ class TestAutoReloadWatcher:
         f = tmp_path / "session.jsonl"
         f.write_text("")
 
-        w = AutoReloadWatcher(str(f), on_new_lines=lambda _lines: None)
+        w = _Watcher(str(f), on_new_lines=lambda _lines: None)
         assert not w.running
         w.start()
         try:
@@ -199,7 +203,7 @@ class TestAutoReloadWatcher:
         f = tmp_path / "session.jsonl"
         f.write_text("")
 
-        w = AutoReloadWatcher(str(f), on_new_lines=lambda _lines: None)
+        w = _Watcher(str(f), on_new_lines=lambda _lines: None)
         w.start()
         try:
             thread1 = w._thread
@@ -220,12 +224,12 @@ class TestAutoReloadWatcher:
             received.extend(lines)
             event.set()
 
-        w = AutoReloadWatcher(str(f), on_new_lines=on_new)
+        w = _Watcher(str(f), on_new_lines=on_new)
         w.start(skip_existing=True)
         try:
             # Delete and recreate the file
             f.unlink()
-            time.sleep(0.3)
+            time.sleep(0.05)
             f.write_text('{"after_recreate":true}\n')
 
             assert event.wait(timeout=5), "callback not called after file recreate"
@@ -248,13 +252,13 @@ class TestAutoReloadWatcher:
                 raise RuntimeError("boom")
             event.set()
 
-        w = AutoReloadWatcher(str(f), on_new_lines=on_new)
+        w = _Watcher(str(f), on_new_lines=on_new)
         w.start(skip_existing=True)
         try:
             # First write — callback raises
             with open(f, "a") as fh:
                 fh.write('{"n":1}\n')
-            time.sleep(0.5)
+            time.sleep(0.05)
 
             # Second write — watcher should still be alive
             with open(f, "a") as fh:
