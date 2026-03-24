@@ -13,8 +13,15 @@
 <script src="vendor/highlight.min.js"></script>
 
 <style>
+  @property --border-angle {
+    syntax: '<angle>';
+    initial-value: 0deg;
+    inherits: false;
+  }
+
   /* ── CSS Variables ── */
   :root {
+    --outline-width: 200px;
     --bg-primary: #ffffff;
     --bg-secondary: rgba(100, 100, 100, 0.06);
     --bg-user-msg: rgba(59, 130, 246, 0.06);
@@ -188,12 +195,14 @@
     flex: 1;
     min-height: 0;
     position: relative;
+    border-radius: 10px;
+    overflow: hidden;
   }
 
   /* ── Outline ── */
   .outline {
-    width: 200px;
-    min-width: 200px;
+    width: var(--outline-width);
+    min-width: var(--outline-width);
     border-right: 1px solid var(--border-color);
     overflow-y: auto;
     padding: 8px 0;
@@ -491,6 +500,91 @@
     animation: liveGlow 1.5s ease-in-out infinite;
   }
 
+  /* ── Thinking border animation ── */
+  @keyframes borderRotate {
+    to { --border-angle: 360deg; }
+  }
+  @keyframes glowPulse {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 0.6; }
+  }
+  .main-content.thinking-active::before,
+  .main-content.thinking-active::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: conic-gradient(
+      from var(--border-angle),
+      #7c3aed, #3b82f6, #06b6d4, #ec4899, #f59e0b, #7c3aed
+    );
+    -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    mask-composite: exclude;
+    pointer-events: none;
+    animation: borderRotate 4s linear infinite;
+  }
+  .main-content.thinking-active::after {
+    padding: 3px;
+    z-index: 20;
+  }
+  .main-content.thinking-active::before {
+    padding: 6px;
+    filter: blur(10px);
+    opacity: 0.6;
+    z-index: -1;
+    animation: borderRotate 4s linear infinite, glowPulse 2s ease-in-out infinite;
+  }
+
+  /* ── Pending Agent indicator ── */
+  .tool-block.tool-pending .tool-header {
+    border-left-style: dashed;
+  }
+  .tool-pending-label {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-left: auto;
+    margin-right: 4px;
+    white-space: nowrap;
+  }
+
+  /* ── Bottom thinking bar ── */
+  .thinking-bar {
+    position: absolute;
+    bottom: 0;
+    left: var(--outline-width);
+    right: 0;
+    display: none;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 16px;
+    font-size: 11px;
+    color: var(--text-muted);
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border-color);
+    z-index: 10;
+    pointer-events: none;
+  }
+  .thinking-bar.visible { display: flex; }
+  @keyframes thinkingDots {
+    0%, 80%, 100% { opacity: 0.2; }
+    40% { opacity: 1; }
+  }
+  .thinking-bar .dot {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: currentColor;
+    animation: thinkingDots 1.4s ease-in-out infinite;
+  }
+  .thinking-bar .dot:nth-child(2) { animation-delay: 0.2s; }
+  .thinking-bar .dot:nth-child(3) { animation-delay: 0.4s; }
+
   /* ── Border colors for tool types ── */
   .tool-read    { --tool-border-color: #f59e0b; }
   .tool-bash    { --tool-border-color: #10b981; }
@@ -630,6 +724,10 @@
     </div>
     <div class="conversation" id="conversation">
       <div class="loading" id="loading-msg">Loading session...</div>
+    </div>
+    <div class="thinking-bar" id="thinking-bar">
+      <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+      <span id="thinking-bar-text">Thinking...</span>
     </div>
     <button class="jump-bottom-btn" id="jump-bottom-btn" title="Jump to bottom">&#8595;</button>
   </div>
@@ -1032,60 +1130,75 @@ function renderConversation(messages) {
 
 // ── Live glow for in-progress elements ──
 function markLiveElements(conv, turns, globalResultMap) {
-  if (turns.length === 0) return;
+  const bar = document.getElementById("thinking-bar");
+  const barText = document.getElementById("thinking-bar-text");
+  const mainContent = document.querySelector(".main-content");
+  let isLive = false;
 
-  const lastMsg = turns[turns.length - 1];
+  if (turns.length > 0) {
+    const lastMsg = turns[turns.length - 1];
 
-  // Last message is user → AI is processing
-  if (lastMsg.type === "user") {
-    const text = extractUserText(lastMsg.message?.content || lastMsg.content || "");
-    if (text.includes("[Request interrupted by user]")) return;
-
-    if (_isToolResultOnly(lastMsg)) {
-      // Tool result returned — glow the existing Claude badge (same turn)
+    if (lastMsg.type === "user") {
+      const text = extractUserText(lastMsg.message?.content || lastMsg.content || "");
+      if (!text.includes("[Request interrupted by user]")) {
+        isLive = true;
+        if (_isToolResultOnly(lastMsg)) {
+          const lastTurnEl = conv.lastElementChild;
+          const badge = lastTurnEl && lastTurnEl.querySelector(".badge-assistant");
+          if (badge) badge.classList.add("live-glow");
+          barText.textContent = "Processing\u2026";
+        } else {
+          const placeholder = document.createElement("div");
+          placeholder.className = "turn";
+          placeholder.innerHTML = `
+            <div class="turn-header">
+              <span class="badge badge-assistant live-glow">Claude</span>
+            </div>
+          `;
+          conv.appendChild(placeholder);
+          barText.textContent = "Thinking\u2026";
+        }
+      }
+    } else if (lastMsg.type === "assistant") {
       const lastTurnEl = conv.lastElementChild;
-      const badge = lastTurnEl && lastTurnEl.querySelector(".badge-assistant");
-      if (badge) badge.classList.add("live-glow");
-    } else {
-      // Real user message — Claude hasn't started, show placeholder
-      const placeholder = document.createElement("div");
-      placeholder.className = "turn";
-      placeholder.innerHTML = `
-        <div class="turn-header">
-          <span class="badge badge-assistant live-glow">Claude</span>
-        </div>
-      `;
-      conv.appendChild(placeholder);
+      const content = lastMsg.message?.content;
+
+      if (lastTurnEl && Array.isArray(content)) {
+        let hasPending = false;
+        let pendingAgentDesc = "";
+        for (const part of content) {
+          if (part.type === "tool_use" && part.id && !globalResultMap[part.id]) {
+            hasPending = true;
+            const block = lastTurnEl.querySelector(`.tool-block[data-tool-use-id="${part.id}"]`);
+            const icon = block && block.querySelector(".tool-icon");
+            if (icon) icon.classList.add("live-glow");
+            if (part.name === "Agent" && part.input?.description) {
+              pendingAgentDesc = part.input.description;
+            }
+          }
+        }
+
+        const lastPart = content[content.length - 1];
+        const hasThinking = lastPart && lastPart.type === "thinking";
+        if (hasThinking || hasPending) {
+          isLive = true;
+          const badge = lastTurnEl.querySelector(".badge-assistant");
+          if (badge) badge.classList.add("live-glow");
+
+          if (pendingAgentDesc) {
+            barText.textContent = `Agent: ${pendingAgentDesc}`;
+          } else if (hasPending) {
+            barText.textContent = "Running tools\u2026";
+          } else {
+            barText.textContent = "Thinking\u2026";
+          }
+        }
+      }
     }
-    return;
   }
 
-  if (lastMsg.type !== "assistant") return;
-
-  const lastTurnEl = conv.lastElementChild;
-  if (!lastTurnEl) return;
-
-  const content = lastMsg.message?.content;
-  if (!Array.isArray(content)) return;
-
-  // Glow tool icons for pending tool_use (no result yet)
-  let hasPending = false;
-  for (const part of content) {
-    if (part.type === "tool_use" && part.id && !globalResultMap[part.id]) {
-      hasPending = true;
-      const block = lastTurnEl.querySelector(`.tool-block[data-tool-use-id="${part.id}"]`);
-      const icon = block && block.querySelector(".tool-icon");
-      if (icon) icon.classList.add("live-glow");
-    }
-  }
-
-  // Glow Claude badge when thinking or has pending tools
-  const lastPart = content[content.length - 1];
-  const hasThinking = lastPart && lastPart.type === "thinking";
-  if (hasThinking || hasPending) {
-    const badge = lastTurnEl.querySelector(".badge-assistant");
-    if (badge) badge.classList.add("live-glow");
-  }
+  bar.classList.toggle("visible", isLive);
+  mainContent.classList.toggle("thinking-active", isLive);
 }
 
 // ── Collapsible long content ──
@@ -1286,6 +1399,14 @@ function createToolSingle(call, result) {
   if (call.name === "Agent" && call.id) {
     const sub = window._subagentMap[call.id];
     const arrow = headerEl.querySelector(".tool-arrow");
+
+    if (!result) {
+      block.classList.add("tool-pending");
+      const label = document.createElement("span");
+      label.className = "tool-pending-label live-glow";
+      label.textContent = "Thinking\u2026";
+      headerEl.insertBefore(label, arrow);
+    }
 
     const modelName = getSubagentModel(call.id, call.input?.model);
     if (modelName) {
