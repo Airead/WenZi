@@ -336,7 +336,10 @@ class TestTextEnhancerAddRemoveProvider:
     @staticmethod
     def _mock_client():
         client = MagicMock()
-        client.close = AsyncMock()
+        # Use MagicMock (not AsyncMock) for close — async_loop.submit is
+        # mocked in all callers, so the coroutine would never be awaited
+        # and would trigger a RuntimeWarning on GC.
+        client.close = MagicMock()
         return client
 
     @patch("wenzi.enhance.enhancer.async_loop")

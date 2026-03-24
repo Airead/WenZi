@@ -169,6 +169,54 @@ class TestSoundDelay:
         # Overlay and indicator must be cleaned up
         mock_app._recording_indicator.hide.assert_called()
 
+    @patch("wenzi.controllers.recording_flow.capture_input_context", return_value=None)
+    @patch("PyObjCTools.AppHelper")
+    def test_preview_history_during_delay(self, mock_ah, _mock_ic, flow, mock_app):
+        """PREVIEW_HISTORY during sound delay should abort and show history."""
+        mock_ah.callAfter = lambda fn, *a, **kw: fn(*a, **kw)
+        mock_app._sound_manager.enabled = True
+
+        async def _test():
+            await flow._handle_press("fn")
+            await asyncio.sleep(0.05)
+            flow._actions.put_nowait(Action.PREVIEW_HISTORY)
+            await flow._current_task
+
+        run(_test())
+
+        mock_app._recorder.start.assert_not_called()
+        mock_app._recording_indicator.hide.assert_called()
+        mock_app._preview_controller.on_show_last_preview.assert_called_once()
+
+    @patch("wenzi.controllers.recording_flow.capture_input_context", return_value=None)
+    @patch("PyObjCTools.AppHelper")
+    def test_restart_during_delay(self, mock_ah, _mock_ic, flow, mock_app):
+        """RESTART during sound delay should restart the session."""
+        mock_ah.callAfter = lambda fn, *a, **kw: fn(*a, **kw)
+        mock_app._sound_manager.enabled = True
+        mock_app._recorder.start.return_value = None
+
+        restart_seen = asyncio.Event()
+
+        def _start_side_effect():
+            restart_seen.set()
+            return None
+
+        mock_app._recorder.start.side_effect = _start_side_effect
+
+        async def _test():
+            # Trigger press, then restart during delay, then release
+            await flow._handle_press("fn")
+            await asyncio.sleep(0.05)
+            flow._actions.put_nowait(Action.RESTART)
+            await asyncio.wait_for(restart_seen.wait(), timeout=2.0)
+            flow._actions.put_nowait(Action.RELEASE)
+            await flow._current_task
+
+        run(_test())
+
+        mock_app._recorder.start.assert_called()
+
 
 class TestRecordAndRelease:
     @patch("wenzi.controllers.recording_flow.capture_input_context", return_value=None)

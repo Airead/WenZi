@@ -209,15 +209,21 @@ class RecordingFlow:
             if app._transcriber.supports_streaming:
                 AppHelper.callAfter(self._show_live_overlay, False)
 
-            # ② Sound delay — listen for early cancel/release
+            # ② Sound delay — listen for early cancel/release/restart/history
             if app._sound_manager.enabled:
                 action = await self._wait_action(
                     Action.RELEASE, Action.CANCEL,
+                    Action.RESTART, Action.PREVIEW_HISTORY,
                     timeout=self._DELAYED_START_SECS,
                 )
                 if action in (Action.CANCEL, Action.RELEASE):
                     AppHelper.callAfter(self._reset_to_idle)
                     return
+                elif action == Action.PREVIEW_HISTORY:
+                    AppHelper.callAfter(self._reset_and_show_preview)
+                    return
+                elif action == Action.RESTART:
+                    raise _RestartSession(key_name)
 
             # ③ Start recording (blocking I/O → executor)
             dev_name = await self._loop.run_in_executor(
@@ -268,10 +274,7 @@ class RecordingFlow:
                 self._stop_streaming(streaming)
                 await self._loop.run_in_executor(None, app._recorder.stop)
                 self._cancel_subtasks()
-                AppHelper.callAfter(self._reset_to_idle)
-                AppHelper.callAfter(
-                    app._preview_controller.on_show_last_preview
-                )
+                AppHelper.callAfter(self._reset_and_show_preview)
                 return
 
             # ⑤ Release (or timeout) — stop recording
@@ -887,6 +890,11 @@ class RecordingFlow:
         self._app._recording_indicator.hide()
         self._app._set_status("statusbar.status.ready")
         self._restore_mode()
+
+    def _reset_and_show_preview(self) -> None:
+        """Reset to idle and show the last preview history record."""
+        self._reset_to_idle()
+        self._app._preview_controller.on_show_last_preview()
 
     def _cancel_subtasks(self) -> None:
         """Cancel level polling task."""
