@@ -583,6 +583,10 @@ class StreamingOverlayPanel:
         self._nav_delegate = None
         logger.debug("Streaming overlay closed")
 
+    def close_now(self) -> None:
+        """Close and clean up the overlay panel. Must be on main thread."""
+        self._do_close()
+
     def close(self) -> None:
         """Close and clean up the overlay panel immediately. Thread-safe."""
         from PyObjCTools import AppHelper

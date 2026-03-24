@@ -572,8 +572,11 @@ class RecordingFlow:
 
                 # Enter pressed during STT: skip enhancement, output ASR
                 if confirm_asr_event.is_set():
+                    logger.debug("Enter during STT: skipping enhance")
                     cancel_watcher.cancel()
-                    AppHelper.callAfter(app._streaming_overlay.close)
+                    AppHelper.callAfter(
+                        app._streaming_overlay.close_now
+                    )
                     self._fire_scripting_event(
                         "transcription_done", asr_text=asr_text
                     )
@@ -624,6 +627,7 @@ class RecordingFlow:
                         t.cancel()
 
                     if confirm_asr_event.is_set():
+                        logger.debug("Enter during enhance: using ASR text")
                         text = asr_text
                         enhanced_text = None
                     elif cancel_event.is_set():
@@ -640,7 +644,11 @@ class RecordingFlow:
                 finally:
                     cancel_watcher.cancel()
                     if cancel_event.is_set() or confirm_asr_event.is_set():
-                        AppHelper.callAfter(app._streaming_overlay.close)
+                        # Use _do_close directly so the panel is removed
+                        # before type_text runs in the same callAfter queue.
+                        AppHelper.callAfter(
+                            app._streaming_overlay.close_now
+                        )
                     else:
                         AppHelper.callAfter(
                             app._streaming_overlay.close_with_delay
@@ -680,6 +688,13 @@ class RecordingFlow:
             self._fire_scripting_event(
                 "transcription_done", asr_text=asr_text
             )
+
+        logger.debug(
+            "Direct flow output: cancel=%s, confirm_asr=%s, text=%r",
+            cancel_event.is_set(),
+            confirm_asr_event.is_set() if use_enhance else "N/A",
+            text[:50] if text else None,
+        )
 
         if cancel_event.is_set():
             AppHelper.callAfter(
@@ -736,24 +751,20 @@ class RecordingFlow:
         llm_info: str,
         with_confirm_asr: bool = False,
     ) -> None:
-        """Animate recording indicator out and show the streaming overlay.
+        """Hide recording indicator and show the streaming overlay immediately.
 
         Must be called on the main thread (via AppHelper.callAfter).
         """
         app = self._app
-        indicator_frame = app._recording_indicator.current_frame
-        app._recording_indicator.animate_out(
-            completion=lambda: app._streaming_overlay.show(
-                asr_text=asr_text,
-                cancel_event=None,
-                animate_from_frame=indicator_frame,
-                stt_info=stt_info,
-                llm_info=llm_info,
-                on_cancel=lambda: self.send_action(Action.CANCEL),
-                on_confirm_asr=(
-                    lambda: self.send_action(Action.CONFIRM_ASR)
-                ) if with_confirm_asr else None,
-            )
+        app._recording_indicator.hide()
+        app._streaming_overlay.show(
+            asr_text=asr_text,
+            stt_info=stt_info,
+            llm_info=llm_info,
+            on_cancel=lambda: self.send_action(Action.CANCEL),
+            on_confirm_asr=(
+                lambda: self.send_action(Action.CONFIRM_ASR)
+            ) if with_confirm_asr else None,
         )
 
     # ------------------------------------------------------------------
@@ -818,8 +829,12 @@ class RecordingFlow:
                 )
                 if cancel_fut in done:
                     next_fut.cancel()
-                    # Suppress "Task exception was never retrieved" warning
-                    next_fut.add_done_callback(lambda f: None)
+                    # Wait for __anext__ to finish cancellation before
+                    # closing the generator (avoids "already running").
+                    try:
+                        await next_fut
+                    except (asyncio.CancelledError, StopAsyncIteration):
+                        pass
                     return
                 try:
                     yield next_fut.result()
