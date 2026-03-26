@@ -40,6 +40,7 @@ class _WZNamespace:
         self._chooser_api = None
         self._ui_api = None
         self._window_api = None
+        self._menubar_api = None
         self._reload_callback: Optional[Callable] = None
 
     @property
@@ -77,6 +78,15 @@ class _WZNamespace:
 
             self._window_api = WindowAPI()
         return self._window_api
+
+    @property
+    def menubar(self):
+        """Access the menubar API (lazy init)."""
+        if self._menubar_api is None:
+            from .menubar import MenuBarAPI
+
+            self._menubar_api = MenuBarAPI()
+        return self._menubar_api
 
     def leader(
         self,

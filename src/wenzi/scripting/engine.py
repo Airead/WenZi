@@ -132,6 +132,9 @@ class ScriptEngine:
             self._wz._hotkey_api = None
             self._wz._chooser_api = None
             self._wz._ui_api = None
+            if self._wz._menubar_api is not None:
+                self._wz._menubar_api.cleanup()
+                self._wz._menubar_api = None
             self._register_builtin_sources()
             self._load_plugins()
             self._load_scripts()
