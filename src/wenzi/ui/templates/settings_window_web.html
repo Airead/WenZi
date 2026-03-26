@@ -1654,7 +1654,7 @@ var LLM_PROVIDER_PRESETS = {
   'openai': {
     name: 'OpenAI',
     base_url: 'https://api.openai.com/v1',
-    models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo']
+    models: ['gpt-5.4', 'gpt-5.4-mini', 'gpt-5.3', 'gpt-5.3-instant', 'gpt-5.2', 'gpt-5.2-instant', 'gpt-5.2-thinking']
   },
   'qwen': {
     name: 'Qwen (通义千问)',
@@ -1674,17 +1674,17 @@ var LLM_PROVIDER_PRESETS = {
   'minimax': {
     name: 'MiniMax',
     base_url: 'https://api.minimax.chat/v1',
-    models: ['MiniMax-Text-01', 'abab6.5s-chat', 'abab6.5-chat']
+    models: ['MiniMax-M2.7', 'MiniMax-M2.7-highspeed', 'MiniMax-M2.5', 'MiniMax-M2.5-highspeed']
   },
   'zhipu': {
     name: 'Zhipu (智谱AI)',
     base_url: 'https://open.bigmodel.cn/api/paas/v4',
-    models: ['glm-4-plus', 'glm-4-9b', 'glm-4-flash', 'chatglm3-turbo']
+    models: ['glm-5', 'glm-5-turbo', 'glm-4.7', 'glm-4.7-flash', 'glm-4.7-flashx', 'glm-4.6v']
   },
   'moonshot': {
     name: 'Moonshot (月之暗面)',
     base_url: 'https://api.moonshot.cn/v1',
-    models: ['moonshot-v1-8k', 'moonshot-v1-32k', 'moonshot-v1-128k']
+    models: ['kimi-k2.5']
   },
   'siliconflow': {
     name: 'SiliconFlow',
@@ -1862,7 +1862,7 @@ function _showProviderForm(mode, providerName) {
   html += '  <select class="provider-form-input" id="pf-model-select" onchange="_onModelSelectChange(this.value)" style="display:none; margin-bottom:8px; cursor:pointer;">';
   html += '    <option value="">-- Select a model --</option>';
   html += '  </select>';
-  html += '  <textarea class="provider-form-textarea" id="pf-models" placeholder="gpt-4o&#10;gpt-4o-mini">' + modelsVal + '</textarea>';
+  html += '  <textarea class="provider-form-textarea" id="pf-models" placeholder="gpt-5.4&#10;gpt-5.2">' + modelsVal + '</textarea>';
   html += '  <div class="provider-form-hint">One model per line (first model will be used for verification)</div>';
   html += '  <div class="provider-form-error" id="pf-models-err"></div>';
   html += '</div>';
