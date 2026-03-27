@@ -131,7 +131,9 @@ class KeychainAPI:
         return True
 
     def delete(self, key: str) -> None:
-        """Remove *key* from the vault.  Silent no-op if missing."""
+        """Remove *key* from the vault.  Silent no-op if missing or degraded."""
+        if self._master_key is None:
+            return
         removed = False
         with self._lock:
             self._ensure_loaded()
@@ -159,11 +161,12 @@ class KeychainAPI:
 
     def _schedule_flush(self) -> None:
         """Schedule a deferred disk write, coalescing rapid updates."""
-        if self._flush_timer is not None:
-            self._flush_timer.cancel()
-        self._flush_timer = threading.Timer(_FLUSH_DELAY, self._flush)
-        self._flush_timer.daemon = True
-        self._flush_timer.start()
+        with self._lock:
+            if self._flush_timer is not None:
+                self._flush_timer.cancel()
+            self._flush_timer = threading.Timer(_FLUSH_DELAY, self._flush)
+            self._flush_timer.daemon = True
+            self._flush_timer.start()
 
     def _flush(self) -> None:
         """Atomically write vault to disk (tmp + os.replace)."""
