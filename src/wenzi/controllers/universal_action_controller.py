@@ -133,20 +133,29 @@ class UniversalActionController:
         except (AttributeError, TypeError):
             logger.debug("No command source available for UA")
 
-        # 3. UA-registered sources
+        # 3. UA-registered sources — call search("") to get the source's
+        #    identity (title, icon) from its help/empty-state item.
         try:
             sources = self._app._script_engine._wz.chooser._panel._sources
             for src_obj in sources.values():
                 if not src_obj.universal_action:
                     continue
+                # Get help item for title/icon
+                try:
+                    help_items = src_obj.search("")
+                except Exception:
+                    help_items = []
+                help_item = help_items[0] if help_items else None
+
                 captured_src = src_obj
 
                 def _src_action(s=captured_src, txt=selected_text):
                     self._on_source_selected(s, txt)
 
                 items.append(ChooserItem(
-                    title=src_obj.description or src_obj.name,
-                    subtitle=src_obj.name,
+                    title=help_item.title if help_item else (src_obj.description or src_obj.name),
+                    subtitle=help_item.subtitle if help_item else src_obj.name,
+                    icon=help_item.icon if help_item else "",
                     item_id=f"ua:src:{src_obj.name}",
                     action=_src_action,
                 ))
@@ -183,15 +192,21 @@ class UniversalActionController:
                 logger.exception("UA command %s failed", cmd.name)
 
     def _on_source_selected(self, source, text: str) -> None:
-        """Call source search with selected text, show preview of first result."""
+        """Call source search with selected text, execute first result's action."""
         try:
             results = source.search(text)
-            if results and results[0].preview:
+            if not results:
+                return
+            first = results[0]
+            # Execute the item's action (e.g. open browser for search engines)
+            if first.action is not None:
+                first.action()
+            elif first.preview:
                 chooser = self._app._script_engine._wz.chooser
                 ql = chooser._panel._ql_panel
                 if ql is not None:
                     from PyObjCTools import AppHelper
 
-                    AppHelper.callAfter(ql.show_preview, results[0].preview)
+                    AppHelper.callAfter(ql.show_preview, first.preview)
         except Exception:
             logger.exception("UA source %s search failed", source.name)
