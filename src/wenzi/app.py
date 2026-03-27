@@ -58,6 +58,7 @@ from .controllers.settings_controller import SettingsController
 from .controllers.config_controller import ConfigController
 from .controllers.enhance_mode_controller import EnhanceModeController
 from .controllers.update_controller import UpdateController
+from .controllers.universal_action_controller import UniversalActionController
 from .transcription.base import create_transcriber
 from .i18n import t
 from .ui_helpers import (
@@ -1354,6 +1355,8 @@ class WenZiApp(StatusBarApp):
             scripting_cfg.setdefault(
                 "disabled_plugins", self._config.pop("disabled_plugins")
             )
+        self._ua_controller = UniversalActionController(self)
+
         if scripting_cfg.get("enabled", False):
             from .scripting import ScriptEngine
 
@@ -1362,6 +1365,7 @@ class WenZiApp(StatusBarApp):
                 script_dir=script_dir, config=scripting_cfg,
                 plugins_dir=os.path.join(self._config_dir, "plugins"),
             )
+            self._script_engine._ua_controller = self._ua_controller
             self._script_engine.start()
             self._script_engine.wz.chooser._event_handlers.setdefault(
                 "openSettings", []
