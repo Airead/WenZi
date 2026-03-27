@@ -133,19 +133,21 @@ class UniversalActionController:
         except (AttributeError, TypeError):
             logger.debug("No command source available for UA")
 
-        # 3. UA-registered sources — call search("") to get the source's
-        #    identity (title, icon) from its help/empty-state item.
+        # 3. UA-registered sources — for sync sources, call search("") to
+        #    get the help item (title, icon). For async sources, use metadata.
         try:
             sources = self._app._script_engine._wz.chooser._panel._sources
             for src_obj in sources.values():
                 if not src_obj.universal_action:
                     continue
-                # Get help item for title/icon
-                try:
-                    help_items = src_obj.search("")
-                except Exception:
-                    help_items = []
-                help_item = help_items[0] if help_items else None
+
+                help_item = None
+                if not src_obj.is_async:
+                    try:
+                        help_items = src_obj.search("")
+                        help_item = help_items[0] if help_items else None
+                    except Exception:
+                        pass
 
                 captured_src = src_obj
 
@@ -193,20 +195,31 @@ class UniversalActionController:
 
     def _on_source_selected(self, source, text: str) -> None:
         """Call source search with selected text, execute first result's action."""
-        try:
-            results = source.search(text)
-            if not results:
-                return
-            first = results[0]
-            # Execute the item's action (e.g. open browser for search engines)
-            if first.action is not None:
-                first.action()
-            elif first.preview:
-                chooser = self._app._script_engine._wz.chooser
-                ql = chooser._panel._ql_panel
-                if ql is not None:
-                    from PyObjCTools import AppHelper
+        import asyncio
 
-                    AppHelper.callAfter(ql.show_preview, first.preview)
-        except Exception:
-            logger.exception("UA source %s search failed", source.name)
+        def _run():
+            try:
+                if source.is_async:
+                    loop = asyncio.new_event_loop()
+                    try:
+                        results = loop.run_until_complete(source.search(text))
+                    finally:
+                        loop.close()
+                else:
+                    results = source.search(text)
+                if not results:
+                    return
+                first = results[0]
+                if first.action is not None:
+                    first.action()
+                elif first.preview:
+                    chooser = self._app._script_engine._wz.chooser
+                    ql = chooser._panel._ql_panel
+                    if ql is not None:
+                        from PyObjCTools import AppHelper
+
+                        AppHelper.callAfter(ql.show_preview, first.preview)
+            except Exception:
+                logger.exception("UA source %s search failed", source.name)
+
+        threading.Thread(target=_run, daemon=True).start()
