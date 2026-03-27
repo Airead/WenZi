@@ -6,43 +6,42 @@ from html import escape
 
 _STYLE = """\
 <style>
-  body { font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-         color: var(--text); background: var(--bg); margin: 0; padding: 12px;
-         font-size: 13px; line-height: 1.5; }
-  .word { font-size: 22px; font-weight: 700; margin-bottom: 2px; }
-  .phonetic { color: var(--secondary); font-size: 13px; margin-left: 8px; }
-  .exam-tags { margin: 4px 0 8px; }
-  .tag { display: inline-block; font-size: 11px; padding: 1px 6px;
-         border-radius: 3px; margin-right: 4px;
-         background: var(--border); color: var(--secondary); }
-  .section { margin-top: 12px; }
-  .section-title { font-weight: 600; font-size: 13px; color: var(--text);
-                   border-bottom: 1px solid var(--border);
-                   padding-bottom: 3px; margin-bottom: 6px; }
-  .pos { font-weight: 600; color: var(--secondary); margin-right: 6px; }
-  .tran { margin: 3px 0; }
-  .wf-tags { margin: 4px 0; }
-  .wf { display: inline-block; font-size: 12px; color: var(--secondary);
-        margin-right: 10px; }
-  .wf-val { color: var(--text); }
-  .phrase { margin: 3px 0; }
-  .phrase-word { font-weight: 500; }
-  .phrase-tran { color: var(--secondary); margin-left: 8px; }
-  .syno-words { color: var(--text); }
-  .example { margin: 6px 0; }
-  .example-en { font-weight: 500; }
-  .example-zh { color: var(--secondary); }
-  .collins-entry { margin: 6px 0; }
-  .collins-pos { font-weight: 600; color: var(--secondary); }
-  .etym { color: var(--secondary); font-size: 12px; font-style: italic; }
-  .fallback { color: var(--secondary); text-align: center; padding: 40px 0; }
+  .dict-root { font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+               color: var(--text); font-size: 13px; line-height: 1.5; }
+  .dict-root .word { font-size: 22px; font-weight: 700; margin-bottom: 2px; }
+  .dict-root .phonetic { color: var(--secondary); font-size: 13px; margin-left: 8px; }
+  .dict-root .exam-tags { margin: 4px 0 8px; }
+  .dict-root .tag { display: inline-block; font-size: 11px; padding: 1px 6px;
+                    border-radius: 3px; margin-right: 4px;
+                    background: var(--border); color: var(--secondary); }
+  .dict-root .section { margin-top: 12px; }
+  .dict-root .section-title { font-weight: 600; font-size: 13px; color: var(--text);
+                              border-bottom: 1px solid var(--border);
+                              padding-bottom: 3px; margin-bottom: 6px; }
+  .dict-root .pos { font-weight: 600; color: var(--secondary); margin-right: 6px; }
+  .dict-root .tran { margin: 3px 0; }
+  .dict-root .wf-tags { margin: 4px 0; }
+  .dict-root .wf { display: inline-block; font-size: 12px; color: var(--secondary);
+                   margin-right: 10px; }
+  .dict-root .wf-val { color: var(--text); }
+  .dict-root .phrase { margin: 3px 0; }
+  .dict-root .phrase-word { font-weight: 500; }
+  .dict-root .phrase-tran { color: var(--secondary); margin-left: 8px; }
+  .dict-root .syno-words { color: var(--text); }
+  .dict-root .example { margin: 6px 0; }
+  .dict-root .example-en { font-weight: 500; }
+  .dict-root .example-zh { color: var(--secondary); }
+  .dict-root .collins-entry { margin: 6px 0; }
+  .dict-root .collins-pos { font-weight: 600; color: var(--secondary); }
+  .dict-root .etym { color: var(--secondary); font-size: 12px; font-style: italic; }
+  .dict-root .fallback { color: var(--secondary); text-align: center; padding: 40px 0; }
 </style>
 """
 
 
 def render_definition(data: dict, word: str) -> str:
     """Render a Youdao lookup response as HTML for the preview panel."""
-    parts = [_STYLE]
+    parts = [_STYLE, '<div class="dict-root">']
 
     ec = data.get("ec", {})
     ec_word = ec.get("word", {})
@@ -212,4 +211,5 @@ def render_definition(data: dict, word: str) -> str:
             f'<div class="fallback">{escape(word)}<br>No definition found</div>'
         )
 
+    parts.append("</div>")
     return "\n".join(parts)
