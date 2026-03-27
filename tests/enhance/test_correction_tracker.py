@@ -11,6 +11,13 @@ from wenzi.enhance.correction_tracker import CorrectionTracker, extract_word_pai
 # ---------------------------------------------------------------------------
 
 
+def test_init_creates_parent_directory(tmp_path):
+    """CorrectionTracker should create missing parent dirs (new-user scenario)."""
+    db_path = str(tmp_path / "nonexistent" / "subdir" / "tracker.db")
+    tracker = CorrectionTracker(db_path=db_path)
+    assert tracker.is_empty() is True
+
+
 def test_init_creates_tables(tmp_path):
     db_path = str(tmp_path / "tracker.db")
     CorrectionTracker(db_path=db_path)

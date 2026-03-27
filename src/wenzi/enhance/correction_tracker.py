@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sqlite3
 from datetime import datetime, timezone
 from difflib import SequenceMatcher
@@ -147,6 +148,7 @@ class CorrectionTracker:
 
     def _init_db(self) -> None:
         """Create schema and set user_version if not already done."""
+        os.makedirs(os.path.dirname(self._db_path), exist_ok=True)
         conn = self._get_conn()
         try:
             conn.executescript(_DDL)
