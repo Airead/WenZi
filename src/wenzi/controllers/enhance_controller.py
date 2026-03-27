@@ -54,17 +54,18 @@ class EnhanceController:
         enhancer: Optional[TextEnhancer],
         preview_panel: ResultPreviewPanel,
         usage_stats: UsageStats,
+        manual_vocab_store: "ManualVocabularyStore | None" = None,
         cache_maxsize: int = 128,
     ) -> None:
         self._enhancer = enhancer
         self._preview_panel = preview_panel
         self._usage_stats = usage_stats
+        self._manual_vocab_store = manual_vocab_store
         self._cache: LRUCache[tuple, EnhanceCacheEntry] = LRUCache(
             maxsize=cache_maxsize
         )
         self._current_task: asyncio.Task | None = None
         self._enhance_mode: str = "off"
-        self._manual_vocab_store: "ManualVocabularyStore | None" = None
 
     @property
     def enhancer(self) -> Optional[TextEnhancer]:

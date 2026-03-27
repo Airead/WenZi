@@ -336,6 +336,7 @@ class WenZiApp(StatusBarApp):
             data_dir=self._data_dir,
             cache_dir=self._cache_dir,
             conversation_history=self._conversation_history,
+            manual_vocab_store=self._manual_vocab_store,
         )
         ai_cfg = self._config.get("ai_enhance", {})
         self._enhance_mode: str = ai_cfg.get("mode", "proofread")
@@ -346,11 +347,9 @@ class WenZiApp(StatusBarApp):
             enhancer=self._enhancer,
             preview_panel=self._preview_panel,
             usage_stats=self._usage_stats,
+            manual_vocab_store=self._manual_vocab_store,
         )
         self._enhance_controller.enhance_mode = self._enhance_mode
-        self._enhance_controller._manual_vocab_store = self._manual_vocab_store
-        if self._enhancer:
-            self._enhancer._manual_vocab_store = self._manual_vocab_store
 
         # AI Enhance submenu (mode selection only)
         self._enhance_menu = StatusMenuItem(t("menu.ai_enhance"))

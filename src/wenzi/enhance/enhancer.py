@@ -211,6 +211,7 @@ class TextEnhancer:
         data_dir: str | None = None,
         cache_dir: str | None = None,
         conversation_history: Optional[ConversationHistory] = None,
+        manual_vocab_store: Optional[ManualVocabularyStore] = None,
     ) -> None:
         self._enabled = config.get("enabled", False)
         self._timeout = config.get("timeout", 30)
@@ -254,7 +255,7 @@ class TextEnhancer:
         self._providers_config = config.get("providers", {})
         self._init_providers()
 
-        self._manual_vocab_store: ManualVocabularyStore | None = None
+        self._manual_vocab_store = manual_vocab_store
 
         # Conversation history
         history_cfg = config.get("conversation_history", {})
@@ -1175,6 +1176,7 @@ def create_enhancer(
     data_dir: str | None = None,
     cache_dir: str | None = None,
     conversation_history: Optional[ConversationHistory] = None,
+    manual_vocab_store: Optional[ManualVocabularyStore] = None,
 ) -> Optional[TextEnhancer]:
     """Factory function to create a TextEnhancer from app config.
 
@@ -1189,4 +1191,5 @@ def create_enhancer(
         data_dir=data_dir,
         cache_dir=cache_dir,
         conversation_history=conversation_history,
+        manual_vocab_store=manual_vocab_store,
     )
