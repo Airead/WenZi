@@ -1,8 +1,9 @@
-"""Window management API — move, resize, and snap the focused window."""
+"""Window management API — move, resize, snap, list, focus, and close windows."""
 
 from __future__ import annotations
 
 import logging
+import os
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -60,6 +61,34 @@ def _get_focused_window():
         front_app.localizedName(), pid, win,
     )
     return win
+
+
+def _get_windows_for_pid(pid: int):
+    """Return the AXWindows array for a given PID, or None."""
+    from ApplicationServices import (
+        AXUIElementCreateApplication,
+        AXUIElementCopyAttributeValue,
+        kAXErrorSuccess,
+    )
+
+    ax_app = AXUIElementCreateApplication(pid)
+    err, windows = AXUIElementCopyAttributeValue(ax_app, "AXWindows", None)
+    if err != kAXErrorSuccess or not windows:
+        return None
+    return windows
+
+
+def _get_window_title(win) -> str:
+    """Return the AXTitle of a window, or empty string."""
+    from ApplicationServices import (
+        AXUIElementCopyAttributeValue,
+        kAXErrorSuccess,
+    )
+
+    err, title = AXUIElementCopyAttributeValue(win, "AXTitle", None)
+    if err != kAXErrorSuccess or title is None:
+        return ""
+    return str(title)
 
 
 def _get_position(win) -> Optional[tuple]:
@@ -306,3 +335,106 @@ class WindowAPI:
         new_h = rel_h * nsh
 
         _apply_frame(win, new_x, new_y, new_w, new_h)
+
+    def list(self) -> list[dict]:
+        """Return info about all open windows across all applications.
+
+        Each dict has ``app_name``, ``title``, ``pid``, ``window_index``,
+        and ``app_path``.  Windows without a title are skipped (utility
+        windows, hidden panels, etc.).
+        """
+        from AppKit import (
+            NSApplicationActivationPolicyRegular,
+            NSWorkspace,
+        )
+
+        result = []
+        own_pid = os.getpid()
+        workspace = NSWorkspace.sharedWorkspace()
+
+        for app in workspace.runningApplications():
+            if app.activationPolicy() != NSApplicationActivationPolicyRegular:
+                continue
+            pid = app.processIdentifier()
+            if pid == own_pid:
+                continue
+            app_name = app.localizedName() or ""
+            bundle_url = app.bundleURL()
+            app_path = str(bundle_url.path()) if bundle_url else ""
+
+            windows = _get_windows_for_pid(pid)
+            if not windows:
+                continue
+
+            for idx, win in enumerate(windows):
+                title = _get_window_title(win)
+                if not title:
+                    continue
+                result.append({
+                    "app_name": app_name,
+                    "title": title,
+                    "pid": pid,
+                    "window_index": idx,
+                    "app_path": app_path,
+                })
+        return result
+
+    def focus(self, pid: int, window_index: int = 0) -> bool:
+        """Bring the specified window to the front.
+
+        Args:
+            pid: Process ID of the application.
+            window_index: Index in the app's ``AXWindows`` array.
+
+        Returns:
+            True if the window was raised successfully.
+        """
+        from AppKit import NSWorkspace
+        from ApplicationServices import AXUIElementPerformAction
+
+        windows = _get_windows_for_pid(pid)
+        if not windows or window_index >= len(windows):
+            logger.debug("focus: no window for pid=%s idx=%s", pid, window_index)
+            return False
+
+        AXUIElementPerformAction(windows[window_index], "AXRaise")
+
+        # Activate the owning application
+        for app in NSWorkspace.sharedWorkspace().runningApplications():
+            if app.processIdentifier() == pid:
+                # NSApplicationActivateIgnoringOtherApps = 1 << 1 = 2
+                app.activateWithOptions_(2)
+                break
+        return True
+
+    def close(self, pid: int, window_index: int = 0) -> bool:
+        """Close the specified window via its AXCloseButton.
+
+        Args:
+            pid: Process ID of the application.
+            window_index: Index in the app's ``AXWindows`` array.
+
+        Returns:
+            True if the close button was pressed successfully.
+        """
+        from ApplicationServices import (
+            AXUIElementCopyAttributeValue,
+            AXUIElementPerformAction,
+            kAXErrorSuccess,
+        )
+
+        windows = _get_windows_for_pid(pid)
+        if not windows or window_index >= len(windows):
+            logger.debug("close: no window for pid=%s idx=%s", pid, window_index)
+            return False
+
+        win = windows[window_index]
+        err, close_btn = AXUIElementCopyAttributeValue(
+            win, "AXCloseButton", None,
+        )
+        if err != kAXErrorSuccess or close_btn is None:
+            logger.debug("close: no AXCloseButton for pid=%s idx=%s", pid, window_index)
+            return False
+
+        AXUIElementPerformAction(close_btn, "AXPress")
+        return True

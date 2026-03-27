@@ -6,6 +6,8 @@ import pytest
 
 from wenzi.scripting.api.window import (
     WindowAPI,
+    _get_window_title,
+    _get_windows_for_pid,
     _unzoom_if_needed,
     _visible_frame_ax,
 )
@@ -345,3 +347,256 @@ class TestVisibleFrameAx:
         assert y == 0
         assert w == 1920
         assert h == 1055
+
+
+# ---------------------------------------------------------------------------
+# Helpers for list / focus / close
+# ---------------------------------------------------------------------------
+
+def _make_running_app(pid, name="TestApp", policy=0, bundle_path="/Applications/Test.app"):
+    """Create a fake NSRunningApplication."""
+    app = MagicMock()
+    app.processIdentifier.return_value = pid
+    app.localizedName.return_value = name
+    app.activationPolicy.return_value = policy
+    bundle_url = MagicMock()
+    bundle_url.path.return_value = bundle_path
+    app.bundleURL.return_value = bundle_url
+    return app
+
+
+def _patch_workspace_apps(monkeypatch, apps):
+    """Patch NSWorkspace.sharedWorkspace().runningApplications()."""
+    import AppKit as _appkit
+
+    workspace = MagicMock()
+    workspace.runningApplications.return_value = apps
+    ns_workspace = MagicMock()
+    ns_workspace.sharedWorkspace.return_value = workspace
+    monkeypatch.setattr(_appkit, "NSWorkspace", ns_workspace)
+    return workspace
+
+
+# ---------------------------------------------------------------------------
+# Tests: list / focus / close
+# ---------------------------------------------------------------------------
+
+class TestList:
+    def test_returns_windows(self, monkeypatch):
+        win1 = MagicMock(name="win1")
+        win2 = MagicMock(name="win2")
+        app = _make_running_app(100, "Safari", bundle_path="/Applications/Safari.app")
+        _patch_workspace_apps(monkeypatch, [app])
+
+        monkeypatch.setattr(
+            "wenzi.scripting.api.window._get_windows_for_pid",
+            lambda pid: [win1, win2] if pid == 100 else None,
+        )
+        titles = {"win1": "Google", "win2": "GitHub"}
+        monkeypatch.setattr(
+            "wenzi.scripting.api.window._get_window_title",
+            lambda w: titles.get(w._mock_name, ""),
+        )
+        monkeypatch.setattr("wenzi.scripting.api.window.os.getpid", lambda: 999)
+
+        result = WindowAPI().list()
+
+        assert len(result) == 2
+        assert result[0] == {
+            "app_name": "Safari",
+            "title": "Google",
+            "pid": 100,
+            "window_index": 0,
+            "app_path": "/Applications/Safari.app",
+        }
+        assert result[1]["title"] == "GitHub"
+        assert result[1]["window_index"] == 1
+
+    def test_skips_own_process(self, monkeypatch):
+        app = _make_running_app(42, "WenZi")
+        _patch_workspace_apps(monkeypatch, [app])
+        monkeypatch.setattr("wenzi.scripting.api.window.os.getpid", lambda: 42)
+
+        result = WindowAPI().list()
+        assert result == []
+
+    def test_skips_non_regular_apps(self, monkeypatch):
+        # policy=1 → NSApplicationActivationPolicyAccessory
+        app = _make_running_app(100, "Daemon", policy=1)
+        _patch_workspace_apps(monkeypatch, [app])
+        monkeypatch.setattr("wenzi.scripting.api.window.os.getpid", lambda: 999)
+
+        result = WindowAPI().list()
+        assert result == []
+
+    def test_skips_windows_without_title(self, monkeypatch):
+        win = MagicMock(name="untitled")
+        app = _make_running_app(100, "Foo")
+        _patch_workspace_apps(monkeypatch, [app])
+        monkeypatch.setattr(
+            "wenzi.scripting.api.window._get_windows_for_pid",
+            lambda pid: [win],
+        )
+        monkeypatch.setattr(
+            "wenzi.scripting.api.window._get_window_title",
+            lambda w: "",
+        )
+        monkeypatch.setattr("wenzi.scripting.api.window.os.getpid", lambda: 999)
+
+        result = WindowAPI().list()
+        assert result == []
+
+    def test_skips_apps_with_no_windows(self, monkeypatch):
+        app = _make_running_app(100, "Empty")
+        _patch_workspace_apps(monkeypatch, [app])
+        monkeypatch.setattr(
+            "wenzi.scripting.api.window._get_windows_for_pid",
+            lambda pid: None,
+        )
+        monkeypatch.setattr("wenzi.scripting.api.window.os.getpid", lambda: 999)
+
+        result = WindowAPI().list()
+        assert result == []
+
+
+class TestFocus:
+    def test_raises_and_activates(self, monkeypatch):
+        import ApplicationServices as _as
+
+        win = MagicMock(name="target")
+        monkeypatch.setattr(
+            "wenzi.scripting.api.window._get_windows_for_pid",
+            lambda pid: [win] if pid == 100 else None,
+        )
+        perform_calls = []
+        monkeypatch.setattr(
+            _as, "AXUIElementPerformAction",
+            lambda w, action: perform_calls.append((w, action)),
+        )
+        app = _make_running_app(100, "Safari")
+        _patch_workspace_apps(monkeypatch, [app])
+
+        result = WindowAPI().focus(100, 0)
+
+        assert result is True
+        assert perform_calls == [(win, "AXRaise")]
+        app.activateWithOptions_.assert_called_once_with(2)
+
+    def test_returns_false_no_windows(self, monkeypatch):
+        monkeypatch.setattr(
+            "wenzi.scripting.api.window._get_windows_for_pid",
+            lambda pid: None,
+        )
+        assert WindowAPI().focus(100) is False
+
+    def test_returns_false_bad_index(self, monkeypatch):
+        monkeypatch.setattr(
+            "wenzi.scripting.api.window._get_windows_for_pid",
+            lambda pid: [MagicMock()],
+        )
+        assert WindowAPI().focus(100, window_index=5) is False
+
+
+class TestClose:
+    def test_presses_close_button(self, monkeypatch):
+        import ApplicationServices as _as
+
+        win = MagicMock(name="win")
+        close_btn = MagicMock(name="close_btn")
+
+        monkeypatch.setattr(
+            "wenzi.scripting.api.window._get_windows_for_pid",
+            lambda pid: [win] if pid == 100 else None,
+        )
+
+        def fake_copy(element, attr, _):
+            if element is win and attr == "AXCloseButton":
+                return (_as.kAXErrorSuccess, close_btn)
+            return (-1, None)
+
+        monkeypatch.setattr(_as, "AXUIElementCopyAttributeValue", fake_copy)
+
+        perform_calls = []
+        monkeypatch.setattr(
+            _as, "AXUIElementPerformAction",
+            lambda w, action: perform_calls.append((w, action)),
+        )
+
+        result = WindowAPI().close(100, 0)
+
+        assert result is True
+        assert perform_calls == [(close_btn, "AXPress")]
+
+    def test_returns_false_no_close_button(self, monkeypatch):
+        import ApplicationServices as _as
+
+        win = MagicMock()
+        monkeypatch.setattr(
+            "wenzi.scripting.api.window._get_windows_for_pid",
+            lambda pid: [win],
+        )
+        monkeypatch.setattr(
+            _as, "AXUIElementCopyAttributeValue",
+            lambda w, attr, _: (-1, None),
+        )
+
+        assert WindowAPI().close(100, 0) is False
+
+    def test_returns_false_no_windows(self, monkeypatch):
+        monkeypatch.setattr(
+            "wenzi.scripting.api.window._get_windows_for_pid",
+            lambda pid: None,
+        )
+        assert WindowAPI().close(100) is False
+
+
+class TestGetWindowsForPid:
+    def test_returns_windows(self, monkeypatch):
+        import ApplicationServices as _as
+
+        win_list = [MagicMock(), MagicMock()]
+        monkeypatch.setattr(
+            _as, "AXUIElementCreateApplication",
+            lambda pid: MagicMock(),
+        )
+        monkeypatch.setattr(
+            _as, "AXUIElementCopyAttributeValue",
+            lambda app, attr, _: (_as.kAXErrorSuccess, win_list),
+        )
+
+        result = _get_windows_for_pid(42)
+        assert result is win_list
+
+    def test_returns_none_on_error(self, monkeypatch):
+        import ApplicationServices as _as
+
+        monkeypatch.setattr(
+            _as, "AXUIElementCreateApplication",
+            lambda pid: MagicMock(),
+        )
+        monkeypatch.setattr(
+            _as, "AXUIElementCopyAttributeValue",
+            lambda app, attr, _: (-1, None),
+        )
+
+        assert _get_windows_for_pid(42) is None
+
+
+class TestGetWindowTitle:
+    def test_returns_title(self, monkeypatch):
+        import ApplicationServices as _as
+
+        monkeypatch.setattr(
+            _as, "AXUIElementCopyAttributeValue",
+            lambda w, attr, _: (_as.kAXErrorSuccess, "My Window"),
+        )
+        assert _get_window_title(MagicMock()) == "My Window"
+
+    def test_returns_empty_on_error(self, monkeypatch):
+        import ApplicationServices as _as
+
+        monkeypatch.setattr(
+            _as, "AXUIElementCopyAttributeValue",
+            lambda w, attr, _: (-1, None),
+        )
+        assert _get_window_title(MagicMock()) == ""
