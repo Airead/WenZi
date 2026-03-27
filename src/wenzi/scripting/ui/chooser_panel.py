@@ -228,6 +228,7 @@ class ChooserPanel:
         self._switch_english: bool = True
         self._saved_input_source: Optional[str] = None
         self._active_source: Optional[ChooserSource] = None  # currently prefix-activated source
+        self._context_text: Optional[str] = None  # Universal Action context
         self._search_generation: int = 0
         self._pending_async_count: int = 0
         self._loading_visible: bool = False
@@ -501,11 +502,32 @@ class ChooserPanel:
 
         self._fire_event("open")
 
+    def show_universal_action(
+        self,
+        context_text: str,
+        on_close: Optional[Callable] = None,
+        initial_query: Optional[str] = None,
+        placeholder: Optional[str] = None,
+    ) -> None:
+        """Show the chooser in Universal Action mode with a context block.
+
+        Must run on the main thread.
+
+        Args:
+            context_text: The selected text to display as read-only context.
+            on_close: Callback invoked when the panel closes.
+            initial_query: Pre-fill the search input (for filtering actions).
+            placeholder: Override the search input placeholder text.
+        """
+        self._context_text = context_text
+        self.show(on_close=on_close, initial_query=initial_query, placeholder=placeholder)
+
     def close(self) -> None:
         """Close the chooser panel."""
         if self._closing:
             return
         self._closing = True
+        self._context_text = None
 
         # Cancel all pending debounce timers
         self._cancel_all_debounce_timers()
@@ -1350,6 +1372,11 @@ class ChooserPanel:
             self._pending_initial_query = None
             self._eval_js(f"setInputValue({json.dumps(query)})")
 
+        # Universal Action context block
+        if self._context_text is not None:
+            escaped = json.dumps(self._context_text)
+            label = json.dumps(t("chooser.ua.context_label"))
+            self._eval_js(f"setContextText({escaped}, {label})")
 
     @staticmethod
     def _ensure_edit_menu() -> None:
