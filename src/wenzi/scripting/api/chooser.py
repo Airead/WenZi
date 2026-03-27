@@ -99,6 +99,8 @@ class ChooserAPI:
             self._register_quit_all_command()
         if "reload" not in self._command_source._commands:
             self._register_reload_command()
+        if "settings" not in self._command_source._commands:
+            self._register_settings_command()
 
     def _register_help_command(self) -> None:
         """Register the built-in help command."""
@@ -188,6 +190,25 @@ class ChooserAPI:
                 title="Reload Scripts",
                 subtitle="Reload all scripts and plugins",
                 action=_reload_action,
+                promoted=True,
+            )
+        )
+
+    def _register_settings_command(self) -> None:
+        """Register the built-in WenZi Settings command."""
+
+        def _settings_action(args: str) -> None:
+            from PyObjCTools import AppHelper
+
+            AppHelper.callAfter(self._fire_event, "openSettings")
+
+        self._command_source.register(
+            CommandEntry(
+                name="settings",
+                title="WenZi Settings",
+                subtitle="Open WenZi preferences",
+                icon="⚙️",
+                action=_settings_action,
                 promoted=True,
             )
         )
