@@ -106,6 +106,8 @@ class ScriptEngine:
             self._query_history.flush_sync()
         self._wz.pasteboard._set_monitor(None)
         self._wz.snippets._set_store(None)
+        if self._wz._keychain_api is not None:
+            self._wz._keychain_api.flush_sync()
         self._wz.store.flush_sync()
         self._registry.clear()
         logger.info("Script engine stopped")
