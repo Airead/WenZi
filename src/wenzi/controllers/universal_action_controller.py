@@ -196,7 +196,6 @@ class UniversalActionController:
     def _on_source_selected(self, source, text: str) -> None:
         """Call source search with selected text, execute first result's action."""
         import asyncio
-        from PyObjCTools import AppHelper
 
         def _run():
             try:
@@ -211,10 +210,14 @@ class UniversalActionController:
                 if not results:
                     return
                 first = results[0]
+                # Run action on this background thread — same as the normal
+                # chooser deferred action path.  Actions that need the main
+                # thread (e.g. panel.show) use callAfter internally.
                 if first.action is not None:
-                    # Dispatch to main thread — actions may create UI
-                    AppHelper.callAfter(first.action)
+                    first.action()
                 elif first.preview:
+                    from PyObjCTools import AppHelper
+
                     chooser = self._app._script_engine._wz.chooser
                     ql = chooser._panel._ql_panel
                     if ql is not None:
