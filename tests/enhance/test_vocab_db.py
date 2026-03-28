@@ -142,6 +142,32 @@ class TestStats:
         entry = db.add("派森", "Python", "asr")
         assert db.get_stats_summary(entry["id"], "asr_miss") == 0
 
+    def test_get_stats_summary_batch_with_context(self, db):
+        e1 = db.add("a", "A", "asr")
+        e2 = db.add("b", "B", "asr")
+        db.record_stats([
+            (e1["id"], "asr_miss", "asr:whisper"),
+            (e1["id"], "asr_miss", "asr:funasr"),
+            (e2["id"], "asr_miss", "asr:whisper"),
+        ])
+        result = db.get_stats_summary_batch(
+            [e1["id"], e2["id"]], ["asr_miss"], context_key="asr:whisper",
+        )
+        assert result[(e1["id"], "asr_miss")] == 1
+        assert result[(e2["id"], "asr_miss")] == 1
+
+    def test_get_stats_summary_batch_context_empty_ids(self, db):
+        result = db.get_stats_summary_batch([], ["asr_miss"], context_key="asr:x")
+        assert result == {}
+
+    def test_get_stats_summary_batch_context_no_match(self, db):
+        e1 = db.add("a", "A", "asr")
+        db.record_stats([(e1["id"], "asr_miss", "asr:whisper")])
+        result = db.get_stats_summary_batch(
+            [e1["id"]], ["asr_miss"], context_key="asr:nonexistent",
+        )
+        assert result == {}
+
     def test_cascade_delete(self, db):
         entry = db.add("派森", "Python", "asr")
         eid = entry["id"]

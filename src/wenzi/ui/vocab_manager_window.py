@@ -276,6 +276,11 @@ class VocabManagerPanel:
                     body.get("fields", {}),
                 )
 
+        elif msg_type == "getEntryStats":
+            cb = self._callbacks.get("on_get_entry_stats")
+            if cb:
+                cb(body.get("variant", ""), body.get("term", ""))
+
         elif msg_type == "exportVocab":
             cb = self._callbacks.get("on_export")
             if cb:

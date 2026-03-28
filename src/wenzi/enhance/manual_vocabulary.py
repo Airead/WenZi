@@ -354,10 +354,13 @@ class ManualVocabularyStore:
         return _entry_from_row(row) if row else None
 
     def get_stats_summary_batch(
-        self, entry_ids: list[int], metrics: list[str],
+        self,
+        entry_ids: list[int],
+        metrics: list[str],
+        context_key: str = "",
     ) -> dict[tuple[int, str], int]:
         """Batch fetch stats summaries — delegates to VocabDB."""
-        return self._db.get_stats_summary_batch(entry_ids, metrics)
+        return self._db.get_stats_summary_batch(entry_ids, metrics, context_key)
 
     def update_fields(self, entry_id: int, fields: dict) -> None:
         """Update specific fields on an entry by id (delegates to VocabDB)."""

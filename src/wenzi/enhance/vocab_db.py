@@ -305,24 +305,35 @@ class VocabDB:
         return row[0]
 
     def get_stats_summary_batch(
-        self, entry_ids: list[int], metrics: list[str],
+        self,
+        entry_ids: list[int],
+        metrics: list[str],
+        context_key: str = "",
     ) -> dict[tuple[int, str], int]:
         """Batch fetch stats summaries for multiple entries and metrics.
 
+        When *context_key* is given, only that bucket is counted;
+        otherwise all buckets are summed.
+
         Returns a dict mapping ``(entry_id, metric)`` to the summed count.
-        Missing combinations default to 0.
         """
         if not entry_ids or not metrics:
             return {}
-        id_placeholders = ",".join("?" * len(entry_ids))
-        m_placeholders = ",".join("?" * len(metrics))
+        id_ph = ",".join("?" * len(entry_ids))
+        m_ph = ",".join("?" * len(metrics))
+        where = (
+            f"entry_id IN ({id_ph}) AND metric IN ({m_ph})"
+        )
+        params: list = [*entry_ids, *metrics]
+        if context_key:
+            where += " AND context_key = ?"
+            params.append(context_key)
         with self._lock:
             rows = self._conn.execute(
                 f"SELECT entry_id, metric, COALESCE(SUM(count), 0) AS total "
-                f"FROM vocab_stats "
-                f"WHERE entry_id IN ({id_placeholders}) AND metric IN ({m_placeholders}) "
+                f"FROM vocab_stats WHERE {where} "
                 f"GROUP BY entry_id, metric",
-                [*entry_ids, *metrics],
+                params,
             ).fetchall()
         return {(r["entry_id"], r["metric"]): r["total"] for r in rows}
 

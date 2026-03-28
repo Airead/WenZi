@@ -169,7 +169,8 @@ body {
 .col-cb input { cursor: pointer; }
 .col-variant { flex: 1; min-width: 60px; }
 .col-term { flex: 1; min-width: 60px; }
-.col-hits { width: 40px; flex-shrink: 0; text-align: right; }
+.col-asr-stats { width: 50px; flex-shrink: 0; text-align: right; }
+.col-llm-stats { width: 50px; flex-shrink: 0; text-align: right; }
 .col-freq { width: 50px; flex-shrink: 0; text-align: right; }
 .col-source { width: 60px; flex-shrink: 0; text-align: center; }
 .col-date { width: 68px; flex-shrink: 0; color: var(--secondary); font-family: "SF Mono", Menlo, monospace; font-size: 11px; }
@@ -228,6 +229,36 @@ select.inline-edit {
     height: 24px; cursor: pointer; padding: 0 4px;
 }
 .col-models select.inline-edit { flex: 1; min-width: 0; }
+
+/* Detail panel (expanded row) */
+.detail-row {
+    border-bottom: 1px solid var(--border);
+    background: var(--card-bg);
+}
+.detail-panel {
+    display: flex; gap: 16px; padding: 10px 16px;
+    font-size: 11px;
+}
+.detail-section { flex: 1; min-width: 0; }
+.detail-section h4 {
+    font-size: 11px; font-weight: 600; color: var(--secondary);
+    margin-bottom: 6px;
+}
+.detail-table {
+    width: 100%; border-collapse: collapse;
+}
+.detail-table th, .detail-table td {
+    padding: 3px 6px; text-align: left;
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+}
+.detail-table th {
+    font-weight: 600; color: var(--secondary);
+    background: color-mix(in srgb, var(--card-bg) 80%, var(--bg));
+}
+.detail-table td { color: var(--text); }
+.detail-table td.num { text-align: right; font-family: "SF Mono", Menlo, monospace; }
+.detail-empty { color: var(--secondary); font-style: italic; padding: 6px 0; }
 
 /* Add row */
 .add-row {
@@ -310,8 +341,8 @@ select.inline-edit {
         <div class="col col-variant sortable" data-col="variant"></div>
         <div class="col col-app sortable" data-col="app_name"></div>
         <div class="col col-mode sortable" data-col="enhance_mode"></div>
-        <div class="col col-date sortable" data-col="last_hit"></div>
-        <div class="col col-hits sortable" data-col="hit_count"></div>
+        <div class="col col-asr-stats sortable" data-col="asr_miss"></div>
+        <div class="col col-llm-stats sortable" data-col="llm_hit"></div>
         <div class="col col-freq sortable" data-col="frequency"></div>
         <div class="col col-date sortable" data-col="first_seen"></div>
         <div class="col col-date sortable" data-col="last_updated"></div>
@@ -401,9 +432,10 @@ function _initI18nLabels() {
 
 var COLUMN_I18N = {
     variant: 'column_variant', term: 'column_term',
-    hit_count: 'column_hits', frequency: 'column_freq',
+    asr_miss: 'column_asr', llm_hit: 'column_llm',
+    frequency: 'column_freq',
     source: 'column_source', last_updated: 'column_last_updated',
-    first_seen: 'column_first_seen', last_hit: 'column_last_hit',
+    first_seen: 'column_first_seen',
     enhance_mode: 'column_mode', app_name: 'column_app',
     _models: 'column_models'
 };
@@ -502,8 +534,8 @@ function _showAddRow() {
         '<div class="col col-variant"><input type="text" id="add-variant" placeholder="' + esc(i18n('add_placeholder_variant')) + '"></div>' +
         '<div class="col col-app"><select id="add-app"></select></div>' +
         '<div class="col col-mode"></div>' +
-        '<div class="col col-date"></div>' +
-        '<div class="col col-hits"></div>' +
+        '<div class="col col-asr-stats"></div>' +
+        '<div class="col col-llm-stats"></div>' +
         '<div class="col col-freq"></div>' +
         '<div class="col col-date"></div>' +
         '<div class="col col-date"></div>' +
@@ -828,19 +860,26 @@ function setRecords(records, totalCount, page, numPages, filteredCount) {
         var r = records[i];
         var ts = fmtDate(r.last_updated || '');
         var fsTs = fmtDate(r.first_seen || '');
-        var lhTs = fmtDate(r.last_hit || '');
         var srcClass = (r.source || 'user').toLowerCase();
         var modelTags = '';
         if (r.asr_model) modelTags += miniTag(abbr(r.asr_model), 'stt', 'ASR: ' + r.asr_model);
         if (r.llm_model) modelTags += miniTag(abbr(r.llm_model), 'llm', 'LLM: ' + r.llm_model);
-        html += '<div class="row" data-idx="' + i + '">' +
+        var asrMiss = r.asr_miss || 0;
+        var asrHit = r.asr_hit || 0;
+        var asrTotal = asrMiss + asrHit;
+        var asrText = asrTotal > 0 ? asrMiss + '/' + asrTotal : '0';
+        var llmHit = r.llm_hit || 0;
+        var llmMiss = r.llm_miss || 0;
+        var llmTotal = llmHit + llmMiss;
+        var llmText = llmTotal > 0 ? llmHit + '/' + llmTotal : '0';
+        html += '<div class="row" data-idx="' + i + '" data-variant="' + escAttr(r.variant) + '" data-term="' + escAttr(r.term) + '">' +
             '<div class="col col-cb"><input type="checkbox" class="row-cb" data-idx="' + i + '"></div>' +
             '<div class="col col-term" data-field="term">' + esc(r.term || '') + '</div>' +
             '<div class="col col-variant" data-field="variant">' + esc(r.variant || '') + '</div>' +
             '<div class="col col-app" data-field="app_bundle_id">' + esc(r.app_name || '') + '</div>' +
             '<div class="col col-mode">' + esc(r.enhance_mode || '') + '</div>' +
-            '<div class="col col-date" data-tip="' + escAttr(r.last_hit || '') + '">' + esc(lhTs) + '</div>' +
-            '<div class="col col-hits">' + (r.hit_count || 0) + '</div>' +
+            '<div class="col col-asr-stats">' + asrText + '</div>' +
+            '<div class="col col-llm-stats">' + llmText + '</div>' +
             '<div class="col col-freq">' + (r.frequency || 0) + '</div>' +
             '<div class="col col-date" data-tip="' + escAttr(r.first_seen || '') + '">' + esc(fsTs) + '</div>' +
             '<div class="col col-date" data-tip="' + escAttr(r.last_updated || '') + '">' + esc(ts) + '</div>' +
@@ -851,6 +890,88 @@ function setRecords(records, totalCount, page, numPages, filteredCount) {
     }
     tableBody.innerHTML = html;
     tableBody.scrollTop = 0;
+    _expandedKey = null;
+    if (_pendingDetailClick) { clearTimeout(_pendingDetailClick); _pendingDetailClick = null; }
+}
+
+/* --- Detail panel (expand/collapse) --- */
+var _expandedKey = null;
+
+function _detailKey(variant, term) { return variant + '\x00' + term; }
+
+function _stripContextPrefix(key) {
+    var idx = key.indexOf(':');
+    return idx >= 0 ? key.substring(idx + 1) : key;
+}
+
+function _ctxDisplayName(key) {
+    // "app:com.apple.dt.Xcode" → "Xcode", "asr:whisper-large-v3" → "whisper-large-v3"
+    var raw = _stripContextPrefix(key);
+    if (key.startsWith('app:')) {
+        var parts = raw.split('.');
+        return parts[parts.length - 1];
+    }
+    return raw;
+}
+
+function toggleDetail(variant, term) {
+    var key = _detailKey(variant, term);
+    // Collapse existing
+    var existing = tableBody.querySelector('.detail-row');
+    if (existing) {
+        existing.remove();
+        if (_expandedKey === key) { _expandedKey = null; return; }
+    }
+    _expandedKey = key;
+    // Find the row and insert detail placeholder after it
+    var rows = tableBody.querySelectorAll('.row');
+    var targetRow = null;
+    for (var i = 0; i < rows.length; i++) {
+        if (rows[i].getAttribute('data-variant') === variant &&
+            rows[i].getAttribute('data-term') === term) {
+            targetRow = rows[i]; break;
+        }
+    }
+    if (!targetRow) return;
+    var detail = document.createElement('div');
+    detail.className = 'detail-row';
+    detail.innerHTML = '<div class="detail-panel"><div class="detail-empty">' +
+        esc(i18n('detail_loading')) + '</div></div>';
+    targetRow.after(detail);
+    post({type: 'getEntryStats', variant: variant, term: term});
+}
+
+function _renderStatsSection(title, rows, col1Key, col1Label, col2Key, col2Label) {
+    var html = '<div class="detail-section"><h4>' + esc(title) + '</h4>';
+    if (rows.length > 0) {
+        html += '<table class="detail-table"><tr>' +
+            '<th>' + esc(i18n('detail_context')) + '</th>' +
+            '<th>' + esc(col1Label) + '</th>' +
+            '<th>' + esc(col2Label) + '</th>' +
+            '<th>' + esc(i18n('detail_last')) + '</th></tr>';
+        for (var i = 0; i < rows.length; i++) {
+            var r = rows[i];
+            html += '<tr><td>' + esc(_ctxDisplayName(r.context)) + '</td>' +
+                '<td class="num">' + (r[col1Key] || 0) + '</td>' +
+                '<td class="num">' + (r[col2Key] || 0) + '</td>' +
+                '<td>' + esc(fmtDate(r.last || '')) + '</td></tr>';
+        }
+        html += '</table>';
+    } else {
+        html += '<div class="detail-empty">' + esc(i18n('detail_no_data')) + '</div>';
+    }
+    return html + '</div>';
+}
+
+function setEntryStats(variant, term, stats) {
+    if (_expandedKey !== _detailKey(variant, term)) return;
+    var detail = tableBody.querySelector('.detail-row');
+    if (!detail) return;
+
+    detail.innerHTML = '<div class="detail-panel">' +
+        _renderStatsSection(i18n('detail_asr_title'), stats.asr || [], 'miss', i18n('detail_miss'), 'hit', i18n('detail_hit')) +
+        _renderStatsSection(i18n('detail_llm_title'), stats.llm || [], 'hit', i18n('detail_hit'), 'miss', i18n('detail_miss')) +
+        '</div>';
 }
 
 function setTagOptions(tags) {
@@ -930,10 +1051,25 @@ tableBody.addEventListener('click', function(e) {
         post({type:'removeEntry', variant: delBtn.getAttribute('data-variant'), term: delBtn.getAttribute('data-term')});
         return;
     }
+    // Row click → toggle detail panel (delayed to avoid conflict with dblclick)
+    var row = e.target.closest('.row');
+    if (row) {
+        var variant = row.getAttribute('data-variant');
+        var term = row.getAttribute('data-term');
+        if (variant != null && term != null) {
+            _pendingDetailClick = setTimeout(function() {
+                _pendingDetailClick = null;
+                toggleDetail(variant, term);
+            }, 250);
+        }
+    }
 });
 
+var _pendingDetailClick = null;
 var EDITABLE_FIELDS = ['variant', 'term', 'app_bundle_id', 'source', 'models'];
 tableBody.addEventListener('dblclick', function(e) {
+    // Cancel pending detail toggle — user intends to edit
+    if (_pendingDetailClick) { clearTimeout(_pendingDetailClick); _pendingDetailClick = null; }
     var cell = e.target.closest('[data-field]');
     if (!cell) return;
     var row = cell.closest('.row');

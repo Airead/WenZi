@@ -337,8 +337,8 @@ class TestSort:
     def test_sort_changes_column(self, controller):
         controller._sort_column = "variant"
         controller._sort_asc = True
-        controller.on_sort("hit_count")
-        assert controller._sort_column == "hit_count"
+        controller.on_sort("asr_miss")
+        assert controller._sort_column == "asr_miss"
         assert controller._sort_asc is False  # new column defaults to descending
 
 
@@ -388,3 +388,123 @@ class TestSearchAndFilter:
         controller._panel._eval_js.reset_mock()
         controller.on_change_page(1)
         assert controller._page == 1
+
+
+# ---------------------------------------------------------------------------
+# Stats serialization
+# ---------------------------------------------------------------------------
+
+
+class TestStatsSerialization:
+    def test_serialize_page_includes_stats(self, controller, store):
+        store.add("Cloud", "Claude", source="asr")
+        entries = store.get_all()
+        entry = entries[0]
+        # Record some stats
+        store._db.record_stats([
+            (entry.id, "asr_miss", "asr:whisper"),
+            (entry.id, "asr_hit", "asr:whisper"),
+            (entry.id, "llm_hit", "llm:gpt-4o"),
+        ])
+        store._db.record_stats([
+            (entry.id, "asr_miss", "asr:whisper"),
+        ])
+        result = controller._serialize_page(entries)
+        assert len(result) == 1
+        d = result[0]
+        assert d["asr_miss"] == 2
+        assert d["asr_hit"] == 1
+        assert d["llm_hit"] == 1
+        assert d["llm_miss"] == 0
+
+    def test_serialize_page_context_filtered(self, controller, store):
+        store.add("Cloud", "Claude", source="asr", asr_model="whisper")
+        entries = store.get_all()
+        entry = entries[0]
+        store._db.record_stats([
+            (entry.id, "asr_miss", "asr:whisper"),
+            (entry.id, "asr_miss", "asr:funasr"),
+            (entry.id, "asr_miss", "asr:funasr"),
+        ])
+        # Without filter → global sum = 3
+        result = controller._serialize_page(entries)
+        assert result[0]["asr_miss"] == 3
+
+        # With asr_model tag filter → only whisper bucket = 1
+        controller._all_entries = entries
+        controller._active_tags = {"whisper"}
+        controller._apply_filters()
+        result = controller._serialize_page(entries)
+        assert result[0]["asr_miss"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Stats-based sorting
+# ---------------------------------------------------------------------------
+
+
+class TestStatsSorting:
+    def test_sort_by_asr_miss(self, controller, store):
+        store.add("a", "A", source="asr")
+        store.add("b", "B", source="asr")
+        all_entries = store.get_all()
+        e_a = next(e for e in all_entries if e.variant == "a")
+        e_b = next(e for e in all_entries if e.variant == "b")
+        # b has more asr_miss
+        store._db.record_stats([(e_a.id, "asr_miss", "asr:w")])
+        store._db.record_stats([
+            (e_b.id, "asr_miss", "asr:w"),
+            (e_b.id, "asr_miss", "asr:w"),
+            (e_b.id, "asr_miss", "asr:w"),
+        ])
+        controller._sort_column = "asr_miss"
+        controller._sort_asc = False
+        controller._all_entries = store.get_all()
+        controller._apply_filters()
+        assert controller._filtered_entries[0].variant == "b"
+        assert controller._filtered_entries[1].variant == "a"
+
+    def test_sort_by_llm_hit(self, controller, store):
+        store.add("a", "A", source="asr")
+        store.add("b", "B", source="asr")
+        all_entries = store.get_all()
+        e_a = next(e for e in all_entries if e.variant == "a")
+        e_b = next(e for e in all_entries if e.variant == "b")
+        store._db.record_stats([
+            (e_a.id, "llm_hit", "llm:gpt"),
+            (e_a.id, "llm_hit", "llm:gpt"),
+        ])
+        store._db.record_stats([(e_b.id, "llm_hit", "llm:gpt")])
+        controller._sort_column = "llm_hit"
+        controller._sort_asc = False
+        controller._all_entries = store.get_all()
+        controller._apply_filters()
+        assert controller._filtered_entries[0].variant == "a"
+
+
+# ---------------------------------------------------------------------------
+# Detail stats query
+# ---------------------------------------------------------------------------
+
+
+class TestDetailStats:
+    def test_get_entry_stats(self, controller, store):
+        store.add("Cloud", "Claude", source="asr")
+        entry = store.get_all()[0]
+        store._db.record_stats([
+            (entry.id, "asr_miss", "asr:whisper"),
+            (entry.id, "asr_hit", "asr:whisper"),
+            (entry.id, "llm_hit", "llm:gpt-4o"),
+        ])
+        controller.on_get_entry_stats("Cloud", "Claude")
+        js_calls = [c[0][0] for c in controller._panel._eval_js.call_args_list]
+        stats_calls = [c for c in js_calls if c.startswith("setEntryStats(")]
+        assert len(stats_calls) == 1
+
+    def test_get_entry_stats_nonexistent(self, controller, store):
+        controller.on_get_entry_stats("nonexist", "nonexist")
+        js_calls = [c[0][0] for c in controller._panel._eval_js.call_args_list]
+        stats_calls = [c for c in js_calls if c.startswith("setEntryStats(")]
+        assert len(stats_calls) == 1
+        # Should still return valid empty structure
+        assert '"asr": []' in stats_calls[0]
