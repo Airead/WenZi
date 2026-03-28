@@ -445,6 +445,8 @@ class AnnotationLayer:
             NSApp,
             NSBackingStoreBuffered,
             NSPanel,
+            NSWindowStyleMaskClosable,
+            NSWindowStyleMaskTitled,
         )
         from Foundation import NSMakeRect
         from WebKit import (
@@ -460,13 +462,15 @@ class AnnotationLayer:
         x = (screen_w - width) / 2
         y = (screen_h - height) / 2
 
+        style = NSWindowStyleMaskTitled | NSWindowStyleMaskClosable
         panel = NSPanel.alloc().initWithContentRect_styleMask_backing_defer_(
             NSMakeRect(x, y, width, height),
-            0,  # NSBorderlessWindowMask
+            style,
             NSBackingStoreBuffered,
             False,
         )
 
+        panel.setTitle_("Screenshot")
         panel.setLevel_(3)  # NSFloatingWindowLevel
         panel.setOpaque_(False)
         panel.setHasShadow_(True)
