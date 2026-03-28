@@ -244,7 +244,7 @@ class AnnotationLayer:
 
         if action == "clipboard":
             self._copy_to_clipboard(png_bytes)
-            self._play_sound()
+            self._notify_copied()
             callback = self._on_done
             self.close()
             if callback:
@@ -303,15 +303,16 @@ class AnnotationLayer:
             return []
 
     @staticmethod
-    def _play_sound() -> None:
-        try:
-            from AppKit import NSSound
-            sound = NSSound.soundNamed_("Glass")
-            if sound is not None:
-                sound.setVolume_(0.3)
-                sound.play()
-        except Exception:
-            pass
+    def _notify_copied() -> None:
+        from wenzi.statusbar import send_notification
+        from wenzi.i18n import t
+
+        send_notification(
+            t("app.name"),
+            "",
+            t("screenshot.copied_to_clipboard"),
+            sound=None,
+        )
 
     @staticmethod
     def _get_screen_size() -> tuple[float, float]:

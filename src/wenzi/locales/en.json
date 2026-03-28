@@ -521,5 +521,7 @@
   "chooser.empty.type_to_search": "Type to search",
   "chooser.empty.no_results": "No results",
   "chooser.preview.select_item": "Select an item to preview",
-  "chooser.delete_confirm": "Delete?"
+  "chooser.delete_confirm": "Delete?",
+
+  "screenshot.copied_to_clipboard": "Screenshot copied to clipboard"
 }

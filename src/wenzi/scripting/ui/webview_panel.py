@@ -610,6 +610,7 @@ class WebViewPanel:
         if self._floating:
             panel.setLevel_(NSStatusWindowLevel)
             panel.setFloatingPanel_(True)
+            panel.setCollectionBehavior_(1 << 4)  # canJoinAllSpaces
         panel.setHidesOnDeactivate_(False)
         panel.center()
 

@@ -521,5 +521,7 @@
   "chooser.empty.type_to_search": "输入以搜索",
   "chooser.empty.no_results": "无结果",
   "chooser.preview.select_item": "选择一项以预览",
-  "chooser.delete_confirm": "删除？"
+  "chooser.delete_confirm": "删除？",
+
+  "screenshot.copied_to_clipboard": "截图已复制到剪贴板"
 }
