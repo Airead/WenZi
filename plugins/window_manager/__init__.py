@@ -43,7 +43,7 @@ def _snap_left(wz):
     if frame is None or screen is None:
         return
     sx, sy, sw, sh = screen["x"], screen["y"], screen["w"], screen["h"]
-    if _close(frame["x"], sx) and _close(frame["y"], sy) and _close(frame["h"], sh):
+    if _close(frame["x"], sx):
         frac = _next_fraction(frame["w"] / sw)
     else:
         frac = _CYCLE[0]
@@ -56,11 +56,7 @@ def _snap_right(wz):
         return
     sx, sy, sw, sh = screen["x"], screen["y"], screen["w"], screen["h"]
     right = sx + sw
-    if (
-        _close(frame["x"] + frame["w"], right)
-        and _close(frame["y"], sy)
-        and _close(frame["h"], sh)
-    ):
+    if _close(frame["x"] + frame["w"], right):
         frac = _next_fraction(frame["w"] / sw)
     else:
         frac = _CYCLE[0]
@@ -72,7 +68,7 @@ def _snap_top(wz):
     if frame is None or screen is None:
         return
     sx, sy, sw, sh = screen["x"], screen["y"], screen["w"], screen["h"]
-    if _close(frame["y"], sy) and _close(frame["x"], sx) and _close(frame["w"], sw):
+    if _close(frame["y"], sy):
         frac = _next_fraction(frame["h"] / sh)
     else:
         frac = _CYCLE[0]
@@ -85,11 +81,7 @@ def _snap_bottom(wz):
         return
     sx, sy, sw, sh = screen["x"], screen["y"], screen["w"], screen["h"]
     bottom = sy + sh
-    if (
-        _close(frame["y"] + frame["h"], bottom)
-        and _close(frame["x"], sx)
-        and _close(frame["w"], sw)
-    ):
+    if _close(frame["y"] + frame["h"], bottom):
         frac = _next_fraction(frame["h"] / sh)
     else:
         frac = _CYCLE[0]
