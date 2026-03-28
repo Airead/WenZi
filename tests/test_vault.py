@@ -237,6 +237,78 @@ class TestVaultMigration:
         mock_delete.assert_called_with("ai_enhance.providers.openai.api_key")
 
 
+class TestExportImportMasterKey:
+    @patch("wenzi.vault._keychain_set", return_value=True)
+    @patch("wenzi.vault._keychain_get", return_value=MOCK_MASTER_KEY_B64)
+    def test_export_returns_base64_key(self, mock_get, mock_set, tmp_path):
+        from wenzi.vault import Vault
+
+        v = Vault(vault_path=str(tmp_path / "vault.json"))
+        exported = v.export_master_key()
+        assert exported is not None
+        import base64
+        assert len(base64.b64decode(exported)) == 32
+
+    @patch("wenzi.vault._keychain_set", return_value=True)
+    @patch("wenzi.vault._keychain_get", return_value=MOCK_MASTER_KEY_B64)
+    def test_export_returns_none_when_degraded(self, mock_get, mock_set, tmp_path):
+        from wenzi.vault import Vault
+
+        v = Vault(vault_path=str(tmp_path / "vault.json"))
+        v._master_key = None
+        assert v.export_master_key() is None
+
+    @patch("wenzi.vault._keychain_set", return_value=True)
+    @patch("wenzi.vault._keychain_get", return_value=MOCK_MASTER_KEY_B64)
+    def test_import_valid_key(self, mock_get, mock_set, tmp_path):
+        from wenzi.vault import Vault
+
+        v = Vault(vault_path=str(tmp_path / "vault.json"))
+        import base64
+        new_key = base64.b64encode(os.urandom(32)).decode("ascii")
+        assert v.import_master_key(new_key) is True
+        mock_set.assert_called_with("scripting.vault.master_key", new_key)
+
+    @patch("wenzi.vault._keychain_set", return_value=True)
+    @patch("wenzi.vault._keychain_get", return_value=MOCK_MASTER_KEY_B64)
+    def test_import_rejects_invalid_base64(self, mock_get, mock_set, tmp_path):
+        from wenzi.vault import Vault
+
+        v = Vault(vault_path=str(tmp_path / "vault.json"))
+        assert v.import_master_key("not-valid-base64!!!") is False
+
+    @patch("wenzi.vault._keychain_set", return_value=True)
+    @patch("wenzi.vault._keychain_get", return_value=MOCK_MASTER_KEY_B64)
+    def test_import_rejects_wrong_length(self, mock_get, mock_set, tmp_path):
+        from wenzi.vault import Vault
+        import base64
+
+        v = Vault(vault_path=str(tmp_path / "vault.json"))
+        short_key = base64.b64encode(b"tooshort").decode("ascii")
+        assert v.import_master_key(short_key) is False
+
+    @patch("wenzi.vault._keychain_set", return_value=False)
+    @patch("wenzi.vault._keychain_get", return_value=MOCK_MASTER_KEY_B64)
+    def test_import_fails_when_keychain_set_fails(self, mock_get, mock_set, tmp_path):
+        from wenzi.vault import Vault
+        import base64
+
+        v = Vault(vault_path=str(tmp_path / "vault.json"))
+        new_key = base64.b64encode(os.urandom(32)).decode("ascii")
+        assert v.import_master_key(new_key) is False
+
+    @patch("wenzi.vault._keychain_set", return_value=True)
+    @patch("wenzi.vault._keychain_get", return_value=MOCK_MASTER_KEY_B64)
+    def test_export_import_roundtrip(self, mock_get, mock_set, tmp_path):
+        """Exported key can be imported back successfully."""
+        from wenzi.vault import Vault
+
+        v = Vault(vault_path=str(tmp_path / "vault.json"))
+        exported = v.export_master_key()
+        assert exported is not None
+        assert v.import_master_key(exported) is True
+
+
 class TestGetVault:
     @patch("wenzi.vault._keychain_set", return_value=True)
     @patch("wenzi.vault._keychain_get", return_value=MOCK_MASTER_KEY_B64)

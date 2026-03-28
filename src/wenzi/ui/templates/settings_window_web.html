@@ -851,6 +851,16 @@ textarea.provider-form-textarea.error {
             <div id="ctl-keychain" class="toggle" onclick="toggleClick(this, 'on_keychain_toggle')"></div>
           </div>
         </div>
+        <div id="master-key-row" class="setting-row" style="display:none; border-top: 1px solid rgba(128,128,128,0.15);">
+          <div class="setting-left">
+            <div class="setting-label" data-i18n="general_tab.master_key">Master Key</div>
+            <div class="setting-desc" data-i18n="general_tab.master_key_desc">Export or import the encryption master key to migrate keychain data between machines</div>
+          </div>
+          <div class="setting-right" style="gap:8px; display:flex;">
+            <button class="btn btn-secondary" onclick="postCallback('on_master_key_export')" data-i18n="general_tab.master_key_export">Export</button>
+            <button class="btn btn-secondary" onclick="postCallback('on_master_key_import')" data-i18n="general_tab.master_key_import">Import</button>
+          </div>
+        </div>
       </div>
 
       <div class="group-title group-title-row"><span data-i18n="general_tab.scripting_section">Advanced</span><span class="help-icon" data-doc="scripting.html#quick-start">?</span></div>
@@ -2450,6 +2460,8 @@ function _initState(config) {
 
   // Security
   setToggle('ctl-keychain', config.keychain_enabled);
+  var mkRow = document.getElementById('master-key-row');
+  if (mkRow) mkRow.style.display = config.keychain_enabled ? '' : 'none';
 
   // Advanced
   setToggle('ctl-scripting', config.scripting_enabled);
@@ -2847,7 +2859,11 @@ function _updateState(state) {
   if (state.visual_indicator !== undefined) setToggle('ctl-visual', state.visual_indicator);
   if (state.show_device_name !== undefined) setToggle('ctl-device-name', state.show_device_name);
   if (state.preview !== undefined) setToggle('ctl-preview', state.preview);
-  if (state.keychain_enabled !== undefined) setToggle('ctl-keychain', state.keychain_enabled);
+  if (state.keychain_enabled !== undefined) {
+    setToggle('ctl-keychain', state.keychain_enabled);
+    var mkRow = document.getElementById('master-key-row');
+    if (mkRow) mkRow.style.display = state.keychain_enabled ? '' : 'none';
+  }
   if (state.scripting_enabled !== undefined) {
     setToggle('ctl-scripting', state.scripting_enabled);
     var sw = document.getElementById('launcher-scripting-warning');

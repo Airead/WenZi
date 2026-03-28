@@ -200,6 +200,8 @@ class SettingsController:
             "on_restart_key_select": self.restart_key_select,
             "on_cancel_key_select": self.cancel_key_select,
             "on_keychain_toggle": self.keychain_toggle,
+            "on_master_key_export": self.master_key_export,
+            "on_master_key_import": self.master_key_import,
             "on_scripting_toggle": self.scripting_toggle,
             "on_sound_toggle": self.sound_toggle,
             "on_visual_toggle": self.visual_toggle,
@@ -367,6 +369,87 @@ class SettingsController:
         kc_cfg["enabled"] = enabled
         self._save_and_reload()
         logger.info("Keychain set to: %s", enabled)
+
+    def master_key_export(self) -> None:
+        """Export the vault master key to a file via NSSavePanel."""
+        vault = get_vault()
+        b64_key = vault.export_master_key()
+        if b64_key is None:
+            topmost_alert(
+                title=t("alert.master_key.export_failed.title"),
+                message=t("alert.master_key.export_failed.message"),
+            )
+            restore_accessory()
+            return
+
+        from AppKit import NSSavePanel
+
+        panel = NSSavePanel.savePanel()
+        panel.setTitle_(t("alert.master_key.export_title"))
+        panel.setNameFieldStringValue_("wenzi-master-key.txt")
+        panel.setAllowedContentTypes_([])
+        result = panel.runModal()
+        if result != 1:  # NSModalResponseOK
+            return
+
+        path = str(panel.URL().path())
+        try:
+            fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with open(fd, "w", encoding="utf-8") as f:
+                f.write(b64_key)
+            logger.info("Master key exported to: %s", path)
+            topmost_alert(
+                title=t("alert.master_key.export_success.title"),
+                message=t("alert.master_key.export_success.message"),
+            )
+            restore_accessory()
+        except Exception as e:
+            logger.error("Failed to export master key: %s", e, exc_info=True)
+            topmost_alert(
+                title=t("alert.master_key.export_failed.title"),
+                message=str(e),
+            )
+            restore_accessory()
+
+    def master_key_import(self) -> None:
+        """Import a vault master key from a file via NSOpenPanel."""
+        from AppKit import NSOpenPanel
+
+        panel = NSOpenPanel.openPanel()
+        panel.setTitle_(t("alert.master_key.import_title"))
+        panel.setCanChooseDirectories_(False)
+        panel.setCanChooseFiles_(True)
+        panel.setAllowsMultipleSelection_(False)
+        result = panel.runModal()
+        if result != 1:  # NSModalResponseOK
+            return
+
+        path = str(panel.URL().path())
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                b64_key = f.read().strip()
+        except Exception as e:
+            logger.error("Failed to read master key file: %s", e, exc_info=True)
+            topmost_alert(
+                title=t("alert.master_key.import_failed.title"),
+                message=str(e),
+            )
+            restore_accessory()
+            return
+
+        vault = get_vault()
+        if not vault.import_master_key(b64_key):
+            topmost_alert(
+                title=t("alert.master_key.import_failed.title"),
+                message=t("alert.master_key.import_failed.message"),
+            )
+            restore_accessory()
+            return
+
+        logger.info("Master key imported from: %s", path)
+        self._prompt_restart(
+            t("alert.master_key.import_success.message")
+        )
 
     def scripting_toggle(self, enabled: bool) -> None:
         """Handle scripting toggle from Settings panel."""

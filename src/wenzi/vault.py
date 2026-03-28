@@ -247,6 +247,41 @@ class Vault:
             self._ensure_loaded()
             return list(self._data.keys())
 
+    # -- master key export / import ----------------------------------------
+
+    def export_master_key(self) -> Optional[str]:
+        """Return the base64-encoded master key, or None if unavailable."""
+        if self._master_key is None:
+            return None
+        return base64.b64encode(self._master_key).decode("ascii")
+
+    def import_master_key(self, b64_key: str) -> bool:
+        """Import a base64-encoded master key into macOS Keychain.
+
+        The new key is stored in Keychain and becomes active after restart.
+        Returns True on success.
+        """
+        try:
+            raw_key = base64.b64decode(b64_key, validate=True)
+        except Exception:
+            logger.warning("Invalid base64 master key")
+            return False
+
+        if len(raw_key) != 32:
+            logger.warning(
+                "Invalid master key length: expected 32 bytes, got %d",
+                len(raw_key),
+            )
+            return False
+
+        b64_clean = base64.b64encode(raw_key).decode("ascii")
+        if not _keychain_set(_MASTER_KEY_ACCOUNT, b64_clean):
+            logger.warning("Failed to store imported master key in Keychain")
+            return False
+
+        logger.info("Master key imported into macOS Keychain")
+        return True
+
     # -- flush --------------------------------------------------------------
 
     def flush_sync(self) -> None:
