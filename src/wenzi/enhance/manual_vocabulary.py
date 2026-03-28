@@ -337,13 +337,13 @@ class ManualVocabularyStore:
     ) -> list[ManualVocabEntry]:
         """Return entries for LLM prompt injection.
 
-        Entries are ranked by ``llm_hit`` count in the corresponding bucket,
+        Entries are ranked by ``llm_miss`` count in the corresponding bucket,
         with cold-start fallback.  At most *max_entries* are returned.
         """
         context_key = self._query_context_key(CTX_LLM, llm_model, app_bundle_id)
         exclude_app = not self._stats_include_app
         ranked = self._db.top_with_fallback(
-            METRIC_LLM_HIT, context_key, max_entries, exclude_app=exclude_app,
+            METRIC_LLM_MISS, context_key, max_entries, exclude_app=exclude_app,
         )
         return [_entry_from_row(d) for d in ranked]
 

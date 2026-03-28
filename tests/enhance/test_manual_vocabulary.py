@@ -224,6 +224,21 @@ class TestQueryHelpers:
         entries = store.get_llm_vocab(max_entries=3)
         assert len(entries) == 3
 
+    def test_get_llm_vocab_ranked_by_llm_miss(self, store):
+        """Entries with more llm_miss should rank higher (need more help)."""
+        store.add("派森", "Python", "asr")
+        store.add("库伯尼特斯", "Kubernetes", "asr")
+        # Simulate: "派森" gets 1 llm_miss, "库伯尼特斯" gets 3 llm_miss
+        for _ in range(1):
+            misses = store.record_asr_phase("派森编程", asr_model="test")
+            store.record_llm_phase(misses, "still 派森", llm_model="test")
+        for _ in range(3):
+            misses = store.record_asr_phase("库伯尼特斯部署", asr_model="test")
+            store.record_llm_phase(misses, "still 库伯尼特斯", llm_model="test")
+        entries = store.get_llm_vocab(llm_model="test")
+        assert len(entries) == 2
+        assert entries[0].term == "Kubernetes"
+
 
 class TestGetEntryStats:
     def test_empty_stats(self, store):
