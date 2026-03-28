@@ -313,3 +313,14 @@ class TestTradSimpDiff:
         # Should NOT contain trad/simp-only pairs
         assert all("這" not in o for o in originals)
         assert all("東" not in o for o in originals)
+
+    def test_extract_word_pairs_strips_boundary_punctuation(self):
+        """Boundary punctuation should be stripped from extracted pairs."""
+        pairs = extract_word_pairs(
+            "测试一下标点符号相关的 diff",
+            "测试一下标点符号相关的 ,difficulty,",
+        )
+        assert len(pairs) == 1
+        original, corrected = pairs[0]
+        assert original == "diff"
+        assert corrected == "difficulty"

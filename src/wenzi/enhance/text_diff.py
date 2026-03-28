@@ -280,6 +280,8 @@ def extract_word_pairs(
         corrected = _join_tokens(tokens_b[j1:j2])
         if _is_punctuation_only(original) or _is_punctuation_only(corrected):
             continue
-        if original.strip() and corrected.strip():
+        _, original, _ = _strip_boundary_punctuation(original.strip())
+        _, corrected, _ = _strip_boundary_punctuation(corrected.strip())
+        if original and corrected:
             pairs.append((original, corrected))
     return pairs
