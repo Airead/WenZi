@@ -135,13 +135,14 @@ class ScriptEngine:
 
             unregister_custom_keys()
             # Reset APIs so they create fresh instances.
-            # Close the chooser panel first to break WKWebView retain cycles.
+            # Destroy the chooser panel so the WKWebView is fully released
+            # and will be recreated with fresh HTML/i18n on next show().
             self._wz._hotkey_api = None
             try:
                 if self._wz._chooser_api is not None:
-                    self._wz._chooser_api.panel.close()
+                    self._wz._chooser_api.panel.destroy()
             except Exception:
-                logger.debug("Error closing chooser panel during reload", exc_info=True)
+                logger.debug("Error destroying chooser panel during reload", exc_info=True)
             self._wz._chooser_api = None
             self._wz._ui_api = None
             # Keep menubar items alive for reuse (avoids NSStatusBar flicker)

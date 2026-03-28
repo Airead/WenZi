@@ -133,6 +133,16 @@ All `chat.completions.create` calls **must** include `max_tokens` to prevent run
 
 When adding a new LLM call, always set `max_tokens` to a reasonable upper bound for the expected output.
 
+## Launcher (Chooser) Panel Lifecycle
+
+The chooser panel (`ChooserPanel`) uses a **hide/reuse** strategy for performance. WKWebView creation + HTML loading is expensive (~200-500ms), so the panel is kept alive across open/close cycles:
+
+- **`close()`** — hides the panel (`orderOut_`) and breaks `_panel_ref` back-references to prevent retain cycles. The NSPanel, WKWebView, and delegates remain alive for reuse.
+- **`destroy()`** — fully tears down the panel and webview. Only called during `engine.reload()` when HTML/i18n may have changed.
+- **`show()`** — if a hidden panel exists (`self._panel is not None and self._page_loaded`), it reconnects refs and resets UI via JS instead of rebuilding from scratch.
+
+When modifying `close()`, do NOT set `self._panel = None` or `self._webview = None` — this would break the reuse path and force a cold start on every open. To prevent retain cycles while hidden, nil out `_panel_ref` on the message handler, navigation delegate, and panel delegate instead.
+
 ## Screenshot & Picture Editor
 
 ### Architecture

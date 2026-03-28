@@ -256,6 +256,57 @@ class ChooserPanel:
         self._panel.setFrame_display_(new_frame, True)
 
     # ------------------------------------------------------------------
+    # Panel reuse helpers
+    # ------------------------------------------------------------------
+
+    def _reconnect_panel_refs(self) -> None:
+        """Restore ``_panel_ref`` back-references broken by :meth:`close`."""
+        if self._message_handler is not None:
+            self._message_handler._panel_ref = self
+        if self._navigation_delegate is not None:
+            self._navigation_delegate._panel_ref = self
+        if self._panel_delegate is not None:
+            self._panel_delegate._panel_ref = self
+
+    def _reset_panel_ui(
+        self,
+        initial_query: Optional[str] = None,
+        placeholder: Optional[str] = None,
+    ) -> None:
+        """Reset the webview UI state for a reused panel.
+
+        Clears the previous search input, results, context block, and
+        preview/compact modes so the panel appears fresh.
+        """
+        parts = [
+            "setResults([])",
+            "setPreviewVisible(false)",
+            "setCompact(false)",
+            "setModifierHints({},null)",
+            "setCreateButton(false)",
+        ]
+        # Clear or set input value
+        if initial_query:
+            parts.append(f"setInputValue({json.dumps(initial_query)})")
+            # pending_initial_query is consumed by _on_page_loaded only on
+            # first load; for reuse we apply it directly here.
+            self._pending_initial_query = None
+        else:
+            parts.append("setInputValue('')")
+        # Handle context block (Universal Action)
+        if self._context_text is not None:
+            escaped = json.dumps(self._context_text)
+            label = json.dumps(t("chooser.ua.context_label"))
+            parts.append(f"setContextText({escaped}, {label})")
+        else:
+            parts.append("clearContext()")
+        # Apply placeholder
+        if placeholder:
+            parts.append(f"setPlaceholder({json.dumps(placeholder)})")
+            self._pending_placeholder = None
+        self._eval_js(";".join(parts))
+
+    # ------------------------------------------------------------------
     # Source management
     # ------------------------------------------------------------------
 
@@ -477,7 +528,14 @@ class ChooserPanel:
 
         self._previous_app = get_frontmost_app()
 
-        self._build_panel()
+        if self._panel is not None and self._page_loaded:
+            # Reuse hidden panel — reconnect refs and reset UI
+            self._reconnect_panel_refs()
+            self._reset_panel_ui(initial_query, placeholder)
+        else:
+            # First show — build from scratch
+            self._build_panel()
+
         self._panel.makeKeyAndOrderFront_(None)
 
         from AppKit import NSApp
@@ -527,7 +585,15 @@ class ChooserPanel:
         self.show(on_close=on_close, initial_query=initial_query, placeholder=placeholder)
 
     def close(self) -> None:
-        """Close the chooser panel."""
+        """Hide the chooser panel, preserving WKWebView for fast re-show.
+
+        Breaks ``_panel_ref`` back-references to prevent retain cycles
+        while the panel is hidden.  The panel and webview remain alive
+        so that the next :meth:`show` can skip the expensive
+        WKWebView + HTML-load cold start.
+
+        Use :meth:`destroy` for full teardown (e.g. during reload).
+        """
         if self._closing:
             return
         self._closing = True
@@ -546,29 +612,19 @@ class ChooserPanel:
             self._ql_panel.close()
             self._ql_panel = None
 
-        if self._webview is not None:
-            self._webview.setNavigationDelegate_(None)
-            # Remove the script message handler to break the reference cycle
-            try:
-                config = self._webview.configuration()
-                if config:
-                    config.userContentController().removeScriptMessageHandlerForName_("chooser")
-            except Exception:
-                pass
+        # Break back-references to prevent retain cycles while hidden.
+        # The objects themselves are kept alive for reuse.
         if self._message_handler is not None:
             self._message_handler._panel_ref = None
         if self._navigation_delegate is not None:
             self._navigation_delegate._panel_ref = None
+        if self._panel_delegate is not None:
+            self._panel_delegate._panel_ref = None
+
+        # Hide the panel (keep it alive)
         if self._panel is not None:
-            self._panel.setDelegate_(None)
-            self._panel_delegate = None
             self._panel.orderOut_(None)
-            self._panel = None
-        self._webview = None
-        self._message_handler = None
-        self._navigation_delegate = None
-        self._page_loaded = False
-        self._pending_js = []
+
         self._current_items = []
         self._history_index = -1
         self._show_preview = False
@@ -596,6 +652,35 @@ class ChooserPanel:
         self._on_close = None
         if callback is not None:
             callback()
+
+    def destroy(self) -> None:
+        """Fully destroy the panel and webview, releasing all resources.
+
+        Called during script reload when the HTML/i18n may have changed
+        and the WKWebView must be recreated from scratch.
+        """
+        # Close first to handle hide + state cleanup
+        self.close()
+
+        # Now tear down the retained objects
+        if self._webview is not None:
+            self._webview.setNavigationDelegate_(None)
+            try:
+                config = self._webview.configuration()
+                if config:
+                    config.userContentController().removeScriptMessageHandlerForName_("chooser")
+            except Exception:
+                pass
+        if self._panel is not None:
+            self._panel.setDelegate_(None)
+            self._panel.orderOut_(None)
+        self._panel = None
+        self._webview = None
+        self._message_handler = None
+        self._navigation_delegate = None
+        self._panel_delegate = None
+        self._page_loaded = False
+        self._pending_js = []
 
     def toggle(self, on_close: Optional[Callable] = None) -> None:
         """Toggle the chooser panel visibility."""
