@@ -39,6 +39,7 @@
   var isDrawing = false;
   var drawStart = null; // {x, y}
   var activeShape = null; // the shape being drawn
+  var mosaicPath = null; // [{x, y}, ...] for mosaic brush strokes
 
   // ── Initialization ──
 
@@ -192,8 +193,9 @@
       );
       canvas.add(activeShape);
     } else if (currentTool === "mosaic") {
-      // Mosaic: just track the start; we draw on mouse up
+      // Mosaic brush: collect path points, apply on mouse up
       activeShape = null;
+      mosaicPath = [{ x: pointer.x, y: pointer.y }];
     }
   }
 
@@ -221,8 +223,9 @@
     ) {
       activeShape.set({ x2: pointer.x, y2: pointer.y });
       canvas.renderAll();
+    } else if (currentTool === "mosaic" && mosaicPath) {
+      mosaicPath.push({ x: pointer.x, y: pointer.y });
     }
-    // mosaic: nothing to draw during drag (could show selection rect later)
   }
 
   function onMouseUp(opt) {
@@ -243,16 +246,10 @@
         createArrow(x1, y1, x2, y2);
       }
     } else if (currentTool === "mosaic") {
-      // Apply mosaic effect in the dragged region
-      if (drawStart) {
-        var mx1 = Math.min(drawStart.x, pointer.x);
-        var my1 = Math.min(drawStart.y, pointer.y);
-        var mw = Math.abs(pointer.x - drawStart.x);
-        var mh = Math.abs(pointer.y - drawStart.y);
-        if (mw > 4 && mh > 4) {
-          applyMosaic(mx1, my1, mw, mh);
-        }
+      if (mosaicPath && mosaicPath.length > 1) {
+        applyMosaicBrush(mosaicPath);
       }
+      mosaicPath = null;
     } else if (activeShape) {
       // For rect, ellipse, line — make them selectable now
       activeShape.set({ selectable: true, evented: true });
@@ -311,51 +308,90 @@
     canvas.setActiveObject(arrow);
   }
 
-  // ── Mosaic Tool ──
+  // ── Mosaic Tool (brush-based) ──
 
-  function applyMosaic(x, y, w, h) {
-    if (!hiddenCtx) return;
+  function applyMosaicBrush(path) {
+    if (!hiddenCtx || !canvas) return;
 
     var blockSize = MOSAIC_BLOCK[currentThickness] || 12;
+    var brushRadius = getThickness() * 6;
+
+    // Compute bounding box of the brush stroke
+    var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (var i = 0; i < path.length; i++) {
+      var px = path[i].x, py = path[i].y;
+      if (px - brushRadius < minX) minX = px - brushRadius;
+      if (py - brushRadius < minY) minY = py - brushRadius;
+      if (px + brushRadius > maxX) maxX = px + brushRadius;
+      if (py + brushRadius > maxY) maxY = py + brushRadius;
+    }
 
     // Clamp to canvas bounds
-    var cx = Math.max(0, Math.round(x));
-    var cy = Math.max(0, Math.round(y));
-    var cw = Math.min(Math.round(w), canvas.width - cx);
-    var ch = Math.min(Math.round(h), canvas.height - cy);
-
+    var cx = Math.max(0, Math.floor(minX));
+    var cy = Math.max(0, Math.floor(minY));
+    var cw = Math.min(Math.ceil(maxX), canvas.width) - cx;
+    var ch = Math.min(Math.ceil(maxY), canvas.height) - cy;
     if (cw <= 0 || ch <= 0) return;
 
-    // Read pixels from hidden canvas (original background)
-    var imageData = hiddenCtx.getImageData(cx, cy, cw, ch);
-    var data = imageData.data;
+    // Build a mask: which pixels are within brush radius of the path
+    var mask = new Uint8Array(cw * ch);
+    var r2 = brushRadius * brushRadius;
+    for (var pi = 0; pi < path.length; pi++) {
+      var ppx = path[pi].x - cx;
+      var ppy = path[pi].y - cy;
+      var startY = Math.max(0, Math.floor(ppy - brushRadius));
+      var endY = Math.min(ch, Math.ceil(ppy + brushRadius));
+      var startX = Math.max(0, Math.floor(ppx - brushRadius));
+      var endX = Math.min(cw, Math.ceil(ppx + brushRadius));
+      for (var my = startY; my < endY; my++) {
+        for (var mx = startX; mx < endX; mx++) {
+          var dx = mx - ppx, dy = my - ppy;
+          if (dx * dx + dy * dy <= r2) {
+            mask[my * cw + mx] = 1;
+          }
+        }
+      }
+    }
 
-    // Create a temporary canvas for the pixelated result
+    // Read background pixels
+    var imageData = hiddenCtx.getImageData(cx, cy, cw, ch);
+    var srcData = imageData.data;
+
+    // Create pixelated result
     var tmpCanvas = document.createElement("canvas");
     tmpCanvas.width = cw;
     tmpCanvas.height = ch;
     var tmpCtx = tmpCanvas.getContext("2d");
 
-    // Pixelate: for each block, compute average color and fill
+    // Make fully transparent first
+    tmpCtx.clearRect(0, 0, cw, ch);
+
+    // Pixelate only masked blocks
     for (var by = 0; by < ch; by += blockSize) {
       for (var bx = 0; bx < cw; bx += blockSize) {
         var bw = Math.min(blockSize, cw - bx);
         var bh = Math.min(blockSize, ch - by);
-        var r = 0,
-          g = 0,
-          b = 0,
-          count = 0;
 
-        for (var py = by; py < by + bh; py++) {
-          for (var px = bx; px < bx + bw; px++) {
-            var idx = (py * cw + px) * 4;
-            r += data[idx];
-            g += data[idx + 1];
-            b += data[idx + 2];
+        // Check if any pixel in this block is masked
+        var hasMask = false;
+        for (var ty = by; ty < by + bh && !hasMask; ty++) {
+          for (var tx = bx; tx < bx + bw && !hasMask; tx++) {
+            if (mask[ty * cw + tx]) hasMask = true;
+          }
+        }
+        if (!hasMask) continue;
+
+        // Compute average color of the block
+        var r = 0, g = 0, b = 0, count = 0;
+        for (var ty2 = by; ty2 < by + bh; ty2++) {
+          for (var tx2 = bx; tx2 < bx + bw; tx2++) {
+            var idx = (ty2 * cw + tx2) * 4;
+            r += srcData[idx];
+            g += srcData[idx + 1];
+            b += srcData[idx + 2];
             count++;
           }
         }
-
         r = Math.round(r / count);
         g = Math.round(g / count);
         b = Math.round(b / count);
@@ -365,7 +401,6 @@
       }
     }
 
-    // Create fabric Image from the pixelated canvas
     var mosaicImg = new fabric.FabricImage(tmpCanvas, {
       left: cx,
       top: cy,
