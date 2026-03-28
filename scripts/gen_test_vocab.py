@@ -107,6 +107,9 @@ ENHANCE_MODES = [
     "",
 ]
 
+# Four hit-tracking metrics and their context key prefixes.
+METRICS = ["asr_miss", "asr_hit", "llm_hit", "llm_miss"]
+
 NOW = datetime.now(timezone.utc)
 
 
@@ -118,6 +121,69 @@ def random_ts(days_back_max: int = 90) -> str:
         seconds=random.randint(0, 59),
     )
     return (NOW - delta).isoformat()
+
+
+def generate_stats(asr_model: str, llm_model: str, app_bundle_id: str) -> list[dict]:
+    """Generate realistic bucketed stats rows for one entry."""
+    stats: list[dict] = []
+
+    # ~30% of entries have no stats at all (brand new / unused)
+    if random.random() < 0.3:
+        return stats
+
+    # Build possible context keys for ASR and LLM dimensions
+    asr_contexts = []
+    if asr_model:
+        asr_contexts.append(f"asr:{asr_model}")
+    if app_bundle_id:
+        asr_contexts.append(f"app:{app_bundle_id}")
+
+    llm_contexts = []
+    if llm_model:
+        llm_contexts.append(f"llm:{llm_model}")
+    if app_bundle_id:
+        llm_contexts.append(f"app:{app_bundle_id}")
+
+    # ASR dimension: asr_miss (variant appeared in ASR text) and asr_hit (term appeared)
+    for ctx in asr_contexts:
+        if random.random() < 0.7:
+            count = random.choices(
+                [1, 2, 3, 5, 10, 20, 50],
+                weights=[20, 20, 15, 15, 15, 10, 5],
+                k=1,
+            )[0]
+            stats.append({
+                "metric": "asr_miss",
+                "context_key": ctx,
+                "count": count,
+                "last_time": random_ts(30),
+            })
+        if random.random() < 0.4:
+            stats.append({
+                "metric": "asr_hit",
+                "context_key": ctx,
+                "count": random.randint(1, 10),
+                "last_time": random_ts(30),
+            })
+
+    # LLM dimension: llm_hit (LLM corrected it) and llm_miss (LLM didn't correct)
+    for ctx in llm_contexts:
+        if random.random() < 0.6:
+            stats.append({
+                "metric": "llm_hit",
+                "context_key": ctx,
+                "count": random.randint(1, 30),
+                "last_time": random_ts(30),
+            })
+        if random.random() < 0.3:
+            stats.append({
+                "metric": "llm_miss",
+                "context_key": ctx,
+                "count": random.randint(1, 5),
+                "last_time": random_ts(30),
+            })
+
+    return stats
 
 
 def generate_entries(count: int = 200) -> list[dict]:
@@ -136,19 +202,10 @@ def generate_entries(count: int = 200) -> list[dict]:
             last_updated_dt = NOW
         last_updated = last_updated_dt.isoformat()
 
-        hit_count = random.choices(
-            [0, 1, 2, 3, 5, 10, 20, 50],
-            weights=[30, 20, 15, 10, 10, 8, 5, 2],
-            k=1,
-        )[0]
-
-        last_hit = ""
-        if hit_count > 0:
-            last_hit = random_ts(30)
-
         # Most entries have both ASR and LLM models (~80%)
         asr_model = random.choice([m for m in ASR_MODELS if m]) if random.random() < 0.8 else ""
         llm_model = random.choice([m for m in LLM_MODELS if m]) if random.random() < 0.8 else ""
+        app_bundle_id = random.choice(APP_BUNDLE_IDS)
 
         entries.append(
             {
@@ -156,14 +213,13 @@ def generate_entries(count: int = 200) -> list[dict]:
                 "variant": variant,
                 "source": source,
                 "frequency": random.randint(1, 15),
-                "hit_count": hit_count,
                 "first_seen": first_seen,
                 "last_updated": last_updated,
-                "last_hit": last_hit,
-                "app_bundle_id": random.choice(APP_BUNDLE_IDS),
+                "app_bundle_id": app_bundle_id,
                 "asr_model": asr_model,
                 "llm_model": llm_model,
                 "enhance_mode": random.choice(ENHANCE_MODES),
+                "stats": generate_stats(asr_model, llm_model, app_bundle_id),
             }
         )
     return entries
@@ -171,10 +227,13 @@ def generate_entries(count: int = 200) -> list[dict]:
 
 def main() -> None:
     entries = generate_entries(200)
-    data = {"version": 1, "entries": entries}
+    data = {"version": 2, "entries": entries}
     with open(OUTPUT, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
-    print(f"Generated {len(entries)} entries → {OUTPUT}")
+
+    total_stats = sum(len(e["stats"]) for e in entries)
+    with_stats = sum(1 for e in entries if e["stats"])
+    print(f"Generated {len(entries)} entries ({with_stats} with stats, {total_stats} stat rows) → {OUTPUT}")
 
 
 if __name__ == "__main__":
