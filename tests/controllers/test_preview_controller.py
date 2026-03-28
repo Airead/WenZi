@@ -396,6 +396,71 @@ class TestSelectHistory:
 
         mock_app._preview_panel.load_history_record.assert_called_once()
 
+    @patch("wenzi.controllers.preview_controller.save_config")
+    def test_pushes_asr_diffs_to_panel(self, _mock_save, ctrl, mock_app):
+        """Selecting history pushes ASR→Enhanced diffs to the side panel."""
+        record = _make_record(
+            asr_text="hello world",
+            enhanced_text="Hello World",
+            final_text="Hello World",
+            wav_data=None, audio_duration=0.0,
+        )
+        ctrl._preview_history.add(record)
+
+        ctrl.on_select_history(0)
+
+        # clear_diffs() clears all, then set_asr_diffs pushes new ones
+        mock_app._preview_panel.clear_diffs.assert_called_once()
+        mock_app._preview_panel.set_asr_diffs.assert_called_once()
+        pairs = mock_app._preview_panel.set_asr_diffs.call_args[0][0]
+        assert len(pairs) > 0
+
+    @patch("wenzi.controllers.preview_controller.save_config")
+    def test_pushes_user_diffs_when_final_differs(self, _mock_save, ctrl, mock_app):
+        """Selecting history pushes Enhanced→Final diffs when they differ."""
+        record = _make_record(
+            asr_text="hello",
+            enhanced_text="Hello good.",
+            final_text="Hello great.",
+            wav_data=None, audio_duration=0.0,
+        )
+        ctrl._preview_history.add(record)
+
+        ctrl.on_select_history(0)
+
+        # clear_diffs() clears all, then set_user_diffs pushes new diffs
+        mock_app._preview_panel.clear_diffs.assert_called_once()
+        mock_app._preview_panel.set_user_diffs.assert_called_once()
+
+    @patch("wenzi.controllers.preview_controller.save_config")
+    def test_no_user_diffs_when_final_equals_enhanced(self, _mock_save, ctrl, mock_app):
+        """No user diffs pushed when final_text == enhanced_text."""
+        record = _make_record(
+            asr_text="hello",
+            enhanced_text="Hello.",
+            final_text="Hello.",
+            wav_data=None, audio_duration=0.0,
+        )
+        ctrl._preview_history.add(record)
+
+        ctrl.on_select_history(0)
+
+        # clear_diffs() handles clearing; no separate set_user_diffs call
+        mock_app._preview_panel.clear_diffs.assert_called_once()
+        mock_app._preview_panel.set_user_diffs.assert_not_called()
+
+    @patch("wenzi.controllers.preview_controller.save_config")
+    def test_pushes_manual_vocab_state(self, _mock_save, ctrl, mock_app):
+        """Selecting history syncs manual vocab state to the panel."""
+        record = _make_record(wav_data=None, audio_duration=0.0)
+        ctrl._preview_history.add(record)
+        mock_app._manual_vocab_store = MagicMock()
+        mock_app._manual_vocab_store.get_all_for_state.return_value = [{"v": "a"}]
+
+        ctrl.on_select_history(0)
+
+        mock_app._preview_panel.set_manual_vocab_state.assert_called_once_with([{"v": "a"}])
+
 
 class TestLogWithChainSteps:
     """Tests for _log_with_chain_steps per-mode history logging."""

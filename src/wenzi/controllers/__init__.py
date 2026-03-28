@@ -26,6 +26,7 @@ from .recording_controller import RecordingController  # noqa: E402
 from .recording_flow import Action, RecordingFlow  # noqa: E402
 from .settings_controller import SettingsController  # noqa: E402
 from .update_controller import UpdateController  # noqa: E402
+from .vocab_controller import VocabController  # noqa: E402
 
 __all__ = [
     "ConfigController",
@@ -40,5 +41,6 @@ __all__ = [
     "RecordingFlow",
     "SettingsController",
     "UpdateController",
+    "VocabController",
     "migrate_asr_config",
 ]

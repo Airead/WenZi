@@ -8,11 +8,10 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Dict, List, Optional, Set
 
 from wenzi.ui.templates import load_template
-from wenzi.ui.web_utils import cleanup_webview_handler
+from wenzi.ui.web_utils import cleanup_webview_handler, time_range_cutoff as _time_range_cutoff
 
 logger = logging.getLogger(__name__)
 
@@ -23,20 +22,6 @@ def _format_timestamp(ts: str) -> str:
         return ts[:16].replace("T", " ")
     except Exception:
         return ts
-
-
-def _time_range_cutoff(time_range: str) -> Optional[str]:
-    """Return ISO timestamp cutoff for a time range value, or None for 'all'."""
-    now = datetime.now(timezone.utc)
-    if time_range == "today":
-        cutoff = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    elif time_range == "7d":
-        cutoff = now - timedelta(days=7)
-    elif time_range == "30d":
-        cutoff = now - timedelta(days=30)
-    else:
-        return None
-    return cutoff.isoformat()
 
 
 # ---------------------------------------------------------------------------
@@ -156,6 +141,10 @@ class HistoryBrowserPanel:
     # Public API
     # ------------------------------------------------------------------
 
+    @property
+    def is_visible(self) -> bool:
+        return self._panel is not None and self._panel.isVisible()
+
     def show(
         self,
         conversation_history,
@@ -168,9 +157,13 @@ class HistoryBrowserPanel:
         self._on_save = on_save
 
         NSApp.setActivationPolicy_(0)  # Regular
+
+        if self.is_visible:
+            self._panel.makeKeyAndOrderFront_(None)
+            NSApp.activateIgnoringOtherApps_(True)
+            return
+
         self._build_panel()
-        # Data loading is deferred until JS reports the actual page size
-        # via the 'pageSize' message (triggered by requestAnimationFrame).
         self._panel.makeKeyAndOrderFront_(None)
         NSApp.activateIgnoringOtherApps_(True)
 

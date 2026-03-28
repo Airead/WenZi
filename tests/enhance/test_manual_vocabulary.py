@@ -27,7 +27,7 @@ class TestAddRemove:
         assert entry.hit_count == 0
         assert entry.app_bundle_id == "com.test"
         assert entry.first_seen != ""
-        assert entry.last_seen != ""
+        assert entry.last_updated != ""
         assert store.entry_count == 1
 
     def test_add_existing_increments_frequency(self, store):
@@ -204,6 +204,58 @@ class TestQueryHelpers:
         entries = store.get_llm_vocab()
         assert len(entries) == 1
 
+    def test_get_llm_vocab_llm_model_filter(self, store):
+        """Entries matching llm_model are prioritized."""
+        store.add("派森", "Python", "llm", llm_model="gpt-4o")
+        store.add("库伯尼特斯", "Kubernetes", "llm", llm_model="claude-3")
+        store.add("通用词", "General", "llm")  # no llm_model
+        entries = store.get_llm_vocab(llm_model="gpt-4o")
+        assert len(entries) == 3
+        # gpt-4o match and no-model entry first, mismatched last
+        assert entries[0].term == "Python"
+        assert entries[1].term == "General"
+        assert entries[2].term == "Kubernetes"
+
+    def test_get_llm_vocab_llm_model_and_app(self, store):
+        """Both llm_model and app_bundle_id filter together."""
+        store.add("a", "A", "llm", llm_model="gpt-4o", app_bundle_id="com.app")
+        store.add("b", "B", "llm", llm_model="claude-3", app_bundle_id="com.app")
+        store.add("c", "C", "llm", llm_model="gpt-4o", app_bundle_id="com.other")
+        store.add("d", "D", "llm")  # no model, no app
+        entries = store.get_llm_vocab(
+            llm_model="gpt-4o", app_bundle_id="com.app",
+        )
+        # A matches both; D matches (no constraints); B mismatches model; C mismatches app
+        terms = [e.term for e in entries]
+        assert terms[0] == "A"
+        assert "D" in terms[:2]  # D is also a match (no stored model/app)
+        assert set(terms[2:]) == {"B", "C"}
+
+    def test_get_llm_vocab_max_entries_default(self, store):
+        for i in range(8):
+            store.add(f"var{i}", f"Term{i}", "llm")
+        entries = store.get_llm_vocab()
+        assert len(entries) == ManualVocabularyStore.MAX_LLM_ENTRIES
+
+    def test_get_llm_vocab_max_entries_custom(self, store):
+        for i in range(5):
+            store.add(f"var{i}", f"Term{i}", "llm")
+        entries = store.get_llm_vocab(max_entries=3)
+        assert len(entries) == 3
+
+    def test_get_llm_vocab_max_entries_app_priority(self, store):
+        """App-matching entries should be prioritized before truncation."""
+        for i in range(4):
+            store.add(f"other{i}", f"Other{i}", "llm", app_bundle_id="com.other")
+        store.add("target", "Target", "llm", app_bundle_id="com.app")
+        entries = store.get_llm_vocab(
+            app_bundle_id="com.app", max_entries=3,
+        )
+        # The app-matching entry should be in the result
+        terms = [e.term for e in entries]
+        assert "Target" in terms
+        assert len(entries) == 3
+
 
 class TestNormalization:
     """Entries should be stripped of leading/trailing whitespace and punctuation."""
@@ -245,10 +297,10 @@ class TestNormalization:
             "version": 1,
             "entries": [
                 {"term": "Claude", "variant": "Cloud", "frequency": 2, "hit_count": 3,
-                 "first_seen": "2026-01-01T00:00:00+00:00", "last_seen": "2026-01-02T00:00:00+00:00",
+                 "first_seen": "2026-01-01T00:00:00+00:00", "last_updated": "2026-01-02T00:00:00+00:00",
                  "last_hit": "2026-01-02T00:00:00+00:00"},
                 {"term": " Claude", "variant": "Cloud", "frequency": 1, "hit_count": 1,
-                 "first_seen": "2026-01-03T00:00:00+00:00", "last_seen": "2026-01-03T00:00:00+00:00",
+                 "first_seen": "2026-01-03T00:00:00+00:00", "last_updated": "2026-01-03T00:00:00+00:00",
                  "last_hit": "2026-01-01T00:00:00+00:00"},
             ],
         }
@@ -261,7 +313,57 @@ class TestNormalization:
         assert entry.term == "Claude"  # normalized
         assert entry.frequency == 3  # 2 + 1
         assert entry.hit_count == 4  # 3 + 1
-        assert entry.last_seen == "2026-01-03T00:00:00+00:00"  # latest
+        assert entry.last_updated == "2026-01-03T00:00:00+00:00"  # latest
+
+
+class TestRemoveBatch:
+    def test_remove_batch_single_save(self, store):
+        store.add("a", "A", "asr")
+        store.add("b", "B", "asr")
+        store.add("c", "C", "asr")
+        assert store.entry_count == 3
+        removed = store.remove_batch([("a", "A"), ("b", "B")])
+        assert removed == 2
+        assert store.entry_count == 1
+
+    def test_remove_batch_no_persist(self, store):
+        store.add("a", "A", "asr")
+        removed = store.remove_batch([("a", "A")], persist=False)
+        assert removed == 1
+        assert store.entry_count == 0
+
+    def test_remove_batch_nonexistent(self, store):
+        removed = store.remove_batch([("x", "X")])
+        assert removed == 0
+
+
+class TestGet:
+    def test_get_existing(self, store):
+        store.add("Cloud", "Claude", "asr")
+        entry = store.get("Cloud", "Claude")
+        assert entry is not None
+        assert entry.term == "Claude"
+
+    def test_get_nonexistent(self, store):
+        assert store.get("x", "X") is None
+
+    def test_get_case_insensitive(self, store):
+        store.add("Cloud", "Claude", "asr")
+        entry = store.get("CLOUD", "CLAUDE")
+        assert entry is not None
+
+
+class TestAddPersist:
+    def test_add_no_persist(self, store, tmp_path):
+        store.add("a", "A", "asr", persist=False)
+        assert store.entry_count == 1
+        # File should not exist since persist=False
+        path = tmp_path / "manual_vocabulary.json"
+        assert not path.exists()
+
+    def test_add_with_persist(self, store, tmp_path):
+        store.add("a", "A", "asr", persist=True)
+        assert store.entry_count == 1
 
 
 class TestThreadSafety:

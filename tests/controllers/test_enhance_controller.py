@@ -105,6 +105,77 @@ class TestEnhanceControllerInit:
 
 
 # ---------------------------------------------------------------------------
+# Tests: enhance_mode setter clears diffs
+# ---------------------------------------------------------------------------
+
+
+class TestEnhanceModeSetterDiffRefresh:
+    def test_clears_diffs_for_non_tracked_mode(self, controller, mock_enhancer, mock_panel):
+        mode_def = MagicMock()
+        mode_def.track_corrections = False
+        mock_enhancer.get_mode_definition.return_value = mode_def
+
+        controller.enhance_mode = "translate_en"
+        mock_panel.clear_diffs.assert_called()
+
+    def test_restores_diffs_for_tracked_mode(self, controller, mock_enhancer, mock_panel, monkeypatch):
+        """Switching to a tracked mode should recompute diffs from cached data."""
+        mode_def = MagicMock()
+        mode_def.track_corrections = True
+        mock_enhancer.get_mode_definition.return_value = mode_def
+
+        controller._last_pushed_asr_text = "ASR input"
+        mock_panel.enhanced_text = "Enhanced output"
+        mock_panel.reset_mock()
+
+        monkeypatch.setattr(
+            "wenzi.enhance.text_diff.extract_word_pairs",
+            lambda a, b: [("ASR", "Enhanced")],
+        )
+        controller.enhance_mode = "proofread"
+        mock_panel.set_asr_diffs.assert_called()
+
+    def test_no_restore_without_cached_data(self, controller, mock_enhancer, mock_panel):
+        """Switching to tracked mode with no cached data should not push diffs."""
+        mode_def = MagicMock()
+        mode_def.track_corrections = True
+        mock_enhancer.get_mode_definition.return_value = mode_def
+
+        controller._last_pushed_asr_text = ""
+        mock_panel.enhanced_text = ""
+        mock_panel.reset_mock()
+
+        controller.enhance_mode = "proofread"
+        mock_panel.set_asr_diffs.assert_not_called()
+
+    def test_clears_diffs_when_mode_def_is_none(self, controller, mock_enhancer, mock_panel):
+        mock_enhancer.get_mode_definition.return_value = None
+
+        controller.enhance_mode = "unknown"
+        mock_panel.clear_diffs.assert_called()
+
+    def test_no_record_hits_on_mode_switch(self, controller, mock_enhancer, mock_panel, monkeypatch):
+        """Mode switch should display diffs without recording vocab hits."""
+        mode_def = MagicMock()
+        mode_def.track_corrections = True
+        mock_enhancer.get_mode_definition.return_value = mode_def
+
+        mock_store = MagicMock()
+        mock_store.find_hits_in_text.return_value = []
+        controller._manual_vocab_store = mock_store
+        controller._last_pushed_asr_text = "text"
+        mock_panel.enhanced_text = "enhanced"
+        mock_panel.reset_mock()
+
+        monkeypatch.setattr(
+            "wenzi.enhance.text_diff.extract_word_pairs",
+            lambda a, b: [],
+        )
+        controller.enhance_mode = "proofread"
+        mock_store.record_hits.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
 # Tests: cache operations
 # ---------------------------------------------------------------------------
 
@@ -341,6 +412,120 @@ class TestRunSingleAsync:
             event_loop.run_until_complete(
                 controller._run_single_async("test", 1, None)
             )
+
+
+# ---------------------------------------------------------------------------
+# Tests: diff skipping based on track_corrections
+# ---------------------------------------------------------------------------
+
+
+class TestDiffSkipping:
+    """Diffs should only be computed/pushed when mode has track_corrections=True."""
+
+    def _make_mode_def(self, track_corrections):
+        mode_def = MagicMock()
+        mode_def.track_corrections = track_corrections
+        mode_def.steps = []
+        return mode_def
+
+    def _setup_stream(self, mock_enhancer):
+        chunks = [
+            ("result", {"prompt_tokens": 5, "completion_tokens": 3, "total_tokens": 8}, False),
+        ]
+        mock_enhancer.enhance_stream = MagicMock(
+            return_value=_make_async_gen(chunks)
+        )
+
+    def test_single_calls_push_diffs_when_tracked(
+        self, controller, mock_enhancer, mock_panel, event_loop,
+    ):
+        """_push_diffs_and_hits should be called for track_corrections=True mode."""
+        mode_def = self._make_mode_def(track_corrections=True)
+        mock_enhancer.get_mode_definition.return_value = mode_def
+        self._setup_stream(mock_enhancer)
+        controller._push_diffs_and_hits = MagicMock()
+
+        event_loop.run_until_complete(
+            controller._run_single_async("asr text", 1, {}, track_corrections=True)
+        )
+        controller._push_diffs_and_hits.assert_called_once()
+
+    def test_single_skips_push_diffs_when_not_tracked(
+        self, controller, mock_enhancer, mock_panel, event_loop,
+    ):
+        """_push_diffs_and_hits should NOT be called for track_corrections=False mode."""
+        mode_def = self._make_mode_def(track_corrections=False)
+        mock_enhancer.get_mode_definition.return_value = mode_def
+        self._setup_stream(mock_enhancer)
+        controller._push_diffs_and_hits = MagicMock()
+
+        event_loop.run_until_complete(
+            controller._run_single_async("asr text", 1, {}, track_corrections=False)
+        )
+        controller._push_diffs_and_hits.assert_not_called()
+
+    def test_chain_calls_push_diffs_when_tracked(
+        self, controller, mock_enhancer, mock_panel, event_loop,
+    ):
+        """Chain mode with track_corrections=True should push diffs."""
+        call_count = 0
+
+        def _make_step_gen(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            return _make_async_gen([
+                ("out", {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2}, False),
+            ])
+
+        mock_enhancer.enhance_stream = MagicMock(side_effect=_make_step_gen)
+
+        step_def = MagicMock()
+        step_def.label = "Step"
+        chain_mode_def = self._make_mode_def(track_corrections=True)
+
+        def _get_mode_def(mode_id):
+            if mode_id == "chain_mode":
+                return chain_mode_def
+            return step_def
+
+        mock_enhancer.get_mode_definition = MagicMock(side_effect=_get_mode_def)
+        controller._push_diffs_and_hits = MagicMock()
+
+        event_loop.run_until_complete(
+            controller._run_chain_async(
+                "input", 1, {}, ["s1"], "chain_mode", track_corrections=True,
+            )
+        )
+        controller._push_diffs_and_hits.assert_called_once()
+
+    def test_chain_skips_push_diffs_when_not_tracked(
+        self, controller, mock_enhancer, mock_panel, event_loop,
+    ):
+        """Chain mode with track_corrections=False should skip diffs."""
+        mock_enhancer.enhance_stream = MagicMock(
+            return_value=_make_async_gen([
+                ("out", {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2}, False),
+            ])
+        )
+
+        step_def = MagicMock()
+        step_def.label = "Step"
+        chain_mode_def = self._make_mode_def(track_corrections=False)
+
+        def _get_mode_def(mode_id):
+            if mode_id == "chain_mode":
+                return chain_mode_def
+            return step_def
+
+        mock_enhancer.get_mode_definition = MagicMock(side_effect=_get_mode_def)
+        controller._push_diffs_and_hits = MagicMock()
+
+        event_loop.run_until_complete(
+            controller._run_chain_async(
+                "input", 1, {}, ["s1"], "chain_mode", track_corrections=False,
+            )
+        )
+        controller._push_diffs_and_hits.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

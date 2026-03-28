@@ -185,3 +185,26 @@ class TestCacheEnhancedText:
         panel = _build_panel()
         panel.cache_enhanced_text("hello world")
         assert panel._enhanced_text_cache == "hello world"
+
+    def test_enhanced_text_property(self, mock_appkit):
+        panel = _build_panel()
+        panel.cache_enhanced_text("cached text")
+        assert panel.enhanced_text == "cached text"
+
+
+class TestClearDiffs:
+    def test_clear_diffs_pushes_js(self, mock_appkit, monkeypatch):
+        panel = _build_panel()
+        monkeypatch.setattr(
+            "wenzi.ui.result_window_web.ResultPreviewPanel.clear_diffs",
+            lambda self: self._eval_js(
+                "setAsrDiffs([]); setUserDiffs([]); setVocabHits([])"
+            ),
+        )
+        panel.clear_diffs()
+        js_call = panel._webview.evaluateJavaScript_completionHandler_
+        assert js_call.called
+        js_code = js_call.call_args[0][0]
+        assert "setAsrDiffs([])" in js_code
+        assert "setUserDiffs([])" in js_code
+        assert "setVocabHits([])" in js_code

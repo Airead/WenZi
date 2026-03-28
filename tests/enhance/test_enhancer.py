@@ -1592,6 +1592,10 @@ class TestLastSystemPrompt:
 
         assert enhancer.last_system_prompt == "proofread prompt"
 
+    def test_last_llm_vocab_empty_by_default(self):
+        with patch("wenzi.enhance.enhancer.TextEnhancer._init_providers"):
+            enhancer = TextEnhancer(_make_config())
+        assert enhancer.last_llm_vocab == []
 
 
 def _make_mock_stream_client(chunks, usage=None):

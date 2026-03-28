@@ -187,6 +187,10 @@ def load_modes(modes_dir: Optional[str] = None) -> Dict[str, ModeDefinition]:
     if not modes:
         return dict(_BUILTIN_MODES)
 
+    # Proofread mode always tracks corrections regardless of file content
+    if "proofread" in modes:
+        modes["proofread"].track_corrections = True
+
     return modes
 
 

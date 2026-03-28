@@ -1108,67 +1108,13 @@ class TestPlaybackToggle:
 # ---------------------------------------------------------------------------
 
 
-class TestRelativeTime:
-    def test_empty_string(self):
-        from wenzi.ui.result_window_web import _relative_time
-
-        assert _relative_time("") == "-"
-
-    def test_recent_timestamp(self):
-        from datetime import datetime, timezone, timedelta
-
-        from wenzi.ui.result_window_web import _relative_time
-
-        now = datetime.now(timezone.utc)
-        ts = (now - timedelta(hours=2)).isoformat()
-        result = _relative_time(ts)
-        assert result == "2h ago"
-
-    def test_days_ago(self):
-        from datetime import datetime, timezone, timedelta
-
-        from wenzi.ui.result_window_web import _relative_time
-
-        now = datetime.now(timezone.utc)
-        ts = (now - timedelta(days=5)).isoformat()
-        result = _relative_time(ts)
-        assert result == "5d ago"
-
-    def test_minutes_ago(self):
-        from datetime import datetime, timezone, timedelta
-
-        from wenzi.ui.result_window_web import _relative_time
-
-        now = datetime.now(timezone.utc)
-        ts = (now - timedelta(minutes=30)).isoformat()
-        result = _relative_time(ts)
-        assert result == "30m ago"
-
-    def test_months_ago(self):
-        from datetime import datetime, timezone, timedelta
-
-        from wenzi.ui.result_window_web import _relative_time
-
-        now = datetime.now(timezone.utc)
-        ts = (now - timedelta(days=60)).isoformat()
-        result = _relative_time(ts)
-        assert result == "2mo ago"
-
-    def test_invalid_string(self):
-        from wenzi.ui.result_window_web import _relative_time
-
-        result = _relative_time("not-a-date")
-        assert isinstance(result, str)
-
-
 class TestBuildHotwordsHtml:
     def _make_detail(self, **kwargs):
         from wenzi.enhance.vocabulary import HotwordDetail
 
         defaults = dict(
-            term="API", layer="base", category="tech",
-            variants=["api"], context="interface",
-            frequency=5, last_seen="", score=5.0, recency_bonus=0,
+            term="API", variant="a p i", source="asr",
+            hit_count=5, last_hit="", first_seen="",
         )
         defaults.update(kwargs)
         return HotwordDetail(**defaults)
@@ -1182,27 +1128,24 @@ class TestBuildHotwordsHtml:
         assert "<table>" in html
         assert "API" in html
 
-    def test_context_layer_class(self):
+    def test_columns_present(self):
         from wenzi.ui.result_window_web import _build_hotwords_html
 
-        details = [self._make_detail(layer="context")]
+        details = [self._make_detail(
+            term="Claude", variant="克劳德", source="llm", hit_count=3,
+        )]
         html = _build_hotwords_html(details)
-        assert "layer-ctx" in html
-        assert "ctx" in html
-
-    def test_base_layer_class(self):
-        from wenzi.ui.result_window_web import _build_hotwords_html
-
-        details = [self._make_detail(layer="base")]
-        html = _build_hotwords_html(details)
-        assert "layer-base" in html
+        assert "Claude" in html
+        assert "克劳德" in html  # variant
+        assert "llm" in html  # source
+        assert ">3<" in html  # hit_count
 
     def test_html_escaping(self):
         from wenzi.ui.result_window_web import _build_hotwords_html
 
-        details = [self._make_detail(term="<script>", context="a&b")]
+        details = [self._make_detail(term="<script>", variant="a&b")]
         html = _build_hotwords_html(details)
-        assert "<script>" not in html
+        # The term should be escaped in the table body
         assert "&lt;script&gt;" in html
         assert "a&amp;b" in html
 
@@ -1211,7 +1154,7 @@ class TestBuildHotwordsHtml:
 
         details = [
             self._make_detail(term="API"),
-            self._make_detail(term="gRPC", layer="context"),
+            self._make_detail(term="gRPC"),
         ]
         html = _build_hotwords_html(details)
         assert "API" in html
@@ -1225,26 +1168,173 @@ class TestBuildHotwordsHtml:
         assert "<tr" not in html.split("<tbody>")[1].split("</tbody>")[0] or \
                html.count("<tr") == 1  # only header row
 
-    def test_variants_display(self):
+    def test_time_rendered_via_js(self):
         from wenzi.ui.result_window_web import _build_hotwords_html
 
-        details = [self._make_detail(variants=["k8s", "kube"])]
+        details = [self._make_detail(
+            last_hit="2024-06-01T12:00:00", first_seen="2024-01-01T00:00:00",
+        )]
         html = _build_hotwords_html(details)
-        assert "k8s" in html
-        assert "kube" in html
-
-    def test_bonus_display(self):
-        from wenzi.ui.result_window_web import _build_hotwords_html
-
-        details = [self._make_detail(recency_bonus=3)]
-        html = _build_hotwords_html(details)
-        assert "+3" in html
+        # Times are rendered client-side via JS fmtDate
+        assert "data-ts" in html
+        assert "2024-06-01T12:00:00" in html
+        assert "2024-01-01T00:00:00" in html
+        assert "fmtDate" in html
 
     def test_dark_mode_css(self):
         from wenzi.ui.result_window_web import _build_hotwords_html
 
         html = _build_hotwords_html([self._make_detail()])
         assert "prefers-color-scheme: dark" in html
+
+    def test_with_context_text(self):
+        from wenzi.ui.result_window_web import _build_hotwords_html
+
+        details = [self._make_detail()]
+        html = _build_hotwords_html(details, context_text="App:  iTerm2")
+        assert "iTerm2" in html
+        assert "ctx-key" in html
+        assert "<table>" in html
+        # Context appears before the table
+        assert html.index("iTerm2") < html.index("<table>")
+
+    def test_without_context_no_context_rendered(self):
+        from wenzi.ui.result_window_web import _build_hotwords_html
+
+        html = _build_hotwords_html([self._make_detail()])
+        assert '<div class="section">' not in html
+
+    def test_context_html_escaping(self):
+        from wenzi.ui.result_window_web import _build_hotwords_html
+
+        html = _build_hotwords_html([], context_text="App:  <script>xss</script>")
+        assert "&lt;script&gt;" in html
+
+
+class TestBuildContextSectionHtml:
+    def test_empty_returns_empty(self):
+        from wenzi.ui.result_window_web import _build_context_section_html
+
+        assert _build_context_section_html("") == ""
+
+    def test_key_value_format(self):
+        from wenzi.ui.result_window_web import _build_context_section_html
+
+        result = _build_context_section_html("App:  iTerm2\nWindow:  ~/work")
+        assert "ctx-key" in result
+        assert "App" in result
+        assert "iTerm2" in result
+        assert "~/work" in result
+
+    def test_plain_line(self):
+        from wenzi.ui.result_window_web import _build_context_section_html
+
+        result = _build_context_section_html("some plain text")
+        assert "ctx-val" in result
+        assert "some plain text" in result
+        assert "ctx-key" not in result
+
+    def test_html_escaping(self):
+        from wenzi.ui.result_window_web import _build_context_section_html
+
+        result = _build_context_section_html("App:  <b>bad</b>")
+        assert "&lt;b&gt;" in result
+
+
+class TestBuildContextPanelHtml:
+    def _make_entry(self, **kwargs):
+        from wenzi.enhance.manual_vocabulary import ManualVocabEntry
+
+        defaults = dict(term="API", variant="a p i")
+        defaults.update(kwargs)
+        return ManualVocabEntry(**defaults)
+
+    def test_context_only(self):
+        from wenzi.ui.result_window_web import _build_context_panel_html
+
+        html = _build_context_panel_html("App:  iTerm2\nWindow:  zsh", [])
+        assert "iTerm2" in html
+        assert "<!DOCTYPE html>" in html
+        assert "<table>" not in html
+
+    def test_context_key_value_format(self):
+        from wenzi.ui.result_window_web import _build_context_panel_html
+
+        ctx = "App:      iTerm2\nWindow:   ~/work\nElement:  AXTextArea"
+        html = _build_context_panel_html(ctx, [])
+        assert "ctx-key" in html
+        assert "ctx-val" in html
+        assert "App" in html
+        assert "iTerm2" in html
+        assert "~/work" in html
+        assert "AXTextArea" in html
+
+    def test_vocab_only(self):
+        from wenzi.ui.result_window_web import _build_context_panel_html
+
+        entries = [self._make_entry(term="Claude", variant="克劳德")]
+        html = _build_context_panel_html("", entries)
+        assert "Claude" in html
+        assert "克劳德" in html
+        assert "<table>" in html
+
+    def test_both_sections(self):
+        from wenzi.ui.result_window_web import _build_context_panel_html
+
+        entries = [self._make_entry()]
+        html = _build_context_panel_html("App:  iTerm2", entries)
+        assert "iTerm2" in html
+        assert "<table>" in html
+        # Context should appear before vocab table
+        ctx_pos = html.index("iTerm2")
+        table_pos = html.index("<table>")
+        assert ctx_pos < table_pos
+
+    def test_html_escaping(self):
+        from wenzi.ui.result_window_web import _build_context_panel_html
+
+        entries = [self._make_entry(term="<b>bold</b>", variant="a&b")]
+        html = _build_context_panel_html("App:  <script>alert(1)</script>", entries)
+        assert "&lt;script&gt;" in html
+        assert "&lt;b&gt;bold&lt;/b&gt;" in html
+        assert "a&amp;b" in html
+
+    def test_time_rendered_via_js(self):
+        from wenzi.ui.result_window_web import _build_context_panel_html
+
+        entries = [self._make_entry(last_hit="2024-06-01T00:00:00")]
+        html = _build_context_panel_html("", entries)
+        assert "data-ts" in html
+        assert "fmtDate" in html
+
+    def test_dark_mode_css(self):
+        from wenzi.ui.result_window_web import _build_context_panel_html
+
+        html = _build_context_panel_html("test", [])
+        assert "prefers-color-scheme: dark" in html
+
+    def test_vocab_count_in_title(self):
+        from wenzi.ui.result_window_web import _build_context_panel_html
+
+        entries = [self._make_entry(), self._make_entry(term="B", variant="b")]
+        html = _build_context_panel_html("", entries)
+        assert "(2)" in html
+
+
+class TestSetLlmVocab:
+    def test_caches_entries(self):
+        from wenzi.ui.result_window_web import ResultPreviewPanel
+
+        panel = _build_panel(ResultPreviewPanel())
+        entries = [MagicMock(term="API")]
+        panel.set_llm_vocab(entries)
+        assert len(panel._llm_vocab_detail) == 1
+
+    def test_init_has_empty_llm_vocab(self):
+        from wenzi.ui.result_window_web import ResultPreviewPanel
+
+        panel = _build_panel(ResultPreviewPanel())
+        assert panel._llm_vocab_detail == []
 
 
 class TestSetHotwords:

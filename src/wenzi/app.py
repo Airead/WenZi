@@ -394,6 +394,12 @@ class WenZiApp(StatusBarApp):
             t("menu.browse_history"), callback=self._on_browse_history
         )
 
+        # Vocabulary manager (lazy-created)
+        self._vocab_controller = None
+        self._vocab_manager_item = StatusMenuItem(
+            t("menu.vocabulary"), callback=self._on_open_vocab_manager
+        )
+
         # LLM Model top-level submenu
         self._llm_model_menu = StatusMenuItem(t("menu.llm_model"))
         self._llm_model_menu_items: Dict[Tuple[str, str], StatusMenuItem] = {}
@@ -490,6 +496,7 @@ class WenZiApp(StatusBarApp):
                 None,
                 self._clipboard_enhance_item,
                 self._browse_history_item,
+                self._vocab_manager_item,
                 self._settings_item,
                 None,
                 self._view_logs_item,
@@ -1002,6 +1009,13 @@ class WenZiApp(StatusBarApp):
     def _on_browse_history(self, _=None) -> None:
         self._config_controller.on_browse_history(_)
 
+    def _on_open_vocab_manager(self, _=None) -> None:
+        if self._vocab_controller is None:
+            from wenzi.controllers.vocab_controller import VocabController
+
+            self._vocab_controller = VocabController(self)
+        self._vocab_controller.on_open_vocab_manager(_)
+
     def _on_show_usage_stats(self, _) -> None:
         self._config_controller.on_show_usage_stats(_)
 
@@ -1031,6 +1045,8 @@ class WenZiApp(StatusBarApp):
             self._clipboard_hotkey_listener.stop()
         if self._settings_panel.is_visible:
             self._settings_panel.close()
+        if self._vocab_controller is not None:
+            self._vocab_controller.close_panel()
         # Close AI provider clients and shut down the shared asyncio loop
         if self._enhancer:
             try:

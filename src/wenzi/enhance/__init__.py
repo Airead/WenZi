@@ -6,7 +6,6 @@ from .mode_loader import ModeDefinition, get_sorted_modes, load_modes
 from .preview_history import PreviewHistoryStore, PreviewRecord
 from .manual_vocabulary import ManualVocabEntry, ManualVocabularyStore
 from .vocabulary import (
-    LAYER_MANUAL,
     HotwordDetail,
     build_hotword_list_detailed,
 )
@@ -22,7 +21,6 @@ __all__ = [
     "create_enhancer",
     "get_sorted_modes",
     "HotwordDetail",
-    "LAYER_MANUAL",
     "ManualVocabEntry",
     "ManualVocabularyStore",
     "load_modes",

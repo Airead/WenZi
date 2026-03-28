@@ -11,6 +11,7 @@ _LAZY_IMPORTS: dict[str, tuple[str, str]] = {
     "StreamingOverlayPanel": (".streaming_overlay", "StreamingOverlayPanel"),
     "TranslateWebViewPanel": (".translate_webview", "TranslateWebViewPanel"),
     "VocabBuildProgressPanel": (".vocab_build_window", "VocabBuildProgressPanel"),
+    "VocabManagerPanel": (".vocab_manager_window", "VocabManagerPanel"),
 }
 
 __all__ = list(_LAZY_IMPORTS)

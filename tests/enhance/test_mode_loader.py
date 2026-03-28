@@ -289,6 +289,13 @@ class TestTrackCorrections:
         assert mode is not None
         assert mode.track_corrections is False
 
+    def test_proofread_always_tracks_corrections(self, tmp_path):
+        """Proofread mode always has track_corrections=True even without the field."""
+        f = tmp_path / "proofread.md"
+        f.write_text("---\nlabel: 纠错润色\norder: 10\n---\nYou are a proofreader.\n")
+        modes = load_modes(str(tmp_path))
+        assert modes["proofread"].track_corrections is True
+
     def test_ensure_default_modes_writes_track_corrections(self, tmp_path):
         """ensure_default_modes writes track_corrections to front matter."""
         ensure_default_modes(str(tmp_path))

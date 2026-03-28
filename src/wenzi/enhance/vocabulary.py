@@ -3,15 +3,13 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, List, Optional
 
 if TYPE_CHECKING:
-    from wenzi.enhance.manual_vocabulary import ManualVocabularyStore
+    from wenzi.enhance.manual_vocabulary import ManualVocabEntry, ManualVocabularyStore
 
 logger = logging.getLogger(__name__)
-
-LAYER_MANUAL = "manual"
 
 
 @dataclass
@@ -19,14 +17,11 @@ class HotwordDetail:
     """A hotword entry with full metadata for display in the preview panel."""
 
     term: str
-    layer: str  # LAYER_MANUAL
-    category: str = "other"
-    variants: List[str] = field(default_factory=list)
-    context: str = ""
-    frequency: int = 1
-    last_seen: str = ""
-    score: float = 0.0
-    recency_bonus: int = 0
+    variant: str = ""
+    source: str = ""
+    hit_count: int = 0
+    last_hit: str = ""
+    first_seen: str = ""
 
 
 def build_hotword_list_detailed(
@@ -48,6 +43,10 @@ def build_hotword_list_detailed(
                 asr_model=asr_model, app_bundle_id=app_bundle_id,
             )
             seen: set[str] = set()
+            all_entries = manual_vocab_store.get_all()
+            entry_by_term: dict[str, "ManualVocabEntry"] = {}
+            for e in all_entries:
+                entry_by_term.setdefault(e.term.lower(), e)
             for term in manual_terms:
                 if len(result) >= max_count:
                     break
@@ -55,9 +54,18 @@ def build_hotword_list_detailed(
                 if lower in seen:
                     continue
                 seen.add(lower)
-                result.append(HotwordDetail(
-                    term=term, layer=LAYER_MANUAL,
-                ))
+                entry = entry_by_term.get(lower)
+                if entry:
+                    result.append(HotwordDetail(
+                        term=term,
+                        variant=entry.variant,
+                        source=entry.source,
+                        hit_count=entry.hit_count,
+                        last_hit=entry.last_hit,
+                        first_seen=entry.first_seen,
+                    ))
+                else:
+                    result.append(HotwordDetail(term=term))
         except Exception as e:
             logger.warning("Failed to get manual vocab hotwords: %s", e)
 

@@ -14,6 +14,7 @@ from wenzi.ui.templates import load_template
 from wenzi.ui.web_utils import cleanup_webview_handler
 
 if TYPE_CHECKING:
+    from wenzi.enhance.manual_vocabulary import ManualVocabEntry
     from wenzi.enhance.vocabulary import HotwordDetail
 
 logger = logging.getLogger(__name__)
@@ -62,147 +63,226 @@ def _ensure_edit_menu() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _relative_time(iso_str: str) -> str:
-    """Convert ISO 8601 timestamp to a human-readable relative time string."""
-    if not iso_str:
-        return "-"
-    try:
-        from datetime import datetime, timezone
+_VOCAB_TABLE_CSS = """\
+:root {
+    --bg: #ffffff; --text: #1d1d1f; --header-bg: #f0f0f2;
+    --border: #d2d2d7; --secondary: #86868b;
+    --hover: #f5f5f7; --accent: #007aff;
+}
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg: #1d1d1f; --text: #c8c8cc; --header-bg: #2c2c2e;
+        --border: #48484a; --secondary: #98989d;
+        --hover: #2c2c2e; --accent: #0a84ff;
+    }
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Mono",
+                 Menlo, monospace;
+    font-size: 12px; color: var(--text); background: var(--bg);
+    padding: 0; overflow: auto;
+}
+table {
+    width: 100%; border-collapse: collapse; table-layout: auto;
+}
+th {
+    background: var(--header-bg); font-weight: 600; font-size: 11px;
+    padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--border);
+    white-space: nowrap; color: var(--secondary);
+}
+td {
+    padding: 5px 8px; border-bottom: 1px solid var(--border);
+    white-space: nowrap; vertical-align: top;
+}
+tr:hover { background: var(--hover); }
+.cell-term { font-weight: 600; color: var(--accent); }
+.cell-variant { color: var(--secondary); font-size: 11px; }
+.cell-source {
+    font-size: 10px; font-weight: 600; text-transform: uppercase;
+    color: var(--secondary);
+}
+.cell-num { text-align: right; font-variant-numeric: tabular-nums; }
+.cell-time {
+    color: var(--secondary); font-size: 11px;
+    font-family: "SF Mono", Menlo, monospace;
+}"""
 
-        dt = datetime.fromisoformat(iso_str)
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-        delta = datetime.now(timezone.utc) - dt
-        secs = delta.total_seconds()
-        if secs < 60:
-            return "<1m ago"
-        if secs < 3600:
-            return f"{int(secs // 60)}m ago"
-        if secs < 86400:
-            return f"{int(secs // 3600)}h ago"
-        days = int(secs // 86400)
-        if days < 30:
-            return f"{days}d ago"
-        return f"{days // 30}mo ago"
-    except Exception:
-        return iso_str[:10] if len(iso_str) >= 10 else iso_str
+_SECTION_CSS = """\
+.section { padding: 10px 12px; }
+.section + .section { border-top: 1px solid var(--border); padding-top: 10px; }
+.section-title {
+    font-weight: 600; font-size: 11px; color: var(--secondary);
+    text-transform: uppercase; margin-bottom: 6px;
+}
+.context-text { font-size: 12px; }
+.ctx-row { display: flex; gap: 8px; padding: 2px 0; }
+.ctx-key {
+    flex-shrink: 0; width: 60px; text-align: right;
+    font-weight: 600; font-size: 11px; color: var(--secondary);
+}
+.ctx-val { font-family: "SF Mono", Menlo, monospace; }"""
+
+_FMTDATE_JS = """\
+<script>
+function fmtDate(ts) {
+    if (!ts || ts.length < 10) return '';
+    var d = new Date(ts);
+    if (isNaN(d.getTime())) return '';
+    var diff = Math.floor((Date.now() - d.getTime()) / 1000);
+    if (diff < 60) return diff + 's';
+    if (diff < 3600) return Math.floor(diff / 60) + 'm';
+    if (diff < 86400) return Math.floor(diff / 3600) + 'h';
+    if (diff < 2592000) return Math.floor(diff / 86400) + 'd';
+    if (diff < 31536000) return Math.floor(diff / 2592000) + 'mo';
+    return Math.floor(diff / 31536000) + 'y';
+}
+document.querySelectorAll('.cell-time[data-ts]').forEach(function(el) {
+    var ts = el.getAttribute('data-ts');
+    el.textContent = fmtDate(ts);
+    if (ts) el.title = ts;
+});
+</script>"""
 
 
-def _build_hotwords_html(details: List[HotwordDetail]) -> str:
-    """Build an HTML page with a styled table of hotword details."""
-    from wenzi.enhance.vocabulary import LAYER_MANUAL
+def _build_vocab_table_html(entries: List[ManualVocabEntry]) -> tuple[str, str]:
+    """Build vocab table rows (tbody) and header row (thead tr) HTML."""
     from wenzi.i18n import t
 
     rows: list[str] = []
-    for d in details:
-        term = html.escape(d.term)
-        cat = html.escape(d.category)
-        last_seen = _relative_time(d.last_seen)
-        variants_raw = ", ".join(d.variants)
-        variants = html.escape(variants_raw)
-        context = html.escape(d.context)
-        # Escape with quote=True for title attributes (from raw values)
-        variants_attr = html.escape(variants_raw, quote=True)
-        context_attr = html.escape(d.context, quote=True)
-
-        layer_cls = "layer-manual"
-        layer_label = "manual" if d.layer == LAYER_MANUAL else d.layer
-        bonus_str = f"+{d.recency_bonus}" if d.recency_bonus > 0 else "0"
-
+    for e in entries:
+        term = html.escape(e.term)
+        variant = html.escape(e.variant)
+        source = html.escape(e.source)
+        last_hit_attr = html.escape(e.last_hit, quote=True)
+        first_seen_attr = html.escape(e.first_seen, quote=True)
         rows.append(
-            f"<tr class='{layer_cls}'>"
-            f"<td class='cell-layer'>{layer_label}</td>"
+            f"<tr>"
             f"<td class='cell-term'>{term}</td>"
-            f"<td class='cell-cat'>{cat}</td>"
-            f"<td class='cell-num'>{d.frequency}</td>"
-            f"<td class='cell-num'>{d.score:.0f}</td>"
-            f"<td class='cell-num'>{bonus_str}</td>"
-            f"<td class='cell-time'>{last_seen}</td>"
-            f'<td class="cell-variants" title="{variants_attr}">{variants}</td>'
-            f'<td class="cell-ctx" title="{context_attr}">{context}</td>'
+            f"<td class='cell-variant'>{variant}</td>"
+            f"<td class='cell-source'>{source}</td>"
+            f"<td class='cell-num'>{e.hit_count}</td>"
+            f'<td class="cell-time" data-ts="{last_hit_attr}"></td>'
+            f'<td class="cell-time" data-ts="{first_seen_attr}"></td>'
             f"</tr>"
         )
 
-    tbody = "\n".join(rows)
-    th_layer = html.escape(t("preview.hotwords_table.layer"))
     th_term = html.escape(t("preview.hotwords_table.term"))
-    th_cat = html.escape(t("preview.hotwords_table.cat"))
-    th_freq = html.escape(t("preview.hotwords_table.freq"))
-    th_score = html.escape(t("preview.hotwords_table.score"))
-    th_bonus = html.escape(t("preview.hotwords_table.bonus"))
-    th_last_seen = html.escape(t("preview.hotwords_table.last_seen"))
-    th_variants = html.escape(t("preview.hotwords_table.variants"))
-    th_context = html.escape(t("preview.hotwords_table.context"))
+    th_variant = html.escape(t("preview.hotwords_table.variant"))
+    th_source = html.escape(t("preview.hotwords_table.source"))
+    th_hits = html.escape(t("preview.hotwords_table.hits"))
+    th_last_hit = html.escape(t("preview.hotwords_table.last_hit"))
+    th_first_seen = html.escape(t("preview.hotwords_table.first_seen"))
+    thead = (
+        f"<th>{th_term}</th><th>{th_variant}</th><th>{th_source}</th>"
+        f"<th>{th_hits}</th><th>{th_last_hit}</th><th>{th_first_seen}</th>"
+    )
+    return "\n".join(rows), thead
+
+
+def _build_context_section_html(context_text: str) -> str:
+    """Build the Input Context section HTML (empty string if no context)."""
+    from wenzi.i18n import t
+
+    if not context_text:
+        return ""
+
+    items: list[str] = []
+    for line in context_text.splitlines():
+        if ":" in line:
+            key, _, val = line.partition(":")
+            key = html.escape(key.strip())
+            val = html.escape(val.strip())
+            items.append(
+                f'<div class="ctx-row">'
+                f'<span class="ctx-key">{key}</span>'
+                f'<span class="ctx-val">{val}</span>'
+                f'</div>'
+            )
+        elif line.strip():
+            items.append(
+                f'<div class="ctx-row">'
+                f'<span class="ctx-val">{html.escape(line.strip())}</span>'
+                f'</div>'
+            )
+
+    if not items:
+        return ""
+
+    lbl = html.escape(t("preview.context_panel.input_context"))
+    body = "\n".join(items)
+    return f"""<div class="section">
+<div class="section-title">{lbl}</div>
+<div class="context-text">{body}</div>
+</div>"""
+
+
+def _build_hotwords_html(
+    details: List[HotwordDetail], context_text: str = "",
+) -> str:
+    """Build an HTML page with a styled table of hotword details."""
+    tbody, thead = _build_vocab_table_html(details)
+    context_section = _build_context_section_html(context_text)
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <style>
-:root {{
-    --bg: #ffffff; --text: #1d1d1f; --header-bg: #f0f0f2;
-    --border: #d2d2d7; --secondary: #86868b;
-    --ctx-bg: #eef6ee; --base-bg: transparent;
-    --hover: #f5f5f7; --accent: #007aff;
-}}
-@media (prefers-color-scheme: dark) {{
-    :root {{
-        --bg: #1d1d1f; --text: #c8c8cc; --header-bg: #2c2c2e;
-        --border: #48484a; --secondary: #98989d;
-        --ctx-bg: #1e2e1e; --base-bg: transparent;
-        --hover: #2c2c2e; --accent: #0a84ff;
-    }}
-}}
-* {{ box-sizing: border-box; margin: 0; padding: 0; }}
-body {{
-    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Mono",
-                 Menlo, monospace;
-    font-size: 12px; color: var(--text); background: var(--bg);
-    padding: 0; overflow: auto;
-}}
-table {{
-    width: 100%; border-collapse: collapse; table-layout: auto;
-}}
+{_VOCAB_TABLE_CSS}
 thead {{ position: sticky; top: 0; z-index: 1; }}
-th {{
-    background: var(--header-bg); font-weight: 600; font-size: 11px;
-    padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--border);
-    white-space: nowrap; color: var(--secondary);
-}}
-td {{
-    padding: 5px 8px; border-bottom: 1px solid var(--border);
-    white-space: nowrap; vertical-align: top;
-}}
-tr:hover {{ background: var(--hover); }}
-tr.layer-ctx {{ background: var(--ctx-bg); }}
-tr.layer-ctx:hover {{ background: var(--hover); }}
-tr.layer-base {{ background: var(--base-bg); }}
-.cell-layer {{
-    font-size: 10px; font-weight: 600; text-transform: uppercase;
-    color: var(--secondary); width: 36px;
-}}
-.cell-term {{ font-weight: 600; color: var(--accent); }}
-.cell-cat {{ color: var(--secondary); font-size: 11px; }}
-.cell-num {{ text-align: right; font-variant-numeric: tabular-nums; }}
-.cell-time {{ color: var(--secondary); font-size: 11px; }}
-.cell-variants, .cell-ctx {{
-    max-width: 120px; overflow: hidden; text-overflow: ellipsis;
-    color: var(--secondary); font-size: 11px;
-}}
+{_SECTION_CSS}
 </style>
 </head>
 <body>
+{context_section}
 <table>
-<thead>
-<tr>
-    <th>{th_layer}</th><th>{th_term}</th><th>{th_cat}</th>
-    <th>{th_freq}</th><th>{th_score}</th><th>{th_bonus}</th>
-    <th>{th_last_seen}</th><th>{th_variants}</th><th>{th_context}</th>
-</tr>
-</thead>
+<thead><tr>    {thead}
+</tr></thead>
 <tbody>
 {tbody}
 </tbody>
 </table>
+{_FMTDATE_JS}
+</body>
+</html>"""
+
+
+def _build_context_panel_html(
+    context_text: str, vocab_entries: List[ManualVocabEntry],
+) -> str:
+    """Build HTML page with input context and LLM vocabulary table."""
+    from wenzi.i18n import t
+
+    context_section = _build_context_section_html(context_text)
+
+    vocab_section = ""
+    if vocab_entries:
+        lbl_vocab = html.escape(t("preview.context_panel.llm_vocab"))
+        tbody, thead = _build_vocab_table_html(vocab_entries)
+        vocab_section = f"""<div class="section">
+<div class="section-title">{lbl_vocab} ({len(vocab_entries)})</div>
+<table>
+<thead><tr>    {thead}
+</tr></thead>
+<tbody>
+{tbody}
+</tbody>
+</table>
+</div>"""
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+{_VOCAB_TABLE_CSS}
+{_SECTION_CSS}
+</style>
+</head>
+<body>
+{context_section}
+{vocab_section}
+{_FMTDATE_JS}
 </body>
 </html>"""
 
@@ -358,11 +438,13 @@ class ResultPreviewPanel:
         self._thinking_enabled: bool = False
         self._thinking_text: str = ""
         self._hotwords_detail: List[HotwordDetail] = []
+        self._llm_vocab_detail: List[ManualVocabEntry] = []
         self._loading_timer = None
         self._loading_seconds: int = 0
         self._playback_timer = None
         self._translate_webview = None
         self._hotwords_webview_panel = None
+        self._context_webview_panel = None
         self._page_loaded: bool = False
         self._pending_js: list[str] = []
         self._navigation_delegate = None
@@ -673,7 +755,7 @@ class ResultPreviewPanel:
             )
             if system_prompt:
                 self._eval_js("enablePromptButton()")
-            if self._input_context_text:
+            if self._input_context_text or self._llm_vocab_detail:
                 self._eval_js("enableContextButton()")
 
         AppHelper.callAfter(_update)
@@ -709,7 +791,7 @@ class ResultPreviewPanel:
             )
             if system_prompt:
                 self._eval_js("enablePromptButton()")
-            if self._input_context_text:
+            if self._input_context_text or self._llm_vocab_detail:
                 self._eval_js("enableContextButton()")
 
         AppHelper.callAfter(_update)
@@ -767,6 +849,10 @@ class ResultPreviewPanel:
         i.e. only after the webview is guaranteed to be ready.
         """
         self._input_context_text = text
+
+    def set_llm_vocab(self, entries: List[ManualVocabEntry]) -> None:
+        """Cache LLM vocabulary entries for display in the context panel."""
+        self._llm_vocab_detail = list(entries)
 
     def set_enhance_label(self, suffix: str, request_id: int = 0) -> None:
         """Update only the enhancement label text."""
@@ -1013,8 +1099,8 @@ class ResultPreviewPanel:
                 self._show_info_panel("System Prompt", self._system_prompt)
 
         elif msg_type == "showContext":
-            if self._input_context_text:
-                self._show_info_panel("Input Context", self._input_context_text)
+            if self._input_context_text or self._llm_vocab_detail:
+                self._show_context_panel()
 
         elif msg_type == "toggleAudio":
             if self._asr_wav_data:
@@ -1111,9 +1197,18 @@ class ResultPreviewPanel:
 
         AppHelper.callAfter(_update)
 
+    @property
+    def enhanced_text(self) -> str:
+        """Return the cached enhanced text."""
+        return self._enhanced_text_cache
+
     def cache_enhanced_text(self, text: str) -> None:
         """Cache enhanced text for computing user-edit diffs."""
         self._enhanced_text_cache = text
+
+    def clear_diffs(self) -> None:
+        """Clear all diff and vocab hit cards."""
+        self._push_js("setAsrDiffs([]); setUserDiffs([]); setVocabHits([])")
 
     def _resize_for_diff_panel(self, is_open: bool) -> None:
         """Instantly resize the NSPanel for diff panel open/close."""
@@ -1466,8 +1561,11 @@ class ResultPreviewPanel:
         panel.contentView().addSubview_(scroll)
         panel.makeKeyAndOrderFront_(None)
 
-    def _show_hotwords_panel(self, details: List[HotwordDetail]) -> None:
-        """Display hotword details in a WKWebView-based table panel."""
+    def _open_webview_panel(self, title: str, html_content: str, old_panel=None):
+        """Open (or replace) a floating WKWebView panel.
+
+        Returns the new panel so the caller can store it.
+        """
         from AppKit import (
             NSBackingStoreBuffered,
             NSClosableWindowMask,
@@ -1479,13 +1577,11 @@ class ResultPreviewPanel:
         from Foundation import NSMakeRect, NSURL
         from WebKit import WKWebView, WKWebViewConfiguration
 
-        # Close existing hotwords panel to release resources
-        if self._hotwords_webview_panel is not None:
+        if old_panel is not None:
             try:
-                self._hotwords_webview_panel.close()
+                old_panel.close()
             except Exception:
                 pass
-            self._hotwords_webview_panel = None
 
         width, height = 700, 420
         panel = NSPanel.alloc().initWithContentRect_styleMask_backing_defer_(
@@ -1494,7 +1590,7 @@ class ResultPreviewPanel:
             NSBackingStoreBuffered,
             False,
         )
-        panel.setTitle_(f"Hotwords ({len(details)})")
+        panel.setTitle_(title)
         panel.setLevel_(NSStatusWindowLevel)
         panel.setFloatingPanel_(True)
         panel.setHidesOnDeactivate_(False)
@@ -1506,10 +1602,28 @@ class ResultPreviewPanel:
         )
         webview.setAutoresizingMask_(0x12)
         webview.setValue_forKey_(False, "drawsBackground")
-
-        hotwords_html = _build_hotwords_html(details)
-        webview.loadHTMLString_baseURL_(hotwords_html, NSURL.fileURLWithPath_("/"))
+        webview.loadHTMLString_baseURL_(html_content, NSURL.fileURLWithPath_("/"))
 
         panel.contentView().addSubview_(webview)
         panel.makeKeyAndOrderFront_(None)
-        self._hotwords_webview_panel = panel
+        return panel
+
+    def _show_hotwords_panel(self, details: List[HotwordDetail]) -> None:
+        """Display hotword details in a WKWebView-based table panel."""
+        self._hotwords_webview_panel = self._open_webview_panel(
+            f"Hotwords ({len(details)})",
+            _build_hotwords_html(details, self._input_context_text),
+            self._hotwords_webview_panel,
+        )
+
+    def _show_context_panel(self) -> None:
+        """Display input context and LLM vocabulary in a WKWebView panel."""
+        from wenzi.i18n import t
+
+        self._context_webview_panel = self._open_webview_panel(
+            t("preview.context_panel.title"),
+            _build_context_panel_html(
+                self._input_context_text, self._llm_vocab_detail,
+            ),
+            self._context_webview_panel,
+        )

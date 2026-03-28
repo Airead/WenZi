@@ -116,25 +116,25 @@ class TestClose:
 
 class TestTimeRangeCutoff:
     def test_all_returns_none(self):
-        from wenzi.ui.history_browser_window_web import _time_range_cutoff
+        from wenzi.ui.web_utils import time_range_cutoff as _time_range_cutoff
 
         assert _time_range_cutoff("all") is None
 
     def test_7d_returns_iso_string(self):
-        from wenzi.ui.history_browser_window_web import _time_range_cutoff
+        from wenzi.ui.web_utils import time_range_cutoff as _time_range_cutoff
 
         result = _time_range_cutoff("7d")
         assert result is not None
         assert "T" in result  # ISO format
 
     def test_30d_returns_iso_string(self):
-        from wenzi.ui.history_browser_window_web import _time_range_cutoff
+        from wenzi.ui.web_utils import time_range_cutoff as _time_range_cutoff
 
         result = _time_range_cutoff("30d")
         assert result is not None
 
     def test_today_returns_iso_string(self):
-        from wenzi.ui.history_browser_window_web import _time_range_cutoff
+        from wenzi.ui.web_utils import time_range_cutoff as _time_range_cutoff
 
         result = _time_range_cutoff("today")
         assert result is not None

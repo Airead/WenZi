@@ -66,6 +66,7 @@ class EnhanceController:
         )
         self._current_task: asyncio.Task | None = None
         self._enhance_mode: str = "off"
+        self._last_pushed_asr_text: str = ""
 
     @property
     def enhancer(self) -> Optional[TextEnhancer]:
@@ -82,6 +83,7 @@ class EnhanceController:
     @enhance_mode.setter
     def enhance_mode(self, value: str) -> None:
         self._enhance_mode = value
+        self._refresh_diffs_for_mode(value)
 
     def cache_key(self) -> tuple:
         """Build cache key from current enhance settings."""
@@ -100,10 +102,48 @@ class EnhanceController:
         """Clear all cached enhancement results."""
         self._cache.clear()
 
+    def _refresh_diffs_for_mode(self, mode_id: str) -> None:
+        """Refresh diff panel content based on the mode's track_corrections flag.
+
+        Called on mode switch to immediately show or clear diffs.
+        Display-only: does not record vocab hits to avoid inflating counts.
+        """
+        if not self._enhancer:
+            return
+        mode_def = self._enhancer.get_mode_definition(mode_id)
+        if mode_def and mode_def.track_corrections:
+            asr_text = self._last_pushed_asr_text
+            enhanced = self._preview_panel.enhanced_text
+            if asr_text and enhanced:
+                self._push_diffs_display_only(asr_text, enhanced)
+        else:
+            self._preview_panel.clear_diffs()
+
+    def _push_diffs_display_only(self, asr_text: str, enhanced: str) -> None:
+        """Push diffs to the panel without recording vocab hits."""
+        from wenzi.enhance.text_diff import extract_word_pairs
+
+        try:
+            pairs = extract_word_pairs(asr_text, enhanced)
+            self._preview_panel.set_asr_diffs(pairs if pairs else [])
+        except Exception as e:
+            logger.warning("Failed to compute ASR diffs: %s", e)
+
+        if self._manual_vocab_store is not None:
+            try:
+                self._preview_panel.set_manual_vocab_state(
+                    self._manual_vocab_store.get_all_for_state(),
+                )
+            except Exception as e:
+                logger.warning("Failed to sync manual vocab state: %s", e)
+
+        self._push_vocab_hits_display_only(asr_text, enhanced)
+
     def _push_diffs_and_hits(self, asr_text: str, enhanced: str) -> None:
         """Compute word-level diffs and vocab hits, push to the preview panel."""
         from wenzi.enhance.text_diff import extract_word_pairs
 
+        self._last_pushed_asr_text = asr_text
         self._preview_panel.cache_enhanced_text(enhanced)
 
         # ASR → Enhanced diffs
@@ -126,33 +166,42 @@ class EnhanceController:
         # Vocab hit detection
         self._push_vocab_hits(asr_text, enhanced)
 
-    def _push_vocab_hits(self, asr_text: str, enhanced: str) -> None:
-        """Detect and push vocabulary hits to the side panel."""
+    def _find_vocab_hits(self, asr_text: str, enhanced: str) -> list[dict]:
+        """Find vocabulary hits without recording them."""
         hits: list[dict] = []
+        if self._manual_vocab_store is None:
+            return hits
         enhanced_lower = enhanced.lower()
+        try:
+            manual_hits = self._manual_vocab_store.find_hits_in_text(asr_text)
+            for h in manual_hits:
+                if h.term.lower() in enhanced_lower:
+                    hits.append({
+                        "variant": h.variant, "term": h.term,
+                        "source": "manual",
+                        "hitCount": h.hit_count,
+                        "frequency": h.frequency,
+                    })
+        except Exception as e:
+            logger.warning("Failed to detect manual vocab hits: %s", e)
+        return hits
 
-        # Manual vocab hits
-        if self._manual_vocab_store is not None:
+    def _push_vocab_hits_display_only(self, asr_text: str, enhanced: str) -> None:
+        """Push vocab hits to the panel without recording them."""
+        hits = self._find_vocab_hits(asr_text, enhanced)
+        if hits:
+            self._preview_panel.set_vocab_hits(hits)
+
+    def _push_vocab_hits(self, asr_text: str, enhanced: str) -> None:
+        """Detect, record, and push vocabulary hits to the side panel."""
+        hits = self._find_vocab_hits(asr_text, enhanced)
+        if hits:
             try:
-                manual_hits = self._manual_vocab_store.find_hits_in_text(asr_text)
-                confirmed = [
-                    h for h in manual_hits
-                    if h.term.lower() in enhanced_lower
-                ]
-                if confirmed:
-                    self._manual_vocab_store.record_hits([
-                        (h.variant, h.term) for h in confirmed
-                    ])
-                    for h in confirmed:
-                        hits.append({
-                            "variant": h.variant, "term": h.term,
-                            "source": "manual",
-                            "hitCount": h.hit_count,
-                            "frequency": h.frequency,
-                        })
+                self._manual_vocab_store.record_hits([
+                    (h["variant"], h["term"]) for h in hits
+                ])
             except Exception as e:
-                logger.warning("Failed to detect manual vocab hits: %s", e)
-
+                logger.warning("Failed to record vocab hits: %s", e)
         if hits:
             self._preview_panel.set_vocab_hits(hits)
 
@@ -185,16 +234,20 @@ class EnhanceController:
                 else:
                     logger.warning("Chain step '%s' not found, skipping", step_id)
 
+        should_diff = current_mode_def is not None and current_mode_def.track_corrections
+
         if chain_steps:
             coro = self._run_chain_async(
                 asr_text, request_id, result_holder,
                 chain_steps, current_mode_def.mode_id,
                 input_context=input_context,
+                track_corrections=should_diff,
             )
         else:
             coro = self._run_single_async(
                 asr_text, request_id, result_holder,
                 input_context=input_context,
+                track_corrections=should_diff,
             )
 
         wrapper = self._run_wrapper(coro, request_id)
@@ -249,6 +302,9 @@ class EnhanceController:
                     self._preview_panel.update_system_prompt(
                         self._enhancer.last_system_prompt
                     )
+                    self._preview_panel.set_llm_vocab(
+                        self._enhancer.last_llm_vocab
+                    )
                 if is_thinking == "retry" and chunk:
                     had_thinking = True
                     self._preview_panel.append_thinking_text(
@@ -295,6 +351,7 @@ class EnhanceController:
         self, asr_text: str, request_id: int,
         result_holder: dict | None,
         input_context: "InputContext | None" = None,
+        track_corrections: bool = False,
     ) -> None:
         """Run a single-step streaming enhancement as a coroutine."""
         gen = self._enhancer.enhance_stream(asr_text, input_context=input_context)
@@ -326,7 +383,8 @@ class EnhanceController:
                 thinking_text=self._preview_panel._thinking_text,
                 final_text=enhanced,
             )
-            self._push_diffs_and_hits(asr_text, enhanced)
+            if track_corrections:
+                self._push_diffs_and_hits(asr_text, enhanced)
         else:
             self._preview_panel.set_enhance_label(
                 "Connection failed", request_id=request_id,
@@ -341,6 +399,7 @@ class EnhanceController:
         result_holder: dict | None,
         chain_steps: list[str], original_mode_id: str,
         input_context: "InputContext | None" = None,
+        track_corrections: bool = False,
     ) -> None:
         """Run a multi-step chain enhancement as a coroutine."""
         total_steps = len(chain_steps)
@@ -422,6 +481,7 @@ class EnhanceController:
                 thinking_text=self._preview_panel._thinking_text,
                 final_text=enhanced,
             )
-            self._push_diffs_and_hits(asr_text, enhanced)
+            if track_corrections:
+                self._push_diffs_and_hits(asr_text, enhanced)
         finally:
             self._enhancer.mode = original_mode_id

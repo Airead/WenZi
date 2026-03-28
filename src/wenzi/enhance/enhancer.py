@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any, AsyncIterator, Dict, List, Optional, Tupl
 from wenzi import async_loop
 
 if TYPE_CHECKING:
-    from wenzi.enhance.manual_vocabulary import ManualVocabularyStore
+    from wenzi.enhance.manual_vocabulary import ManualVocabEntry, ManualVocabularyStore
     from wenzi.input_context import InputContext
 
 from .mode_loader import (
@@ -228,8 +228,9 @@ class TextEnhancer:
         self._debug_print_prompt = False
         self._debug_print_request_body = False
 
-        # Last system prompt used in enhance()
+        # Last system prompt and LLM vocab used in enhance()
         self._last_system_prompt: str = ""
+        self._last_llm_vocab: List[ManualVocabEntry] = []
 
         # Load enhancement modes from external files
         modes_dir = os.path.join(config_dir, "enhance_modes") if config_dir else None
@@ -427,6 +428,11 @@ class TextEnhancer:
     def last_system_prompt(self) -> str:
         """Return the system prompt used in the last enhance() call."""
         return self._last_system_prompt
+
+    @property
+    def last_llm_vocab(self) -> List[ManualVocabEntry]:
+        """Return the LLM vocab entries injected in the last enhance() call."""
+        return self._last_llm_vocab
 
     @property
     def debug_print_prompt(self) -> bool:
@@ -660,12 +666,15 @@ class TextEnhancer:
 
         # Manual vocabulary (user-curated correction pairs)
         vocab_lines = ""
+        self._last_llm_vocab = []
         if self._manual_vocab_store is not None:
             try:
                 manual_entries = self._manual_vocab_store.get_llm_vocab(
+                    llm_model=self._active_model,
                     app_bundle_id=app_bundle_id,
                 )
                 if manual_entries:
+                    self._last_llm_vocab = manual_entries
                     vocab_lines = "\n".join(
                         f'- "{e.variant}" → "{e.term}"' for e in manual_entries
                     )

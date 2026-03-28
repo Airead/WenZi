@@ -1,0 +1,1000 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root {
+    --bg: #ffffff; --text: #1d1d1f; --card-bg: #f5f5f7;
+    --border: #d2d2d7; --secondary: #86868b; --accent: #007aff;
+    --text-bg: #ffffff; --row-hover: #e8f0fe; --row-selected: #3a76c4;
+    --btn-bg: #e5e5ea; --btn-hover: #d1d1d6;
+    --btn-primary-bg: #007aff; --btn-primary-text: #ffffff;
+    --focus-ring: rgba(0, 122, 255, 0.4);
+    --alt-row: #fafafa;
+    --green: #34c759; --red: #ff3b30; --purple: #af52de;
+    --tag-source: #4a90d9; --tag-app: #5da469; --tag-model: #5a9eb8;
+    --tag-pill-bg: rgba(0,0,0,0.06); --tag-pill-text: var(--secondary);
+    --tag-stt: #5a9eb8; --tag-llm: #c06080;
+}
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg: #1d1d1f; --text: #c8c8cc; --card-bg: #2c2c2e;
+        --border: #48484a; --secondary: #98989d; --accent: #0a84ff;
+        --text-bg: #1c1c1e; --row-hover: #2c3a50; --row-selected: #2e5080;
+        --btn-bg: #3a3a3c; --btn-hover: #48484a;
+        --btn-primary-bg: #0a84ff; --btn-primary-text: #ffffff;
+        --focus-ring: rgba(10, 132, 255, 0.4);
+        --alt-row: #242426;
+        --green: #30d158; --red: #ff453a; --purple: #bf5af2;
+        --tag-source: #5a9ad9; --tag-app: #6aad76; --tag-model: #6aafc5;
+        --tag-pill-bg: rgba(255,255,255,0.08); --tag-pill-text: var(--secondary);
+        --tag-stt: #6aafc5; --tag-llm: #b87090;
+    }
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+    background: var(--bg); color: var(--text);
+    padding: 12px; overflow: hidden;
+    font-size: 13px;
+    display: flex; flex-direction: column;
+}
+
+/* Search bar */
+.search-bar {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 8px; flex-shrink: 0;
+}
+.search-input {
+    flex: 1; height: 28px; padding: 0 8px;
+    border: 1px solid var(--border); border-radius: 6px;
+    background: var(--text-bg); color: var(--text);
+    font-size: 12px; outline: none;
+}
+.search-input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--focus-ring); }
+.search-input::placeholder { color: var(--secondary); }
+.time-select {
+    height: 28px; padding: 0 8px;
+    border: 1px solid var(--border); border-radius: 6px;
+    background: var(--text-bg); color: var(--text);
+    font-size: 12px; outline: none; cursor: pointer;
+}
+.time-select:focus { border-color: var(--accent); }
+.btn {
+    height: 28px; padding: 0 14px; border: none; border-radius: 6px;
+    font-size: 12px; font-weight: 500; cursor: pointer;
+    background: var(--btn-bg); color: var(--text);
+    transition: background 0.15s; white-space: nowrap;
+}
+.btn:hover { background: var(--btn-hover); }
+.btn-primary { background: var(--btn-primary-bg); color: var(--btn-primary-text); }
+.btn-primary:hover { opacity: 0.9; }
+.btn-danger { background: #c44; color: #fff; }
+.btn-danger:hover { background: #b33; }
+.btn:disabled { opacity: 0.4; cursor: default; }
+
+/* Tag filter row */
+.tag-row {
+    display: flex; align-items: center; gap: 5px;
+    margin-bottom: 8px; flex-shrink: 0;
+    overflow-x: auto; overflow-y: hidden;
+    scrollbar-width: none; -webkit-overflow-scrolling: touch;
+    min-height: 0;
+}
+.tag-row:empty { margin-bottom: 0; }
+.tag-row::-webkit-scrollbar { display: none; }
+.tag-group-label {
+    font-size: 10px; color: var(--secondary); font-weight: 600;
+    white-space: nowrap; margin-left: 6px;
+    -webkit-user-select: none; user-select: none;
+}
+.tag-group-label:first-child { margin-left: 0; }
+.tag-sep {
+    width: 1px; height: 16px; background: var(--border);
+    margin: 0 4px; flex-shrink: 0;
+}
+.tag-pill {
+    display: inline-flex; align-items: center; flex-shrink: 0;
+    height: 20px; padding: 0 7px; border-radius: 10px;
+    font-size: 10px; font-weight: 500; cursor: pointer;
+    border: 1px solid var(--border);
+    --c: var(--secondary);
+    color: var(--c);
+    background: color-mix(in srgb, var(--c) 15%, transparent);
+    border-color: color-mix(in srgb, var(--c) 25%, transparent);
+    transition: all 0.15s;
+    -webkit-user-select: none; user-select: none;
+}
+.tag-pill:hover { opacity: 0.85; }
+.tag-pill.active {
+    color: #fff; border-color: transparent;
+    background: var(--c);
+}
+
+/* Stats */
+.stats-line {
+    font-size: 11px; color: var(--secondary); margin-bottom: 6px; flex-shrink: 0;
+    -webkit-user-select: none; user-select: none;
+}
+.stats-line .filtered { color: var(--accent); margin-left: 4px; }
+
+/* Pagination */
+.pager {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 11px; color: var(--secondary);
+    -webkit-user-select: none; user-select: none;
+}
+.pager-btn {
+    height: 24px; padding: 0 10px; border: 1px solid var(--border); border-radius: 5px;
+    background: var(--btn-bg); color: var(--text);
+    font-size: 11px; cursor: pointer; transition: background 0.15s;
+}
+.pager-btn:hover { background: var(--btn-hover); }
+.pager-btn:disabled { opacity: 0.35; cursor: default; }
+.pager-info { min-width: 100px; text-align: center; }
+
+/* Table */
+.table-wrap {
+    flex: 1; min-height: 0;
+    border: 1px solid var(--border); border-radius: 6px;
+    overflow: hidden; display: flex; flex-direction: column;
+}
+.table-header {
+    display: flex; background: var(--card-bg);
+    border-bottom: 1px solid var(--border);
+    font-size: 11px; font-weight: 600; color: var(--secondary);
+    flex-shrink: 0;
+    -webkit-user-select: none; user-select: none;
+}
+.table-header .col { padding: 6px 8px; }
+.table-header .col.sortable { cursor: pointer; }
+.table-header .col.sortable:hover { color: var(--accent); }
+.table-header .col .sort-arrow { font-size: 9px; margin-left: 2px; }
+.table-body { flex: 1; overflow-y: auto; overflow-x: hidden; }
+.row {
+    display: flex; align-items: center;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.1s;
+}
+.row:last-child { border-bottom: none; }
+.row:nth-child(even) { background: var(--alt-row); }
+.row:hover { background: var(--row-hover); }
+.col {
+    padding: 5px 8px; font-size: 12px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.col-cb { width: 32px; flex-shrink: 0; text-align: center; }
+.col-cb input { cursor: pointer; }
+.col-variant { flex: 1; min-width: 60px; }
+.col-term { flex: 1; min-width: 60px; }
+.col-hits { width: 40px; flex-shrink: 0; text-align: right; }
+.col-freq { width: 50px; flex-shrink: 0; text-align: right; }
+.col-source { width: 60px; flex-shrink: 0; text-align: center; }
+.col-date { width: 68px; flex-shrink: 0; color: var(--secondary); font-family: "SF Mono", Menlo, monospace; font-size: 11px; }
+.col-mode { flex: 1; min-width: 50px; }
+.col-app { flex: 1; min-width: 50px; }
+.col-models { width: 140px; flex-shrink: 0; display: flex; align-items: center; gap: 3px; }
+.col-actions { width: 28px; flex-shrink: 0; text-align: center; overflow: visible; }
+.empty-msg {
+    padding: 24px; text-align: center; color: var(--secondary); font-size: 12px;
+}
+.empty-hint {
+    font-size: 11px; color: var(--secondary); margin-top: 4px; opacity: 0.7;
+}
+
+/* Source badge */
+.source-badge {
+    display: inline-block; padding: 1px 5px; border-radius: 8px;
+    font-size: 9px; font-weight: 600; text-transform: uppercase;
+}
+.source-badge.asr { color: var(--accent); background: color-mix(in srgb, var(--accent) 15%, transparent); }
+.source-badge.llm { color: var(--purple); background: color-mix(in srgb, var(--purple) 15%, transparent); }
+.source-badge.user { color: var(--green); background: color-mix(in srgb, var(--green) 15%, transparent); }
+
+/* Mini tag (model labels) */
+.mini-tag {
+    display: inline-flex; align-items: center; justify-content: center;
+    max-width: 68px; padding: 1px 4px; border-radius: 8px;
+    font-family: "SF Mono", Menlo, monospace;
+    font-size: 9px; font-weight: 600; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis;
+    cursor: default; position: relative; flex-shrink: 0;
+    --mc: #888;
+    color: var(--mc);
+    background: color-mix(in srgb, var(--mc) 18%, transparent);
+}
+
+/* Delete button in row */
+.delete-btn {
+    background: none; border: none; cursor: pointer;
+    color: var(--secondary); font-size: 14px; padding: 2px 6px;
+    border-radius: 4px; transition: all 0.15s;
+    line-height: 1;
+}
+.delete-btn:hover { color: var(--red); background: color-mix(in srgb, var(--red) 10%, transparent); }
+
+/* Inline edit */
+.inline-edit {
+    width: 100%; height: 22px; padding: 0 4px;
+    border: 1px solid var(--accent); border-radius: 4px;
+    background: var(--text-bg); color: var(--text);
+    font-size: 12px; outline: none;
+    font-family: inherit;
+}
+.inline-edit:focus { box-shadow: 0 0 0 2px var(--focus-ring); }
+select.inline-edit {
+    height: 24px; cursor: pointer; padding: 0 4px;
+}
+.col-models select.inline-edit { flex: 1; min-width: 0; }
+
+/* Add row */
+.add-row {
+    display: flex; align-items: center;
+    padding: 4px 0; border-bottom: 1px solid var(--border);
+    background: color-mix(in srgb, var(--accent) 5%, var(--bg));
+}
+.add-row .col { padding: 3px 8px; }
+.add-row input {
+    width: 100%; height: 24px; padding: 0 6px;
+    border: 1px solid var(--accent); border-radius: 4px;
+    background: var(--text-bg); color: var(--text);
+    font-size: 12px; outline: none;
+}
+.add-row input:focus { box-shadow: 0 0 0 2px var(--focus-ring); }
+.add-row select {
+    height: 24px; padding: 0 4px;
+    border: 1px solid var(--border); border-radius: 4px;
+    background: var(--text-bg); color: var(--text);
+    font-size: 11px; cursor: pointer;
+    min-width: 0;
+}
+.add-row .col-app select { width: 100%; }
+.add-row .col-models select { flex: 1; min-width: 0; }
+.add-row .add-actions {
+    display: flex; gap: 4px;
+}
+.add-row .add-actions button {
+    background: none; border: none; cursor: pointer;
+    font-size: 14px; padding: 2px 6px; border-radius: 4px;
+    transition: all 0.15s; line-height: 1;
+}
+.add-row .add-actions .confirm-btn { color: var(--green); }
+.add-row .add-actions .confirm-btn:hover { background: color-mix(in srgb, var(--green) 15%, transparent); }
+.add-row .add-actions .cancel-btn { color: var(--red); }
+.add-row .add-actions .cancel-btn:hover { background: color-mix(in srgb, var(--red) 15%, transparent); }
+
+/* Bottom bar */
+.btn-row {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    margin-top: 8px; flex-shrink: 0;
+    position: relative;
+}
+.btn-row .right-actions {
+    position: absolute; right: 0; top: 0;
+    display: flex; align-items: center; gap: 8px; height: 100%;
+}
+
+/* Tooltip */
+#tooltip {
+    display: none; position: fixed; padding: 4px 10px; border-radius: 5px;
+    background: var(--card-bg); color: var(--text);
+    border: 1px solid var(--border);
+    font-size: 11px; white-space: nowrap; z-index: 9999;
+    pointer-events: none; box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+</style>
+</head>
+<body>
+
+<div class="search-bar">
+    <input type="text" class="search-input" id="search" placeholder="">
+    <select class="time-select" id="time-range">
+        <option value="all" selected></option>
+        <option value="today"></option>
+        <option value="7d"></option>
+        <option value="30d"></option>
+    </select>
+    <button class="btn btn-primary" id="add-btn"></button>
+</div>
+
+<div class="tag-row" id="tag-row"></div>
+
+<div class="stats-line" id="stats-line"></div>
+
+<div class="table-wrap">
+    <div class="table-header" id="table-header">
+        <div class="col col-cb"><input type="checkbox" id="select-all"></div>
+        <div class="col col-term sortable" data-col="term"></div>
+        <div class="col col-variant sortable" data-col="variant"></div>
+        <div class="col col-app sortable" data-col="app_name"></div>
+        <div class="col col-mode sortable" data-col="enhance_mode"></div>
+        <div class="col col-date sortable" data-col="last_hit"></div>
+        <div class="col col-hits sortable" data-col="hit_count"></div>
+        <div class="col col-freq sortable" data-col="frequency"></div>
+        <div class="col col-date sortable" data-col="first_seen"></div>
+        <div class="col col-date sortable" data-col="last_updated"></div>
+        <div class="col col-source sortable" data-col="source"></div>
+        <div class="col col-models"></div>
+        <div class="col col-actions"></div>
+    </div>
+    <div class="table-body" id="table-body"></div>
+</div>
+
+<div class="btn-row" id="bottom-bar">
+    <button class="btn btn-danger" id="batch-delete-btn" style="display:none"></button>
+    <span id="pager" style="display:none">
+        <button class="pager-btn" id="pager-prev" disabled></button>
+        <span class="pager-info" id="pager-info"></span>
+        <button class="pager-btn" id="pager-next" disabled></button>
+    </span>
+    <span class="right-actions">
+        <button class="btn" id="export-btn"></button>
+        <button class="btn" id="import-btn"></button>
+    </span>
+</div>
+
+<div id="tooltip"></div>
+
+<script>
+// --- i18n ---
+window._i18n = window._i18n || {};
+function i18n(key) { return window._i18n[key] || key; }
+
+const tooltipEl = document.getElementById('tooltip');
+const tableBody = document.getElementById('table-body');
+const searchEl = document.getElementById('search');
+const timeRange = document.getElementById('time-range');
+const addBtn = document.getElementById('add-btn');
+const tagRow = document.getElementById('tag-row');
+const statsLine = document.getElementById('stats-line');
+const selectAllCb = document.getElementById('select-all');
+const batchDeleteBtn = document.getElementById('batch-delete-btn');
+const exportBtn = document.getElementById('export-btn');
+const importBtn = document.getElementById('import-btn');
+const pagerEl = document.getElementById('pager');
+const pagerPrev = document.getElementById('pager-prev');
+const pagerNext = document.getElementById('pager-next');
+const pagerInfo = document.getElementById('pager-info');
+
+let currentRecords = [];
+let currentPage = 0;
+let totalPages = 1;
+let activeTags = new Set();
+let selectedRows = new Set(); // indices of checked rows on current page
+let sortColumn = 'last_updated';
+let sortAsc = false;
+let addRowVisible = false;
+let addOptions = {apps: [], asr_models: [], llm_models: []};
+let editingCell = null; // {row, field, original}
+let editBlurTimer = null;
+
+var SOURCE_OPTIONS = [{value:'user',label:'user'},{value:'asr',label:'asr'},{value:'llm',label:'llm'}];
+var GROUP_LABELS = {source: 'Source', app: 'App', asr_model: 'ASR', llm_model: 'LLM'};
+
+function post(msg) {
+    window.webkit.messageHandlers.action.postMessage(msg);
+}
+
+/* --- i18n labels --- */
+function _initI18nLabels() {
+    searchEl.placeholder = i18n('search_placeholder');
+    const opts = timeRange.options;
+    opts[0].textContent = i18n('time_all');
+    opts[1].textContent = i18n('time_today');
+    opts[2].textContent = i18n('time_7d');
+    opts[3].textContent = i18n('time_30d');
+    addBtn.textContent = i18n('btn_add');
+    pagerPrev.textContent = i18n('pager_prev');
+    pagerNext.textContent = i18n('pager_next');
+    exportBtn.textContent = i18n('btn_export');
+    importBtn.textContent = i18n('btn_import');
+    GROUP_LABELS = {
+        source: i18n('tag_group_source'),
+        app: i18n('tag_group_app'),
+        asr_model: i18n('tag_group_asr_model'),
+        llm_model: i18n('tag_group_llm_model')
+    };
+    _updateColumnHeaders();
+}
+
+var COLUMN_I18N = {
+    variant: 'column_variant', term: 'column_term',
+    hit_count: 'column_hits', frequency: 'column_freq',
+    source: 'column_source', last_updated: 'column_last_updated',
+    first_seen: 'column_first_seen', last_hit: 'column_last_hit',
+    enhance_mode: 'column_mode', app_name: 'column_app',
+    _models: 'column_models'
+};
+
+function _updateColumnHeaders() {
+    document.querySelectorAll('.table-header [data-col]').forEach(function(col) {
+        var c = col.getAttribute('data-col');
+        var label = i18n(COLUMN_I18N[c] || c);
+        var arrow = '';
+        if (c === sortColumn) {
+            arrow = ' <span class="sort-arrow">' + (sortAsc ? '▲' : '▼') + '</span>';
+        }
+        col.innerHTML = esc(label) + arrow;
+    });
+    var modelsCol = document.querySelector('.table-header .col-models');
+    if (modelsCol) modelsCol.textContent = i18n(COLUMN_I18N._models);
+}
+_initI18nLabels();
+
+/* --- Search (debounce) --- */
+var searchTimer = null;
+function triggerSearch() {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(function() {
+        post({type:'search', text: searchEl.value, timeRange: timeRange.value});
+    }, 200);
+}
+searchEl.addEventListener('input', triggerSearch);
+timeRange.addEventListener('change', triggerSearch);
+
+/* --- Column sort --- */
+document.getElementById('table-header').addEventListener('click', function(e) {
+    var col = e.target.closest('.sortable');
+    if (!col) return;
+    var c = col.getAttribute('data-col');
+    if (c) post({type:'sort', column: c});
+});
+
+/* --- Pager --- */
+pagerPrev.addEventListener('click', function() {
+    if (currentPage > 0) post({type:'changePage', page: currentPage - 1});
+});
+pagerNext.addEventListener('click', function() {
+    if (currentPage < totalPages - 1) post({type:'changePage', page: currentPage + 1});
+});
+
+/* --- Select all --- */
+selectAllCb.addEventListener('change', function() {
+    selectedRows.clear();
+    if (selectAllCb.checked) {
+        for (var i = 0; i < currentRecords.length; i++) selectedRows.add(i);
+    }
+    tableBody.querySelectorAll('.row-cb').forEach(function(cb, idx) {
+        cb.checked = selectAllCb.checked;
+    });
+    _updateBatchDelete();
+});
+
+/* --- Batch delete --- */
+batchDeleteBtn.addEventListener('click', function() {
+    var entries = [];
+    selectedRows.forEach(function(idx) {
+        if (idx < currentRecords.length) {
+            var r = currentRecords[idx];
+            entries.push({variant: r.variant, term: r.term});
+        }
+    });
+    if (entries.length > 0) {
+        post({type:'batchRemove', entries: entries});
+    }
+});
+
+function _updateBatchDelete() {
+    if (selectedRows.size > 0) {
+        batchDeleteBtn.style.display = '';
+        batchDeleteBtn.textContent = i18n('btn_delete_selected').replace('{count}', selectedRows.size);
+    } else {
+        batchDeleteBtn.style.display = 'none';
+    }
+}
+
+/* --- Add button --- */
+addBtn.addEventListener('click', function() {
+    if (addRowVisible) return;
+    _showAddRow();
+});
+
+function _showAddRow() {
+    addRowVisible = true;
+    var row = document.createElement('div');
+    row.className = 'add-row';
+    row.id = 'add-row';
+    row.innerHTML =
+        '<div class="col col-cb"></div>' +
+        '<div class="col col-term"><input type="text" id="add-term" placeholder="' + esc(i18n('add_placeholder_term')) + '"></div>' +
+        '<div class="col col-variant"><input type="text" id="add-variant" placeholder="' + esc(i18n('add_placeholder_variant')) + '"></div>' +
+        '<div class="col col-app"><select id="add-app"></select></div>' +
+        '<div class="col col-mode"></div>' +
+        '<div class="col col-date"></div>' +
+        '<div class="col col-hits"></div>' +
+        '<div class="col col-freq"></div>' +
+        '<div class="col col-date"></div>' +
+        '<div class="col col-date"></div>' +
+        '<div class="col col-source"><select id="add-source"></select></div>' +
+        '<div class="col col-models"><select id="add-asr" title="ASR model"></select><select id="add-llm" title="LLM model"></select></div>' +
+        '<div class="col col-actions"><div class="add-actions">' +
+        '<button class="confirm-btn" title="Confirm">✓</button>' +
+        '<button class="cancel-btn" title="Cancel">✕</button>' +
+        '</div></div>';
+    tableBody.insertBefore(row, tableBody.firstChild);
+
+    _buildSelectOpts('add-source', SOURCE_OPTIONS);
+    _buildSelectOpts('add-app', [{value:'',label:'—'}].concat(addOptions.apps.map(function(a){return {value:a.id, label:a.name};})));
+    _buildSelectOpts('add-asr', [{value:'',label:'—'}].concat(addOptions.asr_models.map(function(m){return {value:m, label:abbr(m), title:m};})));
+    _buildSelectOpts('add-llm', [{value:'',label:'—'}].concat(addOptions.llm_models.map(function(m){return {value:m, label:abbr(m), title:m};})));
+
+    var termInput = document.getElementById('add-term');
+    var variantInput = document.getElementById('add-variant');
+    termInput.focus();
+
+    row.querySelector('.confirm-btn').addEventListener('click', _commitAdd);
+    row.querySelector('.cancel-btn').addEventListener('click', _cancelAdd);
+
+    function onKey(e) {
+        if (e.key === 'Enter') { e.preventDefault(); _commitAdd(); }
+        if (e.key === 'Escape') { e.preventDefault(); _cancelAdd(); }
+        if (e.key === 'Tab' && e.target === termInput && !e.shiftKey) {
+            e.preventDefault(); variantInput.focus();
+        }
+    }
+    termInput.addEventListener('keydown', onKey);
+    variantInput.addEventListener('keydown', onKey);
+}
+
+function _commitAdd() {
+    var v = document.getElementById('add-variant');
+    var t = document.getElementById('add-term');
+    var s = document.getElementById('add-source');
+    var app = document.getElementById('add-app');
+    var asr = document.getElementById('add-asr');
+    var llm = document.getElementById('add-llm');
+    if (!v || !t) return;
+    var variant = v.value.trim();
+    var term = t.value.trim();
+    if (!variant || !term) { v.focus(); return; }
+    post({
+        type: 'addEntry',
+        variant: variant,
+        term: term,
+        source: s.value,
+        app_bundle_id: app ? app.value : '',
+        asr_model: asr ? asr.value : '',
+        llm_model: llm ? llm.value : ''
+    });
+    _cancelAdd();
+}
+
+function _cancelAdd() {
+    addRowVisible = false;
+    var row = document.getElementById('add-row');
+    if (row) row.remove();
+}
+
+/* --- Export / Import --- */
+exportBtn.addEventListener('click', function() { post({type:'exportVocab'}); });
+importBtn.addEventListener('click', function() { post({type:'importVocab'}); });
+
+/* --- Tag toggle (event delegation on tagRow) --- */
+tagRow.addEventListener('click', function(e) {
+    var pill = e.target.closest('.tag-pill');
+    if (!pill) return;
+    var name = pill.getAttribute('data-name');
+    if (!name) return;
+    if (activeTags.has(name)) activeTags.delete(name);
+    else activeTags.add(name);
+    _renderTagPills();
+    post({type:'toggleTags', tags: Array.from(activeTags)});
+});
+
+function _renderTagPills() {
+    tagRow.querySelectorAll('.tag-pill').forEach(function(pill) {
+        var name = pill.getAttribute('data-name');
+        if (activeTags.has(name)) pill.classList.add('active');
+        else pill.classList.remove('active');
+    });
+}
+
+/* --- Inline editing --- */
+function _selectFieldMapping(field) {
+    // Returns {cssClass, options:[{value,label}]} or null for text/special fields
+    if (field === 'source') return {
+        cssClass: 'col-source',
+        options: SOURCE_OPTIONS
+    };
+    if (field === 'app_bundle_id') return {
+        cssClass: 'col-app',
+        options: [{value:'',label:'—'}].concat(addOptions.apps.map(function(a){return {value:a.id, label:a.name};}))
+    };
+    if (field === 'models') return null; // special two-select case
+    return null;
+}
+
+function _startEdit(rowEl, field, idx) {
+    if (editBlurTimer) { clearTimeout(editBlurTimer); editBlurTimer = null; }
+    if (editingCell) _cancelEdit();
+
+    var r = currentRecords[idx];
+
+    // Models is a special case: two selects in one cell
+    if (field === 'models') {
+        var cell = rowEl.querySelector('.col-models');
+        if (!cell) return;
+        editingCell = {idx: idx, field: field, original: {asr_model: r.asr_model||'', llm_model: r.llm_model||''}, cell: cell};
+        cell.innerHTML = '';
+        var selAsr = _buildInlineSelect(
+            [{value:'',label:'—'}].concat(addOptions.asr_models.map(function(m){return {value:m, label:abbr(m), title:m};})),
+            r.asr_model || '', 'ASR'
+        );
+        var selLlm = _buildInlineSelect(
+            [{value:'',label:'—'}].concat(addOptions.llm_models.map(function(m){return {value:m, label:abbr(m), title:m};})),
+            r.llm_model || '', 'LLM'
+        );
+        cell.appendChild(selAsr);
+        cell.appendChild(selLlm);
+        selAsr.focus();
+        return;
+    }
+
+    var mapping = _selectFieldMapping(field);
+    var cssClass = mapping ? mapping.cssClass : 'col-' + field;
+    var cell = rowEl.querySelector('.' + cssClass);
+    if (!cell) return;
+
+    var original = (field === 'app_bundle_id') ? (r.app_bundle_id || '') : (r[field] || '');
+    editingCell = {idx: idx, field: field, original: original, cell: cell};
+    cell.innerHTML = '';
+
+    if (mapping) {
+        var sel = _buildInlineSelect(mapping.options, original);
+        cell.appendChild(sel);
+        sel.focus();
+    } else {
+        var input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'inline-edit';
+        input.value = original;
+        cell.appendChild(input);
+        input.focus();
+        input.select();
+        input.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') { e.preventDefault(); _commitEdit(); }
+            if (e.key === 'Escape') { e.preventDefault(); _cancelEdit(); }
+        });
+        input.addEventListener('blur', function() {
+            editBlurTimer = setTimeout(function() { editBlurTimer = null; if (editingCell) _commitEdit(); }, 100);
+        });
+    }
+}
+
+function _buildInlineSelect(options, current, titlePrefix) {
+    var sel = document.createElement('select');
+    sel.className = 'inline-edit';
+    if (titlePrefix) sel.title = titlePrefix;
+    options.forEach(function(o) {
+        var opt = document.createElement('option');
+        opt.value = o.value;
+        opt.textContent = o.label;
+        if (o.title) opt.title = o.title;
+        if (o.value === current) opt.selected = true;
+        sel.appendChild(opt);
+    });
+    sel.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') { e.preventDefault(); _cancelEdit(); }
+    });
+    sel.addEventListener('change', function() {
+        if (editBlurTimer) { clearTimeout(editBlurTimer); editBlurTimer = null; }
+        _commitEdit();
+    });
+    sel.addEventListener('blur', function() {
+        editBlurTimer = setTimeout(function() { editBlurTimer = null; if (editingCell) _commitEdit(); }, 150);
+    });
+    return sel;
+}
+
+function _commitEdit() {
+    if (editBlurTimer) { clearTimeout(editBlurTimer); editBlurTimer = null; }
+    if (!editingCell) return;
+    var idx = editingCell.idx;
+    var field = editingCell.field;
+    var original = editingCell.original;
+    var r = currentRecords[idx];
+
+    if (field === 'models') {
+        var sels = editingCell.cell.querySelectorAll('select.inline-edit');
+        var newAsr = sels[0] ? sels[0].value : original.asr_model;
+        var newLlm = sels[1] ? sels[1].value : original.llm_model;
+        editingCell = null;
+        var fields = {};
+        if (newAsr !== original.asr_model) fields.asr_model = newAsr;
+        if (newLlm !== original.llm_model) fields.llm_model = newLlm;
+        if (Object.keys(fields).length === 0) {
+            _restoreCell(idx, field, original);
+            return;
+        }
+        post({type:'editField', variant: r.variant, term: r.term, fields: fields});
+        return;
+    }
+
+    var input = editingCell.cell.querySelector('.inline-edit');
+    var newVal = input ? input.value.trim() : original;
+    editingCell = null;
+
+    if (field === 'variant' || field === 'term') {
+        if (newVal === original || !newVal) {
+            _restoreCell(idx, field, original);
+            return;
+        }
+        if (field === 'variant') {
+            post({type:'editEntry', oldVariant: r.variant, oldTerm: r.term, newVariant: newVal, newTerm: r.term});
+        } else {
+            post({type:'editEntry', oldVariant: r.variant, oldTerm: r.term, newVariant: r.variant, newTerm: newVal});
+        }
+    } else {
+        if (newVal === original) {
+            _restoreCell(idx, field, original);
+            return;
+        }
+        var fields = {};
+        fields[field] = newVal;
+        post({type:'editField', variant: r.variant, term: r.term, fields: fields});
+    }
+}
+
+function _cancelEdit() {
+    if (editBlurTimer) { clearTimeout(editBlurTimer); editBlurTimer = null; }
+    if (!editingCell) return;
+    var idx = editingCell.idx;
+    var field = editingCell.field;
+    var original = editingCell.original;
+    editingCell = null;
+    _restoreCell(idx, field, original);
+}
+
+function _restoreCell(idx, field, original) {
+    var rowEl = tableBody.querySelector('.row[data-idx="' + idx + '"]');
+    if (!rowEl) return;
+    var r = currentRecords[idx];
+    if (field === 'models') {
+        var cell = rowEl.querySelector('.col-models');
+        if (!cell) return;
+        var html = '';
+        if (r.asr_model) html += miniTag(abbr(r.asr_model), 'stt', 'ASR: ' + r.asr_model);
+        if (r.llm_model) html += miniTag(abbr(r.llm_model), 'llm', 'LLM: ' + r.llm_model);
+        cell.innerHTML = html;
+        return;
+    }
+    if (field === 'source') {
+        var cell = rowEl.querySelector('.col-source');
+        if (!cell) return;
+        var src = r.source || 'user';
+        cell.innerHTML = '<span class="source-badge ' + src.toLowerCase() + '">' + esc(src) + '</span>';
+        return;
+    }
+    if (field === 'app_bundle_id') {
+        var cell = rowEl.querySelector('.col-app');
+        if (cell) cell.textContent = r.app_name || '';
+        return;
+    }
+    var cell = rowEl.querySelector('.col-' + field);
+    if (cell) cell.textContent = original;
+}
+
+/* --- Keyboard --- */
+document.addEventListener('keydown', function(e) {
+    if (e.isComposing || e.keyCode === 229) return;
+    if (e.key === 'Escape') {
+        e.preventDefault();
+        if (editingCell) _cancelEdit();
+        else if (addRowVisible) _cancelAdd();
+    }
+});
+
+/* === Python → JS API === */
+
+function setRecords(records, totalCount, page, numPages, filteredCount) {
+    currentRecords = records;
+    currentPage = page || 0;
+    totalPages = numPages || 1;
+    selectedRows.clear();
+    selectAllCb.checked = false;
+    _updateBatchDelete();
+    _cancelAdd();
+    if (editingCell) _cancelEdit();
+
+    /* Stats */
+    if (totalCount !== filteredCount) {
+        var s = i18n('stats').replace('{total}', totalCount);
+        s += '<span class="filtered"> ' + i18n('stats_filtered').replace('{filtered}', filteredCount) + '</span>';
+        statsLine.innerHTML = s;
+    } else {
+        statsLine.textContent = i18n('stats').replace('{total}', totalCount);
+    }
+
+    /* Pager */
+    if (totalPages > 1) {
+        pagerEl.style.display = 'inline-flex';
+        pagerPrev.disabled = (currentPage <= 0);
+        pagerNext.disabled = (currentPage >= totalPages - 1);
+        pagerInfo.textContent = i18n('pager_info').replace('{current}', currentPage + 1).replace('{total}', totalPages);
+    } else {
+        pagerEl.style.display = 'none';
+    }
+
+    /* Table rows */
+    if (records.length === 0) {
+        tableBody.innerHTML = '<div class="empty-msg">' + esc(i18n('empty')) +
+            '<div class="empty-hint">' + esc(i18n('empty_hint')) + '</div></div>';
+        return;
+    }
+    var html = '';
+    for (var i = 0; i < records.length; i++) {
+        var r = records[i];
+        var ts = fmtDate(r.last_updated || '');
+        var fsTs = fmtDate(r.first_seen || '');
+        var lhTs = fmtDate(r.last_hit || '');
+        var srcClass = (r.source || 'user').toLowerCase();
+        var modelTags = '';
+        if (r.asr_model) modelTags += miniTag(abbr(r.asr_model), 'stt', 'ASR: ' + r.asr_model);
+        if (r.llm_model) modelTags += miniTag(abbr(r.llm_model), 'llm', 'LLM: ' + r.llm_model);
+        html += '<div class="row" data-idx="' + i + '">' +
+            '<div class="col col-cb"><input type="checkbox" class="row-cb" data-idx="' + i + '"></div>' +
+            '<div class="col col-term" data-field="term">' + esc(r.term || '') + '</div>' +
+            '<div class="col col-variant" data-field="variant">' + esc(r.variant || '') + '</div>' +
+            '<div class="col col-app" data-field="app_bundle_id">' + esc(r.app_name || '') + '</div>' +
+            '<div class="col col-mode">' + esc(r.enhance_mode || '') + '</div>' +
+            '<div class="col col-date" data-tip="' + escAttr(r.last_hit || '') + '">' + esc(lhTs) + '</div>' +
+            '<div class="col col-hits">' + (r.hit_count || 0) + '</div>' +
+            '<div class="col col-freq">' + (r.frequency || 0) + '</div>' +
+            '<div class="col col-date" data-tip="' + escAttr(r.first_seen || '') + '">' + esc(fsTs) + '</div>' +
+            '<div class="col col-date" data-tip="' + escAttr(r.last_updated || '') + '">' + esc(ts) + '</div>' +
+            '<div class="col col-source" data-field="source"><span class="source-badge ' + srcClass + '">' + esc(r.source || '') + '</span></div>' +
+            '<div class="col col-models" data-field="models">' + modelTags + '</div>' +
+            '<div class="col col-actions"><button class="delete-btn" data-variant="' + escAttr(r.variant) + '" data-term="' + escAttr(r.term) + '">×</button></div>' +
+            '</div>';
+    }
+    tableBody.innerHTML = html;
+    tableBody.scrollTop = 0;
+}
+
+function setTagOptions(tags) {
+    tagRow.innerHTML = '';
+    if (!tags || tags.length === 0) return;
+    var lastGroup = null;
+    var groupColors = {source: 'var(--tag-source)', app: 'var(--tag-app)', asr_model: 'var(--tag-stt)', llm_model: 'var(--tag-llm)'};
+    tags.forEach(function(t) {
+        if (t.group !== lastGroup) {
+            if (lastGroup !== null) {
+                var sep = document.createElement('span');
+                sep.className = 'tag-sep';
+                tagRow.appendChild(sep);
+            }
+            var gl = GROUP_LABELS[t.group];
+            if (gl) {
+                var lbl = document.createElement('span');
+                lbl.className = 'tag-group-label';
+                lbl.textContent = gl + ':';
+                tagRow.appendChild(lbl);
+            }
+            lastGroup = t.group;
+        }
+        var pill = document.createElement('span');
+        pill.className = 'tag-pill' + (activeTags.has(t.name) ? ' active' : '');
+        pill.setAttribute('data-name', t.name);
+        pill.style.setProperty('--c', groupColors[t.group] || 'var(--accent)');
+        pill.textContent = t.name + ':' + t.count;
+        tagRow.appendChild(pill);
+    });
+}
+
+function setAddOptions(opts) {
+    addOptions = opts || {apps: [], asr_models: [], llm_models: []};
+}
+
+function _buildSelectOpts(id, options) {
+    var sel = document.getElementById(id);
+    if (!sel) return;
+    sel.innerHTML = '';
+    options.forEach(function(o) {
+        var opt = document.createElement('option');
+        opt.value = o.value;
+        opt.textContent = o.label;
+        if (o.title) opt.title = o.title;
+        sel.appendChild(opt);
+    });
+}
+
+function setSortState(column, asc) {
+    sortColumn = column;
+    sortAsc = asc;
+    _updateColumnHeaders();
+}
+
+function resetFilters() {
+    searchEl.value = '';
+    timeRange.value = 'all';
+    activeTags.clear();
+}
+
+/* --- Table body event delegation --- */
+tableBody.addEventListener('click', function(e) {
+    // Checkbox
+    var cb = e.target.closest('.row-cb');
+    if (cb) {
+        var idx = parseInt(cb.getAttribute('data-idx'), 10);
+        if (cb.checked) selectedRows.add(idx);
+        else selectedRows.delete(idx);
+        selectAllCb.checked = (selectedRows.size === currentRecords.length && currentRecords.length > 0);
+        _updateBatchDelete();
+        return;
+    }
+    // Delete button
+    var delBtn = e.target.closest('.delete-btn');
+    if (delBtn) {
+        post({type:'removeEntry', variant: delBtn.getAttribute('data-variant'), term: delBtn.getAttribute('data-term')});
+        return;
+    }
+});
+
+var EDITABLE_FIELDS = ['variant', 'term', 'app_bundle_id', 'source', 'models'];
+tableBody.addEventListener('dblclick', function(e) {
+    var cell = e.target.closest('[data-field]');
+    if (!cell) return;
+    var row = cell.closest('.row');
+    if (!row) return;
+    var idx = parseInt(row.getAttribute('data-idx'), 10);
+    var field = cell.getAttribute('data-field');
+    if (EDITABLE_FIELDS.indexOf(field) !== -1) {
+        _startEdit(row, field, idx);
+    }
+});
+
+/* --- Helpers --- */
+function fmtDate(ts) {
+    if (!ts || ts.length < 10) return '';
+    var d = new Date(ts);
+    if (isNaN(d.getTime())) return '';
+    var diff = Math.floor((Date.now() - d.getTime()) / 1000);
+    if (diff < 60) return diff + 's';
+    if (diff < 3600) return Math.floor(diff / 60) + 'm';
+    if (diff < 86400) return Math.floor(diff / 3600) + 'h';
+    if (diff < 2592000) return Math.floor(diff / 86400) + 'd';
+    if (diff < 31536000) return Math.floor(diff / 2592000) + 'mo';
+    return Math.floor(diff / 31536000) + 'y';
+}
+function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function escAttr(s) { return esc(s).replace(/"/g, '&quot;'); }
+function abbr(name) {
+    if (name.length <= 8) return name;
+    return name.substring(0, 4) + '\u2026' + name.slice(-4);
+}
+function miniTag(label, group, tooltip) {
+    var colorMap = {stt: 'var(--tag-stt)', llm: 'var(--tag-llm)'};
+    var mc = colorMap[group] || 'var(--accent)';
+    var t = tooltip ? ' data-tip="' + escAttr(tooltip) + '"' : '';
+    return '<span class="mini-tag"' + t + ' style="--mc:' + mc + '">' + esc(label) + '</span>';
+}
+
+/* --- Global tooltip on [data-tip] elements --- */
+document.addEventListener('mouseover', function(e) {
+    var el = e.target.closest('[data-tip]');
+    if (!el) { tooltipEl.style.display = 'none'; return; }
+    tooltipEl.textContent = el.getAttribute('data-tip');
+    tooltipEl.style.display = 'block';
+    var r = el.getBoundingClientRect();
+    var x = r.left + r.width / 2 - tooltipEl.offsetWidth / 2;
+    var y = r.top - tooltipEl.offsetHeight - 6;
+    if (y < 4) y = r.bottom + 6;
+    if (x < 4) x = 4;
+    if (x + tooltipEl.offsetWidth > window.innerWidth - 4)
+        x = window.innerWidth - tooltipEl.offsetWidth - 4;
+    tooltipEl.style.left = x + 'px';
+    tooltipEl.style.top = y + 'px';
+});
+document.addEventListener('mouseout', function(e) {
+    if (e.target.closest('[data-tip]')) tooltipEl.style.display = 'none';
+});
+
+/* --- Notify Python that page is ready --- */
+requestAnimationFrame(function() {
+    post({type:'pageReady'});
+});
+</script>
+</body>
+</html>

@@ -190,9 +190,9 @@ class TestPreviewHistoryStore:
         assert store.get(0).token_usage is None
 
     def test_hotwords_detail_stored(self):
-        from wenzi.enhance.vocabulary import HotwordDetail, LAYER_MANUAL
+        from wenzi.enhance.vocabulary import HotwordDetail
 
-        details = [HotwordDetail(term="API", layer=LAYER_MANUAL, frequency=5, score=5.0)]
+        details = [HotwordDetail(term="API", source="asr", hit_count=5)]
         store = PreviewHistoryStore()
         store.add(_make_record(hotwords_detail=details))
         rec = store.get(0)
