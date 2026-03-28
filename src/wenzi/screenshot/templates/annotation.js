@@ -39,7 +39,9 @@
   var isDrawing = false;
   var drawStart = null; // {x, y}
   var activeShape = null; // the shape being drawn
-  var mosaicPath = null; // [{x, y}, ...] for mosaic brush strokes
+
+  // Mosaic brush state
+  var mosaicState = null; // { tmpCanvas, tmpCtx, mask, bounds, img, lastPoint }
 
   // ── Initialization ──
 
@@ -193,9 +195,8 @@
       );
       canvas.add(activeShape);
     } else if (currentTool === "mosaic") {
-      // Mosaic brush: collect path points, apply on mouse up
       activeShape = null;
-      mosaicPath = [{ x: pointer.x, y: pointer.y }];
+      mosaicBeginStroke(pointer);
     }
   }
 
@@ -223,8 +224,8 @@
     ) {
       activeShape.set({ x2: pointer.x, y2: pointer.y });
       canvas.renderAll();
-    } else if (currentTool === "mosaic" && mosaicPath) {
-      mosaicPath.push({ x: pointer.x, y: pointer.y });
+    } else if (currentTool === "mosaic" && mosaicState) {
+      mosaicAddPoint(pointer);
     }
   }
 
@@ -246,10 +247,7 @@
         createArrow(x1, y1, x2, y2);
       }
     } else if (currentTool === "mosaic") {
-      if (mosaicPath && mosaicPath.length > 1) {
-        applyMosaicBrush(mosaicPath);
-      }
-      mosaicPath = null;
+      mosaicEndStroke();
     } else if (activeShape) {
       // For rect, ellipse, line — make them selectable now
       activeShape.set({ selectable: true, evented: true });
@@ -308,107 +306,114 @@
     canvas.setActiveObject(arrow);
   }
 
-  // ── Mosaic Tool (brush-based) ──
+  // ── Mosaic Tool (real-time brush with selected color) ──
 
-  function applyMosaicBrush(path) {
-    if (!hiddenCtx || !canvas) return;
-
+  function mosaicBeginStroke(pointer) {
+    if (!canvas) return;
     var blockSize = MOSAIC_BLOCK[currentThickness] || 12;
     var brushRadius = getThickness() * 6;
 
-    // Compute bounding box of the brush stroke
-    var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    for (var i = 0; i < path.length; i++) {
-      var px = path[i].x, py = path[i].y;
-      if (px - brushRadius < minX) minX = px - brushRadius;
-      if (py - brushRadius < minY) minY = py - brushRadius;
-      if (px + brushRadius > maxX) maxX = px + brushRadius;
-      if (py + brushRadius > maxY) maxY = py + brushRadius;
-    }
+    // Full-canvas temp canvas for the mosaic overlay
+    var tmp = document.createElement("canvas");
+    tmp.width = canvas.width;
+    tmp.height = canvas.height;
+    var ctx = tmp.getContext("2d");
+    ctx.clearRect(0, 0, tmp.width, tmp.height);
 
-    // Clamp to canvas bounds
-    var cx = Math.max(0, Math.floor(minX));
-    var cy = Math.max(0, Math.floor(minY));
-    var cw = Math.min(Math.ceil(maxX), canvas.width) - cx;
-    var ch = Math.min(Math.ceil(maxY), canvas.height) - cy;
-    if (cw <= 0 || ch <= 0) return;
+    // Track which blocks have been painted (avoid overdraw)
+    var painted = {};
 
-    // Build a mask: which pixels are within brush radius of the path
-    var mask = new Uint8Array(cw * ch);
-    var r2 = brushRadius * brushRadius;
-    for (var pi = 0; pi < path.length; pi++) {
-      var ppx = path[pi].x - cx;
-      var ppy = path[pi].y - cy;
-      var startY = Math.max(0, Math.floor(ppy - brushRadius));
-      var endY = Math.min(ch, Math.ceil(ppy + brushRadius));
-      var startX = Math.max(0, Math.floor(ppx - brushRadius));
-      var endX = Math.min(cw, Math.ceil(ppx + brushRadius));
-      for (var my = startY; my < endY; my++) {
-        for (var mx = startX; mx < endX; mx++) {
-          var dx = mx - ppx, dy = my - ppy;
-          if (dx * dx + dy * dy <= r2) {
-            mask[my * cw + mx] = 1;
-          }
-        }
-      }
-    }
-
-    // Read background pixels
-    var imageData = hiddenCtx.getImageData(cx, cy, cw, ch);
-    var srcData = imageData.data;
-
-    // Create pixelated result
-    var tmpCanvas = document.createElement("canvas");
-    tmpCanvas.width = cw;
-    tmpCanvas.height = ch;
-    var tmpCtx = tmpCanvas.getContext("2d");
-
-    // Make fully transparent first
-    tmpCtx.clearRect(0, 0, cw, ch);
-
-    // Pixelate only masked blocks
-    for (var by = 0; by < ch; by += blockSize) {
-      for (var bx = 0; bx < cw; bx += blockSize) {
-        var bw = Math.min(blockSize, cw - bx);
-        var bh = Math.min(blockSize, ch - by);
-
-        // Check if any pixel in this block is masked
-        var hasMask = false;
-        for (var ty = by; ty < by + bh && !hasMask; ty++) {
-          for (var tx = bx; tx < bx + bw && !hasMask; tx++) {
-            if (mask[ty * cw + tx]) hasMask = true;
-          }
-        }
-        if (!hasMask) continue;
-
-        // Compute average color of the block
-        var r = 0, g = 0, b = 0, count = 0;
-        for (var ty2 = by; ty2 < by + bh; ty2++) {
-          for (var tx2 = bx; tx2 < bx + bw; tx2++) {
-            var idx = (ty2 * cw + tx2) * 4;
-            r += srcData[idx];
-            g += srcData[idx + 1];
-            b += srcData[idx + 2];
-            count++;
-          }
-        }
-        r = Math.round(r / count);
-        g = Math.round(g / count);
-        b = Math.round(b / count);
-
-        tmpCtx.fillStyle = "rgb(" + r + "," + g + "," + b + ")";
-        tmpCtx.fillRect(bx, by, bw, bh);
-      }
-    }
-
-    var mosaicImg = new fabric.FabricImage(tmpCanvas, {
-      left: cx,
-      top: cy,
-      selectable: true,
-      evented: true,
+    // Live fabric image on canvas
+    var img = new fabric.FabricImage(tmp, {
+      left: 0, top: 0,
+      selectable: false, evented: false,
     });
-    canvas.add(mosaicImg);
-    canvas.setActiveObject(mosaicImg);
+    canvas.add(img);
+
+    mosaicState = {
+      tmpCanvas: tmp, tmpCtx: ctx,
+      painted: painted, img: img,
+      blockSize: blockSize, brushRadius: brushRadius,
+      color: currentColor,
+    };
+
+    // Paint first point
+    mosaicPaintAt(pointer.x, pointer.y);
+    canvas.renderAll();
+  }
+
+  function mosaicAddPoint(pointer) {
+    if (!mosaicState) return;
+    var last = mosaicState.lastPoint;
+    if (last) {
+      // Interpolate between last and current to avoid gaps
+      var dx = pointer.x - last.x, dy = pointer.y - last.y;
+      var dist = Math.sqrt(dx * dx + dy * dy);
+      var step = mosaicState.blockSize * 0.5;
+      if (dist > step) {
+        var steps = Math.ceil(dist / step);
+        for (var i = 1; i <= steps; i++) {
+          var t = i / steps;
+          mosaicPaintAt(last.x + dx * t, last.y + dy * t);
+        }
+      } else {
+        mosaicPaintAt(pointer.x, pointer.y);
+      }
+    } else {
+      mosaicPaintAt(pointer.x, pointer.y);
+    }
+    mosaicState.lastPoint = { x: pointer.x, y: pointer.y };
+
+    // Update the live image
+    mosaicState.img.setElement(mosaicState.tmpCanvas);
+    canvas.renderAll();
+  }
+
+  function mosaicPaintAt(px, py) {
+    if (!mosaicState) return;
+    var s = mosaicState;
+    var bs = s.blockSize, br = s.brushRadius;
+    var ctx = s.tmpCtx;
+
+    // Find which blocks this brush circle covers
+    var startBx = Math.floor((px - br) / bs);
+    var endBx = Math.floor((px + br) / bs);
+    var startBy = Math.floor((py - br) / bs);
+    var endBy = Math.floor((py + br) / bs);
+    var r2 = br * br;
+
+    ctx.fillStyle = s.color;
+
+    for (var by = startBy; by <= endBy; by++) {
+      for (var bx = startBx; bx <= endBx; bx++) {
+        // Block center
+        var cx = bx * bs + bs / 2;
+        var cy = by * bs + bs / 2;
+        var ddx = cx - px, ddy = cy - py;
+        if (ddx * ddx + ddy * ddy > r2) continue;
+
+        var key = bx + "," + by;
+        if (s.painted[key]) continue;
+        s.painted[key] = true;
+
+        // Clamp to canvas bounds
+        var rx = Math.max(0, bx * bs);
+        var ry = Math.max(0, by * bs);
+        var rw = Math.min(bs, canvas.width - rx);
+        var rh = Math.min(bs, canvas.height - ry);
+        if (rw > 0 && rh > 0) {
+          ctx.fillRect(rx, ry, rw, rh);
+        }
+      }
+    }
+  }
+
+  function mosaicEndStroke() {
+    if (!mosaicState) return;
+    // Make the image selectable
+    mosaicState.img.set({ selectable: true, evented: true });
+    canvas.setActiveObject(mosaicState.img);
+    mosaicState = null;
   }
 
   // ── Text Tool ──
