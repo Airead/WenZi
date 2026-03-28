@@ -266,6 +266,42 @@ class PreviewController:
             token_usage=record.token_usage,
         )
 
+        # Diffs are not persisted in PreviewRecord, so recompute them here
+        from wenzi.enhance.text_diff import extract_word_pairs
+
+        # Clear stale diffs from the previous selection.
+        # Vocab hits are clear-only: they are detected live during enhancement
+        # and recording them again here would inflate hit counts.
+        panel = app._preview_panel
+        panel.set_asr_diffs([])
+        panel.set_user_diffs([])
+        panel.set_vocab_hits([])
+
+        try:
+            pairs = extract_word_pairs(record.asr_text, record.enhanced_text)
+            if pairs:
+                panel.set_asr_diffs(pairs)
+        except Exception as e:
+            logger.warning("History: failed to compute ASR diffs: %s", e)
+
+        if record.final_text != record.enhanced_text:
+            try:
+                user_pairs = extract_word_pairs(
+                    record.enhanced_text, record.final_text,
+                )
+                if user_pairs:
+                    panel.set_user_diffs(user_pairs)
+            except Exception as e:
+                logger.warning("History: failed to compute user diffs: %s", e)
+
+        if app._manual_vocab_store is not None:
+            try:
+                panel.set_manual_vocab_state(
+                    app._manual_vocab_store.get_all_for_state(),
+                )
+            except Exception as e:
+                logger.warning("History: failed to sync vocab state: %s", e)
+
     def _handle_history_confirm(
         self,
         history_index: int,
