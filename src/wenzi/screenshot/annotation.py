@@ -272,6 +272,10 @@ class AnnotationLayer:
                     with open(path, "wb") as f:
                         f.write(png_bytes)
                     logger.info("Screenshot saved to %s", path)
+                    callback = self._on_done
+                    self.close()
+                    if callback:
+                        callback()
                 except OSError:
                     logger.exception("Failed to save screenshot to %s", path)
 
