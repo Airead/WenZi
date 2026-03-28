@@ -1,6 +1,6 @@
 # 闻字 (WenZi)
 
-[![Discord](https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white)](https://discord.gg/XbNSPEHc)
+[![Discord](https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white)](https://discord.gg/a5HzmNMC7P)
 
 A macOS menubar speech-to-text app with a built-in keyboard-driven launcher. Hold a hotkey to record, release to transcribe and type the result into the active app — or use the Alfred/Raycast-style launcher to search apps, files, clipboard history, and more.
 

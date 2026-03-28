@@ -41,7 +41,7 @@ local-asr = [
 
 [project.urls]
 Homepage = "https://github.com/Airead/WenZi"
-Discord = "https://discord.gg/XbNSPEHc"
+Discord = "https://discord.gg/a5HzmNMC7P"
 
 [project.scripts]
 wenzi = "wenzi.app:main"
