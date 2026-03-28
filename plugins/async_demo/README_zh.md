@@ -16,6 +16,7 @@ WenZi 异步脚本功能的演示与验证插件。
 | `async-fetch` | 异步抓取 URL 内容，保存到临时文件并打开。可选参数：URL 地址 |
 | `async-timer` | 启动一个每 2 秒触发一次的异步定时器。按 `Ctrl+Cmd+T` 停止 |
 | `async-concurrent` | 并行运行 3 个异步任务，报告总耗时 |
+| `async-error` | 抛出 `RuntimeError` 异常 — 可在日志查看器中查看错误输出 |
 | `async-run` | 通过 `wz.run()` 提交一个后台协程 |
 | `async-pick` | 弹出选择器，异步处理用户选择 |
 

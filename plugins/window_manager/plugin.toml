@@ -2,7 +2,7 @@
 id = "io.github.airead.wenzi.window-manager"
 name = "Window Manager"
 description = "Vim-style window snapping, centering, and multi-monitor movement"
-version = "0.2.0"
+version = "0.2.1"
 author = "WenZi"
 url = "https://github.com/Airead/WenZi"
 min_wenzi_version = "0.1.14"

@@ -2,7 +2,7 @@
 id = "io.github.airead.wenzi.dictionary"
 name = "Dictionary"
 description = "EN↔ZH dictionary lookup via Youdao with rich preview"
-version = "0.2.0"
+version = "0.2.1"
 author = "WenZi"
 url = "https://github.com/Airead/WenZi"
 min_wenzi_version = "0.1.14"
@@ -10,4 +10,6 @@ files = [
     "__init__.py",
     "youdao.py",
     "render.py",
+    "README.md",
+    "README_zh.md",
 ]

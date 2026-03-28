@@ -2,7 +2,7 @@
 id = "io.github.airead.wenzi.async-demo"
 name = "Async Demo"
 description = "Demonstration and verification of async/await scripting features"
-version = "0.1.0"
+version = "0.1.1"
 author = "WenZi"
 url = "https://github.com/Airead/WenZi"
 min_wenzi_version = "0.1.12"
