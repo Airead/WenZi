@@ -80,6 +80,7 @@ a = Analysis(
         'wenzi.enhance.preview_history',
         'wenzi.enhance.mode_loader',
         'wenzi.enhance.text_diff',
+        'wenzi.enhance.manual_vocabulary',
         'wenzi.enhance.pool_monitor',
         # wenzi.ui
         'wenzi.ui',
@@ -107,6 +108,7 @@ a = Analysis(
         'wenzi.controllers.update_controller',
         'wenzi.controllers.menu_builder',
         'wenzi.controllers.recording_flow',
+        'wenzi.controllers.universal_action_controller',
         'wenzi.updater',
         # wenzi.scripting
         'wenzi.scripting',
@@ -133,6 +135,7 @@ a = Analysis(
         'wenzi.scripting.api.store',
         'wenzi.scripting.api.timer',
         'wenzi.scripting.api.ui',
+        'wenzi.scripting.api.keychain',
         # wenzi.scripting.sources
         'wenzi.scripting.sources',
         'wenzi.scripting.sources._mdquery',

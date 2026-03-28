@@ -266,7 +266,9 @@ class HotkeyAPI:
             self._active_leader = None
             self._sticky_leader = False
             self._leader_triggered = False
-        self._close_leader_ui()  # already on main thread
+        from PyObjCTools import AppHelper
+
+        AppHelper.callAfter(self._close_leader_ui)
 
     def _on_press(self, name: str) -> bool:
         """Handle key press. Returns True to swallow the event."""

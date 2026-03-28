@@ -2,6 +2,7 @@
 
 import json
 import os
+import stat
 from unittest.mock import patch
 
 MOCK_MASTER_KEY_B64 = "QUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUE="  # 32 bytes
@@ -135,6 +136,43 @@ class TestVaultFlush:
 
         v2 = Vault(vault_path=vault_path)
         assert v2.get("token") == "persisted"
+
+    @patch("wenzi.vault._keychain_set", return_value=True)
+    @patch("wenzi.vault._keychain_get", return_value=MOCK_MASTER_KEY_B64)
+    def test_flush_sets_file_permissions_0600(self, mock_get, mock_set, tmp_path):
+        from wenzi.vault import Vault
+
+        vault_path = str(tmp_path / "vault.json")
+        v = Vault(vault_path=vault_path)
+        v.set("token", "secret")
+        v.flush_sync()
+        mode = stat.S_IMODE(os.stat(vault_path).st_mode)
+        assert mode == 0o600
+
+    @patch("wenzi.vault._keychain_set", return_value=True)
+    @patch("wenzi.vault._keychain_get", return_value=MOCK_MASTER_KEY_B64)
+    def test_dirty_re_set_on_replace_failure(self, mock_get, mock_set, tmp_path):
+        from wenzi.vault import Vault
+
+        vault_path = str(tmp_path / "vault.json")
+        v = Vault(vault_path=vault_path)
+        v.set("token", "secret")
+        with patch("os.replace", side_effect=OSError("disk full")):
+            v.flush_sync()
+        assert v._dirty is True
+
+    @patch("wenzi.vault._keychain_set", return_value=True)
+    @patch("wenzi.vault._keychain_get", return_value=MOCK_MASTER_KEY_B64)
+    def test_tmp_file_cleaned_on_replace_failure(self, mock_get, mock_set, tmp_path):
+        from wenzi.vault import Vault
+
+        vault_path = str(tmp_path / "vault.json")
+        v = Vault(vault_path=vault_path)
+        v.set("token", "secret")
+        with patch("os.replace", side_effect=OSError("disk full")):
+            v.flush_sync()
+        tmp_path_file = vault_path + ".tmp"
+        assert not os.path.exists(tmp_path_file)
 
 
 class TestVaultMigration:

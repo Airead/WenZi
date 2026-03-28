@@ -87,7 +87,12 @@ class TestTrigger:
         app._script_engine._wz.chooser._panel._sources = {}
         app._recording_controller._is_busy = False
         ctrl = UniversalActionController(app)
-        ctrl.trigger()
+
+        # Patch callAfter to execute the callback immediately so we can
+        # verify that _show_ua_panel stores the captured text.
+        with patch("PyObjCTools.AppHelper.callAfter", side_effect=lambda fn, *a, **kw: fn(*a, **kw)):
+            ctrl.trigger()
+
         mock_get.assert_called_once()
         assert ctrl._selected_text == "hello"
 

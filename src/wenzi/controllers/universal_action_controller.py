@@ -34,20 +34,21 @@ class UniversalActionController:
             logger.debug("Universal Action ignored: app is busy")
             return
 
-        self._selected_text = get_selected_text() or ""
+        text = get_selected_text() or ""
 
         from PyObjCTools import AppHelper
 
-        AppHelper.callAfter(self._show_ua_panel)
+        AppHelper.callAfter(self._show_ua_panel, text)
 
-    def _show_ua_panel(self) -> None:
+    def _show_ua_panel(self, text: str) -> None:
         """Register temp source and show the chooser in UA mode.  Main thread."""
+        self._selected_text = text
         try:
-            self._show_ua_panel_inner()
+            self._show_ua_panel_inner(text)
         except Exception:
             logger.exception("Universal Action: _show_ua_panel failed")
 
-    def _show_ua_panel_inner(self) -> None:
+    def _show_ua_panel_inner(self, text: str) -> None:
         """Inner implementation — separated so exceptions are always logged."""
         items = self._build_action_items()
         if not items:
@@ -81,7 +82,7 @@ class UniversalActionController:
             chooser._panel.unregister_source(_UA_SOURCE_NAME)
 
         chooser.show_universal_action(
-            context_text=self._selected_text,
+            context_text=text,
             exclusive_source=_UA_SOURCE_NAME,
             on_close=_on_close,
             initial_query="",
@@ -173,9 +174,14 @@ class UniversalActionController:
         if not text:
             return
 
-        app._enhance_mode = mode_id
-        if app._enhancer:
-            app._enhancer.mode = mode_id
+        from PyObjCTools import AppHelper
+
+        def _set_mode():
+            app._enhance_mode = mode_id
+            if app._enhancer:
+                app._enhancer.mode = mode_id
+
+        AppHelper.callAfter(_set_mode)
 
         preview_ctrl = getattr(app, "_preview_controller", None)
         if preview_ctrl is not None:

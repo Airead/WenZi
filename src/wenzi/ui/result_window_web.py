@@ -371,6 +371,7 @@ class ResultPreviewPanel:
         self._on_remove_manual_vocab: Optional[Callable] = None
         self._on_diff_panel_toggle: Optional[Callable[[bool], None]] = None
         self._diff_panel_open: bool = False
+        self._diff_panel_original_x: Optional[float] = None
         self._enhanced_text_cache: str = ""
 
     # ------------------------------------------------------------------
@@ -1123,6 +1124,7 @@ class ResultPreviewPanel:
         x = frame.origin.x
         # Shift left if expanding would overflow the screen right edge
         if is_open:
+            self._diff_panel_original_x = x
             screen = self._screen_for_mouse()
             if screen:
                 vis = screen.visibleFrame()
@@ -1130,6 +1132,10 @@ class ResultPreviewPanel:
                 overflow = (x + width) - max_right
                 if overflow > 0:
                     x = max(vis.origin.x, x - overflow)
+        else:
+            if self._diff_panel_original_x is not None:
+                x = self._diff_panel_original_x
+                self._diff_panel_original_x = None
         from Foundation import NSMakeRect
         self._panel.setFrame_display_(
             NSMakeRect(x, frame.origin.y, width, frame.size.height),

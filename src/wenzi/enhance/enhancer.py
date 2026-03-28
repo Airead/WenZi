@@ -1016,12 +1016,12 @@ class TextEnhancer:
 
         if not self._providers or self._active_provider not in self._providers:
             logger.warning("AI enhancer not available, returning original text")
-            yield text, None
+            yield text, None, False
             return
 
         mode_def = self._modes.get(self._mode)
         if not mode_def:
-            yield text, None
+            yield text, None, False
             return
 
         from openai import RateLimitError

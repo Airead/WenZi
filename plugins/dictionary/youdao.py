@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import urllib.request
+from urllib.parse import quote as _urlquote
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +23,7 @@ def suggest(query: str) -> list[dict]:
     Returns list of ``{"word": str, "explain": str}``.
     Returns empty list on any error.
     """
-    url = _SUGGEST_URL.format(query=urllib.request.quote(query))
+    url = _SUGGEST_URL.format(query=_urlquote(query, safe=""))
     try:
         with urllib.request.urlopen(url, timeout=_SUGGEST_TIMEOUT) as resp:
             data = json.loads(resp.read())
@@ -69,8 +70,8 @@ def lookup(word: str, direction: str) -> dict:
     le = "zh" if direction == "zh2en" else "en"
     url = _LOOKUP_URL.format(
         le=le,
-        direction=urllib.request.quote(direction),
-        query=urllib.request.quote(word),
+        direction=_urlquote(direction, safe=""),
+        query=_urlquote(word, safe=""),
         dicts=_DICTS_FILTER,
     )
     try:

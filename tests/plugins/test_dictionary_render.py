@@ -195,3 +195,89 @@ class TestRenderDefinition:
         html = render_definition(SAMPLE_DATA, "hello")
         assert "<style>" in html
         assert "var(--text)" in html
+
+    def test_collins_tran_strips_script_tags(self):
+        from dictionary.render import render_definition
+
+        data = {
+            "collins": {
+                "collins_entries": [
+                    {
+                        "entries": {
+                            "entry": [
+                                {
+                                    "tran_entry": [
+                                        {
+                                            "pos_entry": {"pos": "N", "pos_tips": ""},
+                                            "tran": 'Hello <script>alert("xss")</script>world',
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        }
+        html = render_definition(data, "test")
+        assert "<script>" not in html
+        assert "</script>" not in html
+        # The text content between tags is kept, only the tags are stripped
+        assert "Hello" in html
+        assert "world" in html
+
+    def test_collins_tran_preserves_b_tags(self):
+        from dictionary.render import render_definition
+
+        data = {
+            "collins": {
+                "collins_entries": [
+                    {
+                        "entries": {
+                            "entry": [
+                                {
+                                    "tran_entry": [
+                                        {
+                                            "pos_entry": {"pos": "V", "pos_tips": ""},
+                                            "tran": "You say <b>hello</b> to greet.",
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        }
+        html = render_definition(data, "test")
+        assert "<b>hello</b>" in html
+
+    def test_collins_tran_strips_event_handler_attributes(self):
+        from dictionary.render import render_definition
+
+        data = {
+            "collins": {
+                "collins_entries": [
+                    {
+                        "entries": {
+                            "entry": [
+                                {
+                                    "tran_entry": [
+                                        {
+                                            "pos_entry": {"pos": "N", "pos_tips": ""},
+                                            "tran": 'Hello <span onclick="alert(1)">click</span> world',
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        }
+        html = render_definition(data, "test")
+        assert "onclick" not in html
+        # The <span onclick=...> tag is stripped but text content remains
+        assert "click" in html
+        assert "Hello" in html
+        assert "world" in html

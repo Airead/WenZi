@@ -1746,6 +1746,49 @@ class TestTextEnhancerEnhanceStream:
         assert "all 1 attempts failed" in results[0][0]
 
 
+class TestEnhanceStreamYields3Tuples:
+    """Regression: enhance_stream must always yield 3-tuples (chunk, usage, is_thinking)."""
+
+    def test_no_providers_yields_3_tuple(self):
+        """When no providers are configured, enhance_stream must still yield a 3-tuple."""
+        with patch("wenzi.enhance.enhancer.TextEnhancer._init_providers"):
+            enhancer = TextEnhancer(_make_config(enabled=True, mode="proofread"))
+            # Simulate no providers initialized
+            enhancer._providers = {}
+            enhancer._active_provider = "ollama"
+
+        results = []
+        async def collect():
+            async for item in enhancer.enhance_stream("hello world"):
+                results.append(item)
+
+        asyncio.run(collect())
+        assert len(results) == 1
+        assert len(results[0]) == 3, f"Expected 3-tuple, got {len(results[0])}-tuple"
+        assert results[0] == ("hello world", None, False)
+
+    def test_missing_mode_yields_3_tuple(self):
+        """When mode definition is not found, enhance_stream must still yield a 3-tuple."""
+        with patch("wenzi.enhance.enhancer.TextEnhancer._init_providers"):
+            enhancer = TextEnhancer(_make_config(enabled=True, mode="proofread"))
+            enhancer._providers = {
+                "ollama": (MagicMock(), ["qwen2.5:7b"], {}),
+            }
+            enhancer._active_provider = "ollama"
+            # Set mode to something not in _modes so mode_def lookup fails
+            enhancer._mode = "nonexistent_mode_xyz"
+
+        results = []
+        async def collect():
+            async for item in enhancer.enhance_stream("hello world"):
+                results.append(item)
+
+        asyncio.run(collect())
+        assert len(results) == 1
+        assert len(results[0]) == 3, f"Expected 3-tuple, got {len(results[0])}-tuple"
+        assert results[0] == ("hello world", None, False)
+
+
 class TestConnectionTimeoutRetry:
     """Tests for connection timeout retry logic in enhance_stream."""
 

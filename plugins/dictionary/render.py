@@ -2,8 +2,16 @@
 
 from __future__ import annotations
 
+import re
 from html import escape
 from urllib.parse import quote as _urlquote
+
+_SAFE_TAGS_RE = re.compile(r"<(?!/?(?:b|i|em|strong)\b)[^>]+>", re.IGNORECASE)
+
+
+def _sanitize_html(html: str) -> str:
+    """Allow only <b>, <i>, <em>, <strong> tags, strip all others."""
+    return _SAFE_TAGS_RE.sub("", html)
 
 _STYLE = """\
 <style>
@@ -175,7 +183,7 @@ def render_definition(data: dict, word: str) -> str:
                     f'<div class="collins-entry">'
                     f'<span class="collins-pos">{escape(pos)}</span> '
                     f'<span class="tag">{escape(pos_tips)}</span><br>'
-                    f"{tran}</div>"  # tran contains <b> tags, keep HTML
+                    f"{_sanitize_html(tran)}</div>"
                 )
                 # Collins example sentences
                 exam_sents = te.get("exam_sents", {}).get("sent", [])

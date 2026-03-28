@@ -158,3 +158,21 @@ class TestLookup:
             result = lookup("hello", "en2zh-CHS")
 
         assert result == {}
+
+    def test_special_characters_encoded_in_url(self):
+        """Slash, hash, ampersand in queries must be percent-encoded."""
+        body = json.dumps({"ec": {}}).encode()
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = body
+        mock_resp.__enter__ = lambda s: s
+        mock_resp.__exit__ = MagicMock(return_value=False)
+
+        with patch("urllib.request.urlopen", return_value=mock_resp) as mock_open:
+            from dictionary.youdao import lookup
+
+            lookup("a/b#c&d", "en2zh-CHS")
+
+        call_url = mock_open.call_args[0][0]
+        # '/' '#' '&' must NOT appear literally in the query part
+        # They should be encoded as %2F %23 %26
+        assert "a%2Fb%23c%26d" in call_url

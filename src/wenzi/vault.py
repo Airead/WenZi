@@ -275,15 +275,23 @@ class Vault:
             self._dirty = False
             snapshot = json.dumps(self._data, ensure_ascii=False)
 
+        tmp_path = self._path + ".tmp"
         try:
             dirpath = os.path.dirname(self._path)
             os.makedirs(dirpath, exist_ok=True)
-            tmp_path = self._path + ".tmp"
-            with open(tmp_path, "w", encoding="utf-8") as f:
+            fd = os.open(tmp_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with open(fd, "w", encoding="utf-8") as f:
                 f.write(snapshot)
             os.replace(tmp_path, self._path)
+            os.chmod(self._path, 0o600)
         except Exception:
             logger.warning("Failed to save vault", exc_info=True)
+            with self._lock:
+                self._dirty = True
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
 
 
 # ---------------------------------------------------------------------------
