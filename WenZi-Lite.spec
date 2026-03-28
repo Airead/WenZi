@@ -47,6 +47,7 @@ a = Analysis(
         'wenzi.input_source',
         'wenzi.input_context',
         'wenzi.keychain',
+        'wenzi.vault',
         'wenzi.i18n',
         'wenzi.locales',
         # wenzi.audio

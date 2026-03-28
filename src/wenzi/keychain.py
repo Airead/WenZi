@@ -231,10 +231,3 @@ def _keychain_clear_prefix(prefix: str) -> None:
     for account in _keychain_list(prefix):
         _keychain_delete(account)
 
-
-# Temporary aliases — remove after all call sites are migrated to vault
-keychain_get = _keychain_get
-keychain_set = _keychain_set
-keychain_delete = _keychain_delete
-keychain_list = _keychain_list
-keychain_clear_prefix = _keychain_clear_prefix

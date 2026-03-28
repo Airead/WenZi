@@ -33,13 +33,13 @@ _NONCE_SIZE = 12
 
 
 def _keychain_get(account: str) -> Optional[str]:
-    from wenzi.keychain import keychain_get as _kc_get
+    from wenzi.keychain import _keychain_get as _kc_get
 
     return _kc_get(account)
 
 
 def _keychain_set(account: str, value: str) -> bool:
-    from wenzi.keychain import keychain_set as _kc_set
+    from wenzi.keychain import _keychain_set as _kc_set
 
     return _kc_set(account, value)
 

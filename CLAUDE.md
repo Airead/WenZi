@@ -28,7 +28,7 @@ Known dangerous defaults:
 - `ClipboardMonitor()` → `image_dir` defaults to `~/.config/WenZi/clipboard_images`. Calling `clear()` will delete all real images.
 - `ClipboardMonitor(persist_path=...)` → connects to real SQLite database.
 - `SnippetStore()` → `path` defaults to `~/.config/WenZi/snippets`.
-- `KeychainAPI()` → `vault_path` defaults to `~/.local/share/WenZi/keychain.json` and reads the real macOS Keychain master key. Always pass `vault_path=str(tmp_path / "keychain.json")` and mock `wenzi.keychain.keychain_get`/`keychain_set`.
+- `KeychainAPI()` / `Vault()` → `vault_path` defaults to `~/.local/share/WenZi/keychain.json` and reads the real macOS Keychain master key. Always pass `vault_path=str(tmp_path / "vault.json")` and mock `wenzi.vault._keychain_get`/`_keychain_set`.
 
 **Rule:** Always check what default paths a class uses before instantiating it in tests. Pass `tmp_path`-based paths for any file/directory parameters. Follow existing test patterns in the same file.
 
