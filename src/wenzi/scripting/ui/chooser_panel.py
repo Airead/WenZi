@@ -277,6 +277,11 @@ class ChooserPanel:
 
         Clears the previous search input, results, context block, and
         preview/compact modes so the panel appears fresh.
+
+        The panel must be invisible (alpha=0) when this method is called.
+        After the JS reset completes, the panel is resized to the measured
+        collapsed height and revealed (alpha=1) so the user never sees
+        stale content or the wrong dimensions.
         """
         parts = [
             "setResults([])",
@@ -304,7 +309,21 @@ class ChooserPanel:
         if placeholder:
             parts.append(f"setPlaceholder({json.dumps(placeholder)})")
             self._pending_placeholder = None
-        self._eval_js(";".join(parts))
+
+        # Return the measured collapsed height so the completion handler
+        # can resize the panel to exactly match a freshly created one.
+        js = ";".join(parts) + ";document.querySelector('.search-bar').offsetHeight"
+
+        def _on_reset_done(result: object, error: object) -> None:
+            if self._panel is None:
+                return
+            h = int(result) if result else self._INITIAL_HEIGHT
+            self._apply_frame(self._INITIAL_WIDTH, h)
+            self._panel.setAlphaValue_(1.0)
+
+        self._webview.evaluateJavaScript_completionHandler_(
+            js, _on_reset_done
+        )
 
     # ------------------------------------------------------------------
     # Source management
@@ -529,8 +548,12 @@ class ChooserPanel:
         self._previous_app = get_frontmost_app()
 
         if self._panel is not None and self._page_loaded:
-            # Reuse hidden panel — reconnect refs and reset UI
+            # Reuse hidden panel — reconnect refs and reset UI.
+            # Hide the panel visually while JS resets content and layout;
+            # _reset_panel_ui reveals it (alpha=1) once the measured
+            # collapsed height is applied so no stale frame flashes.
             self._reconnect_panel_refs()
+            self._panel.setAlphaValue_(0.0)
             self._reset_panel_ui(initial_query, placeholder)
         else:
             # First show — build from scratch
@@ -620,6 +643,19 @@ class ChooserPanel:
             self._navigation_delegate._panel_ref = None
         if self._panel_delegate is not None:
             self._panel_delegate._panel_ref = None
+
+        # Clear visible content while the webview is still on screen so
+        # that next show() won't flash stale results (evaluateJavaScript
+        # is async but executes before the next display
+        # cycle once the panel is already hidden).
+        if self._webview is not None and self._page_loaded:
+            self._webview.evaluateJavaScript_completionHandler_(
+                "setResults([]);setInputValue('');"
+                "setPreviewVisible(false);setCompact(false);"
+                "setModifierHints({},null);setCreateButton(false);"
+                "clearContext()",
+                None,
+            )
 
         # Hide the panel (keep it alive)
         if self._panel is not None:
