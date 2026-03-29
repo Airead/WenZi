@@ -60,6 +60,74 @@ class SettingsController:
         self._stt_verify_in_progress = False
         self._stt_verify_request_id = 0
 
+    @staticmethod
+    def _collect_permission_status() -> list:
+        """Check macOS permission statuses for display in the Security tab.
+
+        Returns a list of dicts: [{id, status}] where status is one of
+        'granted', 'not_granted', 'unknown'.
+        """
+        results = []
+
+        # Accessibility
+        try:
+            from ApplicationServices import AXIsProcessTrusted
+
+            status = "granted" if AXIsProcessTrusted() else "not_granted"
+        except Exception:
+            status = "unknown"
+        results.append({"id": "accessibility", "status": status})
+
+        # Microphone
+        try:
+            import AVFoundation
+
+            auth = AVFoundation.AVCaptureDevice.authorizationStatusForMediaType_(
+                AVFoundation.AVMediaTypeAudio
+            )
+            # 0=NotDetermined, 1=Restricted, 2=Denied, 3=Authorized
+            if auth == 3:
+                status = "granted"
+            elif auth == 0:
+                status = "unknown"
+            else:
+                status = "not_granted"
+        except Exception:
+            status = "unknown"
+        results.append({"id": "microphone", "status": status})
+
+        # Speech Recognition
+        try:
+            import Speech
+
+            auth = Speech.SFSpeechRecognizer.authorizationStatus()
+            # 0=NotDetermined, 1=Denied, 2=Restricted, 3=Authorized
+            if auth == 3:
+                status = "granted"
+            elif auth == 0:
+                status = "unknown"
+            else:
+                status = "not_granted"
+        except Exception:
+            status = "unknown"
+        results.append({"id": "speech_recognition", "status": status})
+
+        # Screen Recording
+        try:
+            from Quartz import CGPreflightScreenCaptureAccess
+
+            status = (
+                "granted" if CGPreflightScreenCaptureAccess() else "not_granted"
+            )
+        except Exception:
+            status = "unknown"
+        results.append({"id": "screen_recording", "status": status})
+
+        # Automation — no runtime check API
+        results.append({"id": "automation", "status": "unknown"})
+
+        return results
+
     def _save_and_reload(self) -> None:
         """Save config and refresh the Settings panel if visible."""
         from PyObjCTools import AppHelper
@@ -176,6 +244,7 @@ class SettingsController:
             "input_context_level": app._config.get("ai_enhance", {}).get("input_context", "basic"),
             "config_dir": app._config_dir,
             "keychain_enabled": is_keychain_enabled(app._config),
+            "permissions": self._collect_permission_status(),
             "scripting_enabled": app._config.get("scripting", {}).get(
                 "enabled", False
             ),
@@ -202,6 +271,8 @@ class SettingsController:
             "on_keychain_toggle": self.keychain_toggle,
             "on_master_key_export": self.master_key_export,
             "on_master_key_import": self.master_key_import,
+            "on_open_permission_settings": self.open_permission_settings,
+            "on_refresh_permissions": self.refresh_permissions,
             "on_scripting_toggle": self.scripting_toggle,
             "on_sound_toggle": self.sound_toggle,
             "on_visual_toggle": self.visual_toggle,
@@ -450,6 +521,37 @@ class SettingsController:
         self._prompt_restart(
             t("alert.master_key.import_success.message")
         )
+
+    # --- Permission helpers ---
+
+    _PERM_PANE_MAP = {
+        "accessibility": "Privacy_Accessibility",
+        "microphone": "Privacy_Microphone",
+        "speech_recognition": "Privacy_SpeechRecognition",
+        "screen_recording": "Privacy_ScreenCapture",
+        "automation": "Privacy_Automation",
+    }
+
+    def open_permission_settings(self, perm_id: str) -> None:
+        """Open the relevant macOS System Settings privacy pane."""
+        anchor = self._PERM_PANE_MAP.get(perm_id)
+        if not anchor:
+            logger.warning("Unknown permission id: %s", perm_id)
+            return
+        pane = "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension"
+        url = f"{pane}?{anchor}"
+        subprocess.Popen(["open", url])
+
+    def refresh_permissions(self) -> None:
+        """Re-check permission statuses and push to the settings panel."""
+        from PyObjCTools import AppHelper
+
+        perms = self._collect_permission_status()
+        if self._app._settings_panel.is_visible:
+            AppHelper.callAfter(
+                self._app._settings_panel.update_state,
+                {"permissions": perms},
+            )
 
     def scripting_toggle(self, enabled: bool) -> None:
         """Handle scripting toggle from Settings panel."""

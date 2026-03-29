@@ -656,3 +656,66 @@ class TestCollectStateSttProviders:
         assert provider["base_url"] == "https://api.groq.com/openai/v1"
         assert provider["models"] == ["whisper-large-v3-turbo"]
         assert "api_key" not in provider
+
+
+class TestPermissionStatus:
+    """Tests for permission status collection."""
+
+    def test_collect_permission_status_returns_all_permissions(self, ctrl):
+        """All 5 permission IDs should be present."""
+        perms = ctrl._collect_permission_status()
+        ids = [p["id"] for p in perms]
+        assert ids == [
+            "accessibility",
+            "microphone",
+            "speech_recognition",
+            "screen_recording",
+            "automation",
+        ]
+
+    def test_each_permission_has_valid_status(self, ctrl):
+        """Each permission should have a status in the allowed set."""
+        perms = ctrl._collect_permission_status()
+        for p in perms:
+            assert p["status"] in {"granted", "not_granted", "unknown"}, (
+                f"{p['id']} has unexpected status: {p['status']}"
+            )
+
+    def test_automation_always_unknown(self, ctrl):
+        """Automation has no runtime check API — always unknown."""
+        perms = ctrl._collect_permission_status()
+        auto = next(p for p in perms if p["id"] == "automation")
+        assert auto["status"] == "unknown"
+
+    def test_permissions_in_collect_state(self, ctrl):
+        """_collect_state should include a 'permissions' key."""
+        state = ctrl._collect_state()
+        assert "permissions" in state
+        assert isinstance(state["permissions"], list)
+        assert len(state["permissions"]) == 5
+
+    @patch("subprocess.Popen")
+    def test_open_permission_settings_accessibility(self, mock_popen, ctrl):
+        ctrl.open_permission_settings("accessibility")
+        mock_popen.assert_called_once()
+        args = mock_popen.call_args[0][0]
+        assert args[0] == "open"
+        assert "Privacy_Accessibility" in args[1]
+
+    @patch("subprocess.Popen")
+    def test_open_permission_settings_unknown_id(self, mock_popen, ctrl):
+        ctrl.open_permission_settings("nonexistent")
+        mock_popen.assert_not_called()
+
+    @patch("wenzi.controllers.settings_controller.SettingsController._collect_permission_status")
+    def test_refresh_permissions(self, mock_collect, ctrl, mock_app):
+        mock_app._settings_panel.is_visible = True
+        mock_collect.return_value = [{"id": "accessibility", "status": "granted"}]
+        with patch("PyObjCTools.AppHelper.callAfter") as mock_call:
+            ctrl.refresh_permissions()
+            mock_call.assert_called_once()
+            call_args = mock_call.call_args[0]
+            assert call_args[0] == mock_app._settings_panel.update_state
+            assert call_args[1]["permissions"] == [
+                {"id": "accessibility", "status": "granted"}
+            ]
