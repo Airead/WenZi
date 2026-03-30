@@ -1,0 +1,11 @@
+[plugin]
+id = "io.github.airead.wenzi.window-switcher"
+name = "Window Switcher"
+description = "Switch between open windows via the launcher (prefix: w)"
+version = "0.1.0"
+author = "WenZi"
+url = "https://github.com/Airead/WenZi"
+min_wenzi_version = "0.1.14"
+files = [
+    "__init__.py",
+]

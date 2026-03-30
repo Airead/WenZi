@@ -1,0 +1,11 @@
+[plugin]
+id = "io.github.airead.wenzi.menu_search"
+name = "Menu Search"
+description = "Search and trigger WenZi menu items (prefix: m)"
+version = "0.1.0"
+author = "WenZi"
+url = "https://github.com/Airead/WenZi"
+min_wenzi_version = "0.1.14"
+files = [
+    "__init__.py",
+]
