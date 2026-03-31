@@ -77,29 +77,22 @@ def cleanup_webview_handler(webview, handler_name: str = "action") -> None:
 # ---------------------------------------------------------------------------
 # Lightweight WKWebView configuration
 # ---------------------------------------------------------------------------
-_process_pool = None
 _nonpersistent_store = None
 
 
-def _reset_shared_pool() -> None:
+def _reset_shared_state() -> None:
     """Reset shared singletons (for testing only)."""
-    global _process_pool, _nonpersistent_store
-    _process_pool = None
+    global _nonpersistent_store
     _nonpersistent_store = None
 
 
-def _shared_process_pool():
-    """Return a singleton WKProcessPool shared across all lightweight WebViews."""
-    global _process_pool
-    if _process_pool is None:
-        from WebKit import WKProcessPool
-
-        _process_pool = WKProcessPool.alloc().init()
-    return _process_pool
-
-
 def _shared_nonpersistent_store():
-    """Return a cached non-persistent WKWebsiteDataStore."""
+    """Return a cached non-persistent WKWebsiteDataStore.
+
+    All WebViews that share the same data store instance will share a
+    single Web Content process.  This is the actual isolation boundary
+    in modern WebKit — ``WKProcessPool`` is deprecated and ignored.
+    """
     global _nonpersistent_store
     if _nonpersistent_store is None:
         from WebKit import WKWebsiteDataStore
@@ -111,18 +104,20 @@ def _shared_nonpersistent_store():
 def lightweight_webview_config(*, network: bool = False):  # -> WKWebViewConfiguration
     """Return a WKWebViewConfiguration optimised for low memory usage.
 
-    All WebViews share a single WKProcessPool (one Web Content process
-    instead of one per WebView) and a non-persistent data store.
+    WebViews sharing the same ``WKWebsiteDataStore`` instance share a
+    single Web Content process.  ``WKProcessPool`` is deprecated on
+    modern macOS and has no effect — the data store is the real
+    isolation boundary.
 
     *network* — keep the default persistent data store (needed when the
     WebView loads real URLs, e.g. Google Translate).  When ``False`` a
-    shared non-persistent ``WKWebsiteDataStore`` is used, reducing
-    Networking process overhead.
+    shared non-persistent ``WKWebsiteDataStore`` is used, which avoids
+    persistent cookie/cache storage and reduces Networking process
+    overhead.
     """
     from WebKit import WKWebViewConfiguration
 
     config = WKWebViewConfiguration.alloc().init()
-    config.setProcessPool_(_shared_process_pool())
 
     if not network:
         config.setWebsiteDataStore_(_shared_nonpersistent_store())
