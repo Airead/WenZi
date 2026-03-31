@@ -21,12 +21,21 @@ _FADE_DURATION = 0.35
 
 
 def _measure_text(text: str, font):
-    """Measure text size using NSAttributedString for accurate CJK support."""
-    from Foundation import NSAttributedString, NSDictionary, NSFontAttributeName
+    """Measure text size using NSAttributedString for accurate CJK support.
+
+    Returns (ceil_width, ceil_height).  A small buffer is added to width
+    because NSAttributedString.size() returns the typographic bounding box
+    which can be slightly narrower than what NSTextField actually renders.
+    """
+    import math
+
+    from AppKit import NSFontAttributeName
+    from Foundation import NSAttributedString, NSDictionary
 
     attrs = NSDictionary.dictionaryWithObject_forKey_(font, NSFontAttributeName)
     astr = NSAttributedString.alloc().initWithString_attributes_(text, attrs)
-    return astr.size()
+    size = astr.size()
+    return math.ceil(size.width) + 8, math.ceil(size.height)
 
 
 def alert(text: str, duration: float = 2.0) -> None:
@@ -56,7 +65,7 @@ def _show_alert(text: str, duration: float) -> None:
         NSStatusWindowLevel,
         NSTextAlignmentCenter,
         NSTextField,
-        NSVisualEffectMaterial,
+        NSVisualEffectMaterialHUDWindow,
         NSVisualEffectView,
     )
 
@@ -70,9 +79,7 @@ def _show_alert(text: str, duration: float) -> None:
 
     # Measure text accurately
     font = NSFont.systemFontOfSize_weight_(_FONT_SIZE, NSFontWeightMedium)
-    text_size = _measure_text(text, font)
-    text_width = text_size.width
-    text_height = text_size.height
+    text_width, text_height = _measure_text(text, font)
 
     panel_width = min(max(text_width + _H_PADDING * 2, _MIN_WIDTH), _MAX_WIDTH)
     panel_height = text_height + _V_PADDING * 2
@@ -97,7 +104,7 @@ def _show_alert(text: str, duration: float) -> None:
     vibrancy = NSVisualEffectView.alloc().initWithFrame_(
         NSMakeRect(0, 0, panel_width, panel_height)
     )
-    vibrancy.setMaterial_(NSVisualEffectMaterial.HUDWindow)
+    vibrancy.setMaterial_(NSVisualEffectMaterialHUDWindow)
     vibrancy.setState_(1)  # NSVisualEffectStateActive — always active
     vibrancy.setWantsLayer_(True)
     vibrancy.layer().setCornerRadius_(panel_height / 2)  # pill shape
