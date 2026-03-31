@@ -1613,7 +1613,7 @@ class ChooserPanel:
             NSStatusWindowLevel,
         )
         from Foundation import NSMakeRect, NSURL
-        from WebKit import WKUserContentController, WKWebView, WKWebViewConfiguration
+        from WebKit import WKUserContentController, WKWebView
 
         PanelClass = _get_keyable_panel_class()
         # Bootstrap size; JS will send the correct size after page load
@@ -1661,7 +1661,9 @@ class ChooserPanel:
         self._position_on_mouse_screen()
 
         # WKWebView with message handler
-        wk_config = WKWebViewConfiguration.alloc().init()
+        from wenzi.ui.web_utils import lightweight_webview_config
+
+        wk_config = lightweight_webview_config()
         content_controller = WKUserContentController.alloc().init()
 
         handler_cls = _get_message_handler_class()

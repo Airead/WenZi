@@ -359,7 +359,6 @@ class SettingsWebPanel:
             WKUserContentController,
             WKUserScript,
             WKWebView,
-            WKWebViewConfiguration,
         )
 
         from wenzi.ui.result_window_web import _ensure_edit_menu
@@ -393,7 +392,9 @@ class SettingsWebPanel:
         self._close_delegate = delegate
 
         # WKWebView with message handler and bridge script
-        config = WKWebViewConfiguration.alloc().init()
+        from wenzi.ui.web_utils import lightweight_webview_config
+
+        config = lightweight_webview_config()
         content_controller = WKUserContentController.alloc().init()
 
         handler_cls = _get_message_handler_class()

@@ -138,7 +138,7 @@ class StreamingOverlayPanel:
         try:
             from AppKit import NSColor, NSPanel, NSScreen, NSStatusWindowLevel
             from Foundation import NSMakeRect, NSURL
-            from WebKit import WKWebView, WKWebViewConfiguration
+            from WebKit import WKWebView
 
             if self._panel is not None:
                 self._do_close()
@@ -166,7 +166,9 @@ class StreamingOverlayPanel:
             panel.setCollectionBehavior_(1 << 4)  # canJoinAllSpaces
 
             # WKWebView
-            config = WKWebViewConfiguration.alloc().init()
+            from wenzi.ui.web_utils import lightweight_webview_config
+
+            config = lightweight_webview_config()
             webview = WKWebView.alloc().initWithFrame_configuration_(
                 NSMakeRect(0, 0, _PANEL_WIDTH, _PANEL_HEIGHT),
                 config,

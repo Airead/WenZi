@@ -197,8 +197,12 @@ class StatsChartPanel:
         self._close_delegate = delegate
 
         # WKWebView fills content area
-        webview = WKWebView.alloc().initWithFrame_(
-            NSMakeRect(0, 0, self._WIDTH, self._HEIGHT)
+        from wenzi.ui.web_utils import lightweight_webview_config
+
+        config = lightweight_webview_config()
+        webview = WKWebView.alloc().initWithFrame_configuration_(
+            NSMakeRect(0, 0, self._WIDTH, self._HEIGHT),
+            config,
         )
         webview.setAutoresizingMask_(0x12)  # Width + Height sizable
         panel.contentView().addSubview_(webview)

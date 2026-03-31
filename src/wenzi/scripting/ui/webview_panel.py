@@ -628,7 +628,6 @@ class WebViewPanel:
             WKUserScript,
             WKUserScriptInjectionTimeAtDocumentStart,
             WKWebView,
-            WKWebViewConfiguration,
         )
 
         style = NSTitledWindowMask | NSClosableWindowMask | NSMiniaturizableWindowMask
@@ -691,7 +690,9 @@ class WebViewPanel:
         content_controller.addScriptMessageHandler_name_(handler, "wz")
         self._message_handler_obj = handler
 
-        config = WKWebViewConfiguration.alloc().init()
+        from wenzi.ui.web_utils import lightweight_webview_config
+
+        config = lightweight_webview_config()
         config.setUserContentController_(content_controller)
 
         # Register wz-file:// scheme handler for local file access from JS

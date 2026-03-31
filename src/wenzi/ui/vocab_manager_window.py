@@ -298,7 +298,7 @@ class VocabManagerPanel:
             NSTitledWindowMask,
         )
         from Foundation import NSMakeRect, NSMakeSize, NSURL
-        from WebKit import WKUserContentController, WKWebView, WKWebViewConfiguration
+        from WebKit import WKUserContentController, WKWebView
 
         from wenzi.i18n import t
         from wenzi.ui.result_window_web import _ensure_edit_menu
@@ -335,7 +335,9 @@ class VocabManagerPanel:
         panel.setDelegate_(delegate)
         self._close_delegate = delegate
 
-        config = WKWebViewConfiguration.alloc().init()
+        from wenzi.ui.web_utils import lightweight_webview_config
+
+        config = lightweight_webview_config()
         content_controller = WKUserContentController.alloc().init()
 
         handler_cls = _get_message_handler_class()

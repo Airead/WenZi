@@ -492,7 +492,7 @@ class ResultPreviewPanel:
                 NSTitledWindowMask,
             )
             from Foundation import NSMakeRect
-            from WebKit import WKUserContentController, WKWebView, WKWebViewConfiguration
+            from WebKit import WKUserContentController, WKWebView
 
             height = self._PANEL_HEIGHT
 
@@ -514,7 +514,9 @@ class ResultPreviewPanel:
             self._close_delegate = delegate
 
             # WKWebView with message handler
-            config = WKWebViewConfiguration.alloc().init()
+            from wenzi.ui.web_utils import lightweight_webview_config
+
+            config = lightweight_webview_config()
             content_controller = WKUserContentController.alloc().init()
             handler_cls = _get_message_handler_class()
             handler = handler_cls.alloc().init()
@@ -1350,7 +1352,7 @@ class ResultPreviewPanel:
                 NSStatusWindowLevel,
                 NSTitledWindowMask,
             )
-            from WebKit import WKUserContentController, WKWebView, WKWebViewConfiguration
+            from WebKit import WKUserContentController, WKWebView
 
             panel = NSPanel.alloc().initWithContentRect_styleMask_backing_defer_(
                 NSMakeRect(0, 0, panel_width, height),
@@ -1370,7 +1372,9 @@ class ResultPreviewPanel:
             self._close_delegate = delegate
 
             # WKWebView with message handler
-            config = WKWebViewConfiguration.alloc().init()
+            from wenzi.ui.web_utils import lightweight_webview_config
+
+            config = lightweight_webview_config()
             content_controller = WKUserContentController.alloc().init()
             handler_cls = _get_message_handler_class()
             handler = handler_cls.alloc().init()
@@ -1612,7 +1616,7 @@ class ResultPreviewPanel:
             NSTitledWindowMask,
         )
         from Foundation import NSMakeRect, NSURL
-        from WebKit import WKWebView, WKWebViewConfiguration
+        from WebKit import WKWebView
 
         if old_panel is not None:
             try:
@@ -1633,7 +1637,9 @@ class ResultPreviewPanel:
         panel.setHidesOnDeactivate_(False)
         panel.center()
 
-        config = WKWebViewConfiguration.alloc().init()
+        from wenzi.ui.web_utils import lightweight_webview_config
+
+        config = lightweight_webview_config()
         webview = WKWebView.alloc().initWithFrame_configuration_(
             NSMakeRect(0, 0, width, height), config,
         )
