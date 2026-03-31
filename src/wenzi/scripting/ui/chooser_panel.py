@@ -13,7 +13,7 @@ import os
 from typing import Callable, Dict, List, NamedTuple, Optional
 
 from wenzi.i18n import t
-from wenzi.scripting.sources import ChooserItem, ChooserSource
+from wenzi.scripting.sources import ChooserItem, ChooserSource, fuzzy_match
 from wenzi.ui_helpers import get_frontmost_app, reactivate_app
 
 logger = logging.getLogger(__name__)
@@ -867,6 +867,11 @@ class ChooserPanel:
                 all_items.extend(src.search(query))
             except Exception:
                 logger.exception("Chooser source %s search error", src.name)
+
+        # Inject prefix-source hints when no source is activated
+        if source is None and query.strip():
+            all_items.extend(self._match_prefix_sources(query.strip()))
+
         self._current_items = all_items[: self._MAX_TOTAL_RESULTS]
 
         # Apply usage-based boosting
@@ -920,6 +925,41 @@ class ChooserPanel:
                     self._schedule_debounced_search(asrc, query, generation, delay)
         else:
             self._set_loading(False)
+
+    def _match_prefix_sources(self, query: str) -> List[ChooserItem]:
+        """Return ChooserItems for registered prefixed sources matching *query*.
+
+        Each item's ``complete_text`` is set to ``"<prefix> "`` so that
+        pressing Enter activates the source instead of closing the panel.
+        """
+        hits: list[tuple[int, ChooserItem]] = []
+        for src in self._sources.values():
+            if not src.prefix:
+                continue
+            fields = [src.prefix]
+            if src.display_name:
+                fields.append(src.display_name)
+            fields.append(src.name)
+            if src.description:
+                fields.append(src.description)
+            matched, score = False, 0
+            for f in fields:
+                m, s = fuzzy_match(query, f)
+                if m and s > score:
+                    matched, score = m, s
+            if matched:
+                label = src.display_name or src.name
+                hits.append((
+                    score,
+                    ChooserItem(
+                        title=label,
+                        subtitle=f"{src.prefix}  —  {src.description}" if src.description else src.prefix,
+                        item_id=f"source-hint:{src.name}",
+                        complete_text=src.prefix + " ",
+                    ),
+                ))
+        hits.sort(key=lambda x: -x[0])
+        return [item for _, item in hits]
 
     def _boost_by_usage(self, query: str) -> None:
         """Re-sort items by usage frequency while preserving source order."""
@@ -1431,6 +1471,11 @@ class ChooserPanel:
                     "item_id": item.item_id,
                 },
             )
+
+            # If the item has complete_text, fill search box instead of closing
+            if item.complete_text is not None:
+                self._eval_js(f"setInputValue({json.dumps(item.complete_text, ensure_ascii=False)})")
+                return
 
             from PyObjCTools import AppHelper
 

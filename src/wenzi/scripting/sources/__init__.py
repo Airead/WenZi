@@ -76,6 +76,7 @@ class ChooserItem:
     confirm_delete: bool = False  # Two-step delete confirmation
     icon_badge: str = ""  # Short text rendered as badge on icon corner
     icon_accessory: str = ""  # Raw HTML injected into icon container
+    complete_text: Optional[str] = None  # If set, Enter fills search box with this text instead of closing
 
 
 @dataclass

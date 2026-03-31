@@ -14,7 +14,6 @@ prefix = "g"
 url = "https://www.google.com/search?q={query}"
 homepage = "https://www.google.com"
 subtitle = "General web search"
-badge = "G"
 icon_url = "https://www.google.com/favicon.ico"
 
 [[engines]]
@@ -24,7 +23,6 @@ prefix = "gh"
 url = "https://github.com/search?q={query}&type=repositories"
 homepage = "https://github.com"
 subtitle = "Repository and code search"
-badge = "GH"
 icon_url = "https://github.com/favicon.ico"
 
 [[engines]]
@@ -34,7 +32,6 @@ prefix = "x"
 url = "https://x.com/search?q={query}&src=typed_query"
 homepage = "https://x.com"
 subtitle = "Search posts and profiles"
-badge = "X"
 icon_url = "https://x.com/favicon.ico"
 
 [[engines]]
@@ -44,5 +41,13 @@ prefix = "eth"
 url = "https://etherscan.io/search?f=0&q={query}"
 homepage = "https://etherscan.io"
 subtitle = "Address, token, and transaction lookup"
-badge = "ETH"
 icon_url = "https://etherscan.io/favicon.ico"
+
+[[engines]]
+id = "ip138"
+name = "IP138"
+prefix = "ip"
+url = "https://ip138.com/iplookup.php?ip={raw}&action=2"
+homepage = "https://ip138.com"
+subtitle = "IP address geolocation lookup"
+icon_url = "https://ip138.com/favicon.ico"

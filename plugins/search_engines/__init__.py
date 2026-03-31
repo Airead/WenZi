@@ -34,7 +34,6 @@ class SearchEngine:
     url: str
     homepage: str = ""
     subtitle: str = ""
-    badge: str = ""
     icon_url: str = ""
 
 
@@ -46,7 +45,6 @@ _DEFAULT_ENGINES = (
         url="https://www.google.com/search?q={query}",
         homepage="https://www.google.com",
         subtitle="General web search",
-        badge="G",
         icon_url="https://www.google.com/favicon.ico",
     ),
     SearchEngine(
@@ -56,7 +54,6 @@ _DEFAULT_ENGINES = (
         url="https://github.com/search?q={query}&type=repositories",
         homepage="https://github.com",
         subtitle="Repository and code search",
-        badge="GH",
         icon_url="https://github.com/favicon.ico",
     ),
     SearchEngine(
@@ -66,7 +63,6 @@ _DEFAULT_ENGINES = (
         url="https://etherscan.io/search?f=0&q={query}",
         homepage="https://etherscan.io",
         subtitle="Address, token, and transaction lookup",
-        badge="ETH",
         icon_url="https://etherscan.io/favicon.ico",
     ),
 )
@@ -106,7 +102,6 @@ def _parse_engine(raw: dict) -> SearchEngine | None:
         url=url,
         homepage=str(raw.get("homepage", "")).strip(),
         subtitle=str(raw.get("subtitle", "")).strip(),
-        badge=str(raw.get("badge", "")).strip(),
         icon_url=str(raw.get("icon_url", "")).strip(),
     )
 
@@ -151,8 +146,6 @@ def _copy_text(wz, text: str, message: str) -> None:
 
 
 def _engine_badge(engine: SearchEngine) -> str:
-    if engine.badge:
-        return engine.badge
     if engine.prefix:
         return engine.prefix.upper()[:4]
     return engine.name.upper()[:4]
