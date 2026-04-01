@@ -271,9 +271,19 @@ class _QuartzAllKeysListener:
                         )
                     return event
 
+                # Extract all data from the event up front so we can
+                # release the CGEventRef early.  CGEventRef is a CF type
+                # freed by CFRelease (not autorelease), so the Python
+                # wrapper must be deleted to trigger CFRelease.
                 keycode = Quartz.CGEventGetIntegerValueField(
                     event, Quartz.kCGKeyboardEventKeycode
                 )
+                flags = Quartz.CGEventGetFlags(event) if event_type == Quartz.kCGEventFlagsChanged else 0
+
+                if self._listen_only:
+                    # Listen-only: return value is ignored by the system,
+                    # so delete the wrapper now and return None.
+                    del event
 
                 if event_type == Quartz.kCGEventKeyDown:
                     name = _VK_TO_NAME.get(keycode)
@@ -288,7 +298,6 @@ class _QuartzAllKeysListener:
                         self._on_release(name)
 
                 elif event_type == Quartz.kCGEventFlagsChanged:
-                    flags = Quartz.CGEventGetFlags(event)
                     name = _VK_TO_NAME.get(keycode)
                     if name and name in _MOD_VK:
                         _vk, mask = _MOD_VK[name]
@@ -314,7 +323,10 @@ class _QuartzAllKeysListener:
             except Exception:
                 logger.warning("_QuartzAllKeysListener callback exception", exc_info=True)
 
-            return event
+            # Listen-only: event was already del'd, return None (ignored
+            # by the system).  Active: return the original event to pass
+            # it through to the focused application.
+            return None if self._listen_only else event
 
     def start(self) -> None:
         import Quartz
@@ -426,10 +438,6 @@ class TapHotkeyListener:
 
                 if keycode == self._keycode and flags == self._mod_flags:
                     logger.debug("TapHotkeyListener matched: %s", self._hotkey_str)
-                    # Dispatch to a separate thread so the CGEventTap callback
-                    # returns immediately.  AX queries (used by window management)
-                    # require cross-process IPC that can time out inside the tap
-                    # callback, especially for Electron apps (Chrome, Slack).
                     threading.Thread(
                         target=self._run_activate, daemon=True,
                     ).start()
@@ -564,9 +572,8 @@ class KeyRemapListener:
                     if remap and not remap[1]:  # non-modifier source
                         target_vk = remap[0]
                         is_down = event_type == Quartz.kCGEventKeyDown
-                        evt = Quartz.CGEventCreateKeyboardEvent(None, target_vk, is_down)
-                        # Preserve modifier flags from the original event
                         evt_flags = Quartz.CGEventGetFlags(event)
+                        evt = Quartz.CGEventCreateKeyboardEvent(None, target_vk, is_down)
                         Quartz.CGEventSetFlags(evt, evt_flags)
                         Quartz.CGEventPost(Quartz.kCGAnnotatedSessionEventTap, evt)
                         return None  # Swallow the original key event

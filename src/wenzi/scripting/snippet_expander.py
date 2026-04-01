@@ -179,12 +179,17 @@ class SnippetExpander:
                     return event
 
                 if self._expanding or self._suppressed:
-                    return event
+                    return None
 
+                # Extract all data from event, then release the CF ref.
+                # CGEventRef is freed by CFRelease (not autorelease), so
+                # we must del the Python wrapper to trigger CFRelease.
                 keycode = Quartz.CGEventGetIntegerValueField(
                     event, Quartz.kCGKeyboardEventKeycode,
                 )
                 flags = Quartz.CGEventGetFlags(event)
+                char = _get_unicode_string(event)
+                del event  # release CGEventRef immediately
 
                 # Ignore events with Cmd/Ctrl/Alt modifiers (shortcuts, not text)
                 mod_mask = (
@@ -195,18 +200,16 @@ class SnippetExpander:
                 if flags & mod_mask:
                     with self._lock:
                         self._buffer = ""
-                    return event
+                    return None
 
                 # Navigation / control keys clear the buffer
                 if keycode in _CLEAR_KEYCODES:
                     with self._lock:
                         self._buffer = ""
-                    return event
+                    return None
 
-                # Extract the actual character typed
-                char = _get_unicode_string(event)
                 if not char or not char.isprintable():
-                    return event
+                    return None
 
                 # Append to buffer
                 with self._lock:
@@ -221,7 +224,7 @@ class SnippetExpander:
             except Exception:
                 logger.warning("SnippetExpander callback exception", exc_info=True)
 
-            return event
+            return None
 
     def _check_expansion(self, buf: str) -> None:
         """Check if the buffer ends with a snippet keyword and trigger expansion."""
