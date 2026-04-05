@@ -13,6 +13,8 @@ import subprocess
 import threading
 from typing import List, Optional, Set
 
+import objc
+
 from wenzi.config import DEFAULT_ICON_CACHE_DIR as _CFG_ICON_CACHE_DIR
 from wenzi.scripting.sources import ChooserItem, ChooserSource
 from wenzi.scripting.sources._mdquery import mdquery_search
@@ -52,39 +54,40 @@ def _resize_icon_to_png(icon, png_path: str, icon_cache_dir: str) -> None:
     *icon* is an ``NSImage`` obtained from NSWorkspace.  The caller is
     responsible for checking the disk cache beforehand.
     """
-    from AppKit import (
-        NSBitmapImageRep,
-        NSCompositingOperationCopy,
-        NSDeviceRGBColorSpace,
-        NSGraphicsContext,
-        NSPNGFileType,
-    )
-    from Foundation import NSMakeRect, NSZeroRect
-
-    sz = _ICON_SIZE
-    rep = NSBitmapImageRep.alloc() \
-        .initWithBitmapDataPlanes_pixelsWide_pixelsHigh_bitsPerSample_samplesPerPixel_hasAlpha_isPlanar_colorSpaceName_bytesPerRow_bitsPerPixel_(  # noqa: E501
-            None, sz, sz, 8, 4, True, False,
-            NSDeviceRGBColorSpace, 0, 0,
+    with objc.autorelease_pool():
+        from AppKit import (
+            NSBitmapImageRep,
+            NSCompositingOperationCopy,
+            NSDeviceRGBColorSpace,
+            NSGraphicsContext,
+            NSPNGFileType,
         )
-    if rep is None:
-        return
-    ctx = NSGraphicsContext.graphicsContextWithBitmapImageRep_(rep)
-    if ctx is None:
-        return
-    NSGraphicsContext.saveGraphicsState()
-    NSGraphicsContext.setCurrentContext_(ctx)
-    icon.drawInRect_fromRect_operation_fraction_(
-        NSMakeRect(0, 0, sz, sz), NSZeroRect,
-        NSCompositingOperationCopy, 1.0,
-    )
-    NSGraphicsContext.restoreGraphicsState()
+        from Foundation import NSMakeRect, NSZeroRect
 
-    png_data = rep.representationUsingType_properties_(NSPNGFileType, None)
-    if png_data:
-        os.makedirs(icon_cache_dir, exist_ok=True)
-        with open(png_path, "wb") as f:
-            f.write(bytes(png_data))
+        sz = _ICON_SIZE
+        rep = NSBitmapImageRep.alloc() \
+            .initWithBitmapDataPlanes_pixelsWide_pixelsHigh_bitsPerSample_samplesPerPixel_hasAlpha_isPlanar_colorSpaceName_bytesPerRow_bitsPerPixel_(  # noqa: E501
+                None, sz, sz, 8, 4, True, False,
+                NSDeviceRGBColorSpace, 0, 0,
+            )
+        if rep is None:
+            return
+        ctx = NSGraphicsContext.graphicsContextWithBitmapImageRep_(rep)
+        if ctx is None:
+            return
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.setCurrentContext_(ctx)
+        icon.drawInRect_fromRect_operation_fraction_(
+            NSMakeRect(0, 0, sz, sz), NSZeroRect,
+            NSCompositingOperationCopy, 1.0,
+        )
+        NSGraphicsContext.restoreGraphicsState()
+
+        png_data = rep.representationUsingType_properties_(NSPNGFileType, None)
+        if png_data:
+            os.makedirs(icon_cache_dir, exist_ok=True)
+            with open(png_path, "wb") as f:
+                f.write(bytes(png_data))
 
 
 def _extract_filetype_icon(ext: str, icon_cache_dir: str) -> None:

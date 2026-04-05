@@ -9,6 +9,8 @@ import threading
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Callable, Optional, Sequence
 
+import objc
+
 from wenzi.config import DEFAULT_ICON_CACHE_DIR as _CFG_ICON_CACHE_DIR
 
 if TYPE_CHECKING:
@@ -275,38 +277,39 @@ def get_static_entries() -> list[SettingsEntry]:
 
 def _get_icon_png(appex_path: str) -> Optional[bytes]:
     """Return 32x32 PNG bytes for an .appex icon via NSWorkspace, or None."""
-    try:
-        from AppKit import (
-            NSBitmapImageRep,
-            NSCompositingOperationCopy,
-            NSImage,
-            NSPNGFileType,
-            NSWorkspace,
-        )
-        from Foundation import NSMakeRect, NSSize
+    with objc.autorelease_pool():
+        try:
+            from AppKit import (
+                NSBitmapImageRep,
+                NSCompositingOperationCopy,
+                NSImage,
+                NSPNGFileType,
+                NSWorkspace,
+            )
+            from Foundation import NSMakeRect, NSSize
 
-        ws = NSWorkspace.sharedWorkspace()
-        icon = ws.iconForFile_(appex_path)
-        if icon is None:
+            ws = NSWorkspace.sharedWorkspace()
+            icon = ws.iconForFile_(appex_path)
+            if icon is None:
+                return None
+
+            size = NSSize(_ICON_SIZE, _ICON_SIZE)
+            target = NSImage.alloc().initWithSize_(size)
+            target.lockFocus()
+            icon.drawInRect_fromRect_operation_fraction_(
+                NSMakeRect(0, 0, _ICON_SIZE, _ICON_SIZE),
+                NSMakeRect(0, 0, icon.size().width, icon.size().height),
+                NSCompositingOperationCopy,
+                1.0,
+            )
+            target.unlockFocus()
+
+            rep = NSBitmapImageRep.imageRepWithData_(target.TIFFRepresentation())
+            png_data = rep.representationUsingType_properties_(NSPNGFileType, None)
+            return bytes(png_data) if png_data else None
+        except Exception:
+            logger.debug("Failed to get icon for %s", appex_path, exc_info=True)
             return None
-
-        size = NSSize(_ICON_SIZE, _ICON_SIZE)
-        target = NSImage.alloc().initWithSize_(size)
-        target.lockFocus()
-        icon.drawInRect_fromRect_operation_fraction_(
-            NSMakeRect(0, 0, _ICON_SIZE, _ICON_SIZE),
-            NSMakeRect(0, 0, icon.size().width, icon.size().height),
-            NSCompositingOperationCopy,
-            1.0,
-        )
-        target.unlockFocus()
-
-        rep = NSBitmapImageRep.imageRepWithData_(target.TIFFRepresentation())
-        png_data = rep.representationUsingType_properties_(NSPNGFileType, None)
-        return bytes(png_data) if png_data else None
-    except Exception:
-        logger.debug("Failed to get icon for %s", appex_path, exc_info=True)
-        return None
 
 
 def _cache_key(appex_name: str) -> str:

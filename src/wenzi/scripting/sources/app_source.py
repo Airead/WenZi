@@ -15,6 +15,8 @@ import threading
 import time
 from typing import List, Optional
 
+import objc
+
 from wenzi.config import DEFAULT_ICON_CACHE_DIR as _CFG_ICON_CACHE_DIR
 from wenzi.scripting.sources import (
     ChooserItem,
@@ -57,65 +59,67 @@ _CORE_SERVICES_APPS = [
 
 def _get_display_name(path: str, fallback: str) -> str:
     """Return the localized display name for an app bundle path."""
-    try:
-        from Foundation import NSFileManager
+    with objc.autorelease_pool():
+        try:
+            from Foundation import NSFileManager
 
-        fm = NSFileManager.defaultManager()
-        display = fm.displayNameAtPath_(path)
-        if display:
-            name = str(display)
-            # displayNameAtPath_ may include ".app" for non-localized names
-            if name.endswith(".app"):
-                name = name[:-4]
-            return name
-    except Exception:
-        pass
-    return fallback
+            fm = NSFileManager.defaultManager()
+            display = fm.displayNameAtPath_(path)
+            if display:
+                name = str(display)
+                # displayNameAtPath_ may include ".app" for non-localized names
+                if name.endswith(".app"):
+                    name = name[:-4]
+                return name
+        except Exception:
+            pass
+        return fallback
 
 
 def _get_app_icon_png(path: str) -> Optional[bytes]:
     """Return raw PNG bytes for the app icon, or None on failure."""
-    try:
-        from AppKit import (
-            NSBitmapImageRep,
-            NSCompositingOperationCopy,
-            NSDeviceRGBColorSpace,
-            NSGraphicsContext,
-            NSPNGFileType,
-            NSWorkspace,
-        )
-        from Foundation import NSMakeRect, NSZeroRect
-
-        ws = NSWorkspace.sharedWorkspace()
-        icon = ws.iconForFile_(path)
-        if icon is None:
-            return None
-
-        # Render into a bitmap rep (thread-safe, no deprecated lockFocus)
-        sz = _ICON_SIZE
-        rep = NSBitmapImageRep.alloc() \
-            .initWithBitmapDataPlanes_pixelsWide_pixelsHigh_bitsPerSample_samplesPerPixel_hasAlpha_isPlanar_colorSpaceName_bytesPerRow_bitsPerPixel_(  # noqa: E501
-                None, sz, sz, 8, 4, True, False,
-                NSDeviceRGBColorSpace, 0, 0,
+    with objc.autorelease_pool():
+        try:
+            from AppKit import (
+                NSBitmapImageRep,
+                NSCompositingOperationCopy,
+                NSDeviceRGBColorSpace,
+                NSGraphicsContext,
+                NSPNGFileType,
+                NSWorkspace,
             )
-        if rep is None:
-            return None
-        ctx = NSGraphicsContext.graphicsContextWithBitmapImageRep_(rep)
-        if ctx is None:
-            return None
-        NSGraphicsContext.saveGraphicsState()
-        NSGraphicsContext.setCurrentContext_(ctx)
-        icon.drawInRect_fromRect_operation_fraction_(
-            NSMakeRect(0, 0, sz, sz), NSZeroRect,
-            NSCompositingOperationCopy, 1.0,
-        )
-        NSGraphicsContext.restoreGraphicsState()
+            from Foundation import NSMakeRect, NSZeroRect
 
-        png_data = rep.representationUsingType_properties_(NSPNGFileType, None)
-        return bytes(png_data) if png_data else None
-    except Exception:
-        logger.debug("Failed to get icon for %s", path, exc_info=True)
-        return None
+            ws = NSWorkspace.sharedWorkspace()
+            icon = ws.iconForFile_(path)
+            if icon is None:
+                return None
+
+            # Render into a bitmap rep (thread-safe, no deprecated lockFocus)
+            sz = _ICON_SIZE
+            rep = NSBitmapImageRep.alloc() \
+                .initWithBitmapDataPlanes_pixelsWide_pixelsHigh_bitsPerSample_samplesPerPixel_hasAlpha_isPlanar_colorSpaceName_bytesPerRow_bitsPerPixel_(  # noqa: E501
+                    None, sz, sz, 8, 4, True, False,
+                    NSDeviceRGBColorSpace, 0, 0,
+                )
+            if rep is None:
+                return None
+            ctx = NSGraphicsContext.graphicsContextWithBitmapImageRep_(rep)
+            if ctx is None:
+                return None
+            NSGraphicsContext.saveGraphicsState()
+            NSGraphicsContext.setCurrentContext_(ctx)
+            icon.drawInRect_fromRect_operation_fraction_(
+                NSMakeRect(0, 0, sz, sz), NSZeroRect,
+                NSCompositingOperationCopy, 1.0,
+            )
+            NSGraphicsContext.restoreGraphicsState()
+
+            png_data = rep.representationUsingType_properties_(NSPNGFileType, None)
+            return bytes(png_data) if png_data else None
+        except Exception:
+            logger.debug("Failed to get icon for %s", path, exc_info=True)
+            return None
 
 
 def _cache_key(path: str) -> str:

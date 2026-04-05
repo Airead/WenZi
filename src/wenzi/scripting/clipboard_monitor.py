@@ -20,6 +20,8 @@ import time
 from dataclasses import dataclass, field
 from typing import List, Optional
 
+import objc
+
 from wenzi.config import DEFAULT_CLIPBOARD_IMAGES_DIR, DEFAULT_ICON_CACHE_DIR
 
 logger = logging.getLogger(__name__)
@@ -78,53 +80,54 @@ def _get_app_icon_png(bundle_id: str) -> Optional[bytes]:
 
     Returns None if the app is not found or icon extraction fails.
     """
-    try:
-        from AppKit import (
-            NSBitmapImageRep,
-            NSCalibratedRGBColorSpace,
-            NSCompositingOperationSourceOver,
-            NSGraphicsContext,
-            NSPNGFileType,
-            NSWorkspace,
-        )
-        from Foundation import NSMakeRect, NSZeroRect
-
-        ws = NSWorkspace.sharedWorkspace()
-        url = ws.URLForApplicationWithBundleIdentifier_(bundle_id)
-        if url is None:
-            return None
-        icon = ws.iconForFile_(url.path())
-        if icon is None:
-            return None
-
-        # Draw into a new bitmap at the exact pixel size we want.
-        sz = _ICON_SIZE
-        new_rep = NSBitmapImageRep.alloc() \
-            .initWithBitmapDataPlanes_pixelsWide_pixelsHigh_bitsPerSample_samplesPerPixel_hasAlpha_isPlanar_colorSpaceName_bytesPerRow_bitsPerPixel_(  # noqa: E501
-                None, sz, sz, 8, 4, True, False,
-                NSCalibratedRGBColorSpace, 0, 0,
+    with objc.autorelease_pool():
+        try:
+            from AppKit import (
+                NSBitmapImageRep,
+                NSCalibratedRGBColorSpace,
+                NSCompositingOperationSourceOver,
+                NSGraphicsContext,
+                NSPNGFileType,
+                NSWorkspace,
             )
-        if new_rep is None:
+            from Foundation import NSMakeRect, NSZeroRect
+
+            ws = NSWorkspace.sharedWorkspace()
+            url = ws.URLForApplicationWithBundleIdentifier_(bundle_id)
+            if url is None:
+                return None
+            icon = ws.iconForFile_(url.path())
+            if icon is None:
+                return None
+
+            # Draw into a new bitmap at the exact pixel size we want.
+            sz = _ICON_SIZE
+            new_rep = NSBitmapImageRep.alloc() \
+                .initWithBitmapDataPlanes_pixelsWide_pixelsHigh_bitsPerSample_samplesPerPixel_hasAlpha_isPlanar_colorSpaceName_bytesPerRow_bitsPerPixel_(  # noqa: E501
+                    None, sz, sz, 8, 4, True, False,
+                    NSCalibratedRGBColorSpace, 0, 0,
+                )
+            if new_rep is None:
+                return None
+
+            ctx = NSGraphicsContext.graphicsContextWithBitmapImageRep_(new_rep)
+            if ctx is None:
+                return None
+
+            NSGraphicsContext.saveGraphicsState()
+            NSGraphicsContext.setCurrentContext_(ctx)
+            ctx.setImageInterpolation_(3)  # NSImageInterpolationHigh
+            icon.drawInRect_fromRect_operation_fraction_(
+                NSMakeRect(0, 0, sz, sz), NSZeroRect,
+                NSCompositingOperationSourceOver, 1.0,
+            )
+            NSGraphicsContext.restoreGraphicsState()
+
+            png = new_rep.representationUsingType_properties_(NSPNGFileType, {})
+            return bytes(png) if png else None
+        except Exception:
+            logger.debug("Failed to extract icon for %s", bundle_id, exc_info=True)
             return None
-
-        ctx = NSGraphicsContext.graphicsContextWithBitmapImageRep_(new_rep)
-        if ctx is None:
-            return None
-
-        NSGraphicsContext.saveGraphicsState()
-        NSGraphicsContext.setCurrentContext_(ctx)
-        ctx.setImageInterpolation_(3)  # NSImageInterpolationHigh
-        icon.drawInRect_fromRect_operation_fraction_(
-            NSMakeRect(0, 0, sz, sz), NSZeroRect,
-            NSCompositingOperationSourceOver, 1.0,
-        )
-        NSGraphicsContext.restoreGraphicsState()
-
-        png = new_rep.representationUsingType_properties_(NSPNGFileType, {})
-        return bytes(png) if png else None
-    except Exception:
-        logger.debug("Failed to extract icon for %s", bundle_id, exc_info=True)
-        return None
 
 
 @dataclass
@@ -564,10 +567,11 @@ class ClipboardMonitor:
     def _poll_loop(self) -> None:
         """Main polling loop running in a background thread."""
         while not self._stop_event.is_set():
-            try:
-                self._check_clipboard()
-            except Exception:
-                logger.debug("Clipboard poll error", exc_info=True)
+            with objc.autorelease_pool():
+                try:
+                    self._check_clipboard()
+                except Exception:
+                    logger.debug("Clipboard poll error", exc_info=True)
             self._stop_event.wait(self._poll_interval)
 
     def _check_clipboard(self) -> None:

@@ -7,6 +7,7 @@ import subprocess
 import threading
 import time
 
+import objc
 from AppKit import NSPasteboard, NSPasteboardTypeString, NSString
 
 logger = logging.getLogger(__name__)
@@ -262,16 +263,17 @@ def _set_pasteboard_concealed(text: str) -> bool:
     ``org.nspasteboard.ConcealedType`` and ``com.nspasteboard.TransientType``
     and will skip entries that carry these types.
     """
-    pb = NSPasteboard.generalPasteboard()
-    pb.clearContents()
-    ns_str = NSString.stringWithString_(text)
-    ok = pb.setString_forType_(ns_str, NSPasteboardTypeString)
-    if not ok:
-        return False
-    # Marker types – the value is irrelevant; their presence is the signal.
-    pb.setString_forType_("", "org.nspasteboard.ConcealedType")
-    pb.setString_forType_("", "com.nspasteboard.TransientType")
-    return True
+    with objc.autorelease_pool():
+        pb = NSPasteboard.generalPasteboard()
+        pb.clearContents()
+        ns_str = NSString.stringWithString_(text)
+        ok = pb.setString_forType_(ns_str, NSPasteboardTypeString)
+        if not ok:
+            return False
+        # Marker types – the value is irrelevant; their presence is the signal.
+        pb.setString_forType_("", "org.nspasteboard.ConcealedType")
+        pb.setString_forType_("", "com.nspasteboard.TransientType")
+        return True
 
 
 def _set_pasteboard_string(text: str) -> None:
