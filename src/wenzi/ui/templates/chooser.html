@@ -382,7 +382,7 @@ function setContextText(text, label) {
     contextTextEl.classList.remove('expanded');
     contextBlock.classList.add('visible');
     _exclusiveMode = true;
-    post('resize');
+    _requestResize();
 }
 
 function clearContext() {
@@ -395,7 +395,7 @@ function clearContext() {
 if (contextTextEl) {
     contextTextEl.addEventListener('click', function() {
         contextTextEl.classList.toggle('expanded');
-        post('resize');
+        _requestResize();
     });
 }
 

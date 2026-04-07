@@ -115,11 +115,14 @@ def get_current_input_source() -> Optional[str]:
         return None
 
     try:
-        source = _TISCopyCurrentKeyboardInputSource()
-        if source is None:
-            return None
-        sid = _TISGetInputSourceProperty(source, _kTISPropertyInputSourceID)
-        return str(sid) if sid else None
+        import objc
+
+        with objc.autorelease_pool():
+            source = _TISCopyCurrentKeyboardInputSource()
+            if source is None:
+                return None
+            sid = _TISGetInputSourceProperty(source, _kTISPropertyInputSourceID)
+            return str(sid) if sid else None
     except Exception:
         logger.warning("Failed to get current input source", exc_info=True)
         return None
@@ -131,24 +134,26 @@ def select_input_source(source_id: str) -> bool:
         return False
 
     try:
+        import objc
         from Foundation import NSDictionary
 
-        props = NSDictionary.dictionaryWithObject_forKey_(
-            source_id, _kTISPropertyInputSourceID
-        )
-        source_list = _TISCreateInputSourceList(props, False)
-        if not source_list or len(source_list) == 0:
-            logger.debug("Input source not found: %s", source_id)
-            return False
-
-        source = source_list[0]
-        status = _TISSelectInputSource(source)
-        if status != 0:
-            logger.warning(
-                "TISSelectInputSource returned %d for %s", status, source_id
+        with objc.autorelease_pool():
+            props = NSDictionary.dictionaryWithObject_forKey_(
+                source_id, _kTISPropertyInputSourceID
             )
-            return False
-        return True
+            source_list = _TISCreateInputSourceList(props, False)
+            if not source_list or len(source_list) == 0:
+                logger.debug("Input source not found: %s", source_id)
+                return False
+
+            source = source_list[0]
+            status = _TISSelectInputSource(source)
+            if status != 0:
+                logger.warning(
+                    "TISSelectInputSource returned %d for %s", status, source_id
+                )
+                return False
+            return True
     except Exception:
         logger.warning(
             "Failed to select input source: %s", source_id, exc_info=True

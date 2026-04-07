@@ -245,7 +245,15 @@ class ChooserPanel:
         """Resize the panel to the given dimensions (from JS)."""
         if self._panel is None:
             return
+        from AppKit import NSScreen
         from Foundation import NSMakeRect
+
+        # Clamp to screen bounds to prevent unbounded growth.
+        screen = NSScreen.mainScreen()
+        if screen:
+            sf = screen.frame()
+            width = min(width, int(sf.size.width))
+            height = min(height, int(sf.size.height))
 
         old = self._panel.frame()
         if round(old.size.width) == width and round(old.size.height) == height:
@@ -708,9 +716,21 @@ class ChooserPanel:
                 None,
             )
 
-        # Hide the panel (keep it alive)
         if self._panel is not None:
             self._panel.orderOut_(None)
+
+            # Shrink to 1×1 to release the CA Whippet Drawable backing
+            # store.  macOS retains the full-size RGBA half-float
+            # IOSurface (~63 MB at retina) even after orderOut_;
+            # resizing forces CoreAnimation to reallocate a trivial
+            # buffer.  show() repositions and JS resizes back.
+            from Foundation import NSMakeRect
+
+            f = self._panel.frame()
+            self._panel.setFrame_display_(
+                NSMakeRect(f.origin.x, f.origin.y, 1, 1), False,
+            )
+        self._last_screen = None
 
         # Load empty HTML to release IOSurface compositing layer buffers.
         # The WKWebView stays alive for fast re-show; only the rendered

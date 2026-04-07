@@ -1,6 +1,7 @@
 """PyInstaller entry point - uses absolute imports."""
 
 import os
+import sys
 
 # Ensure urllib/ssl can find CA certificates in PyInstaller bundles.
 # Without this, urllib.request fails with SSL: CERTIFICATE_VERIFY_FAILED
@@ -18,4 +19,9 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    from wenzi.scripting.ocr import _OCR_WORKER_FLAG
+    if _OCR_WORKER_FLAG in sys.argv:
+        from wenzi.scripting.ocr import _main as ocr_main
+        ocr_main()
+    else:
+        main()
