@@ -34,13 +34,12 @@ def keystroke(key: str, modifiers: list[str] | None = None) -> None:
     if flags:
         Quartz.CGEventSetFlags(event_down, flags)
     Quartz.CGEventPost(Quartz.kCGAnnotatedSessionEventTap, event_down)
-    Quartz.CFRelease(event_down)
+    # No CFRelease — PyObjC auto-releases the wrapped CGEventRef
 
     # Key up
     event_up = Quartz.CGEventCreateKeyboardEvent(None, vk, False)
     if flags:
         Quartz.CGEventSetFlags(event_up, flags)
     Quartz.CGEventPost(Quartz.kCGAnnotatedSessionEventTap, event_up)
-    Quartz.CFRelease(event_up)
 
     logger.debug("Keystroke: %s (modifiers=%s)", key, modifiers)
