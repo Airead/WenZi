@@ -177,9 +177,6 @@ a = Analysis(
         'funasr_onnx.utils.utils',
         'funasr_onnx.utils.frontend',
         'jieba',
-        'pynput',
-        'pynput.keyboard',
-        'pynput.keyboard._darwin',
         'onnxruntime',
         'sentencepiece',
         'tiktoken',
@@ -190,7 +187,6 @@ a = Analysis(
         'openai',
         'simpleeval',
         'pint',
-        'yaml',
         # PyObjC frameworks
         'ApplicationServices',
         'CoreFoundation',

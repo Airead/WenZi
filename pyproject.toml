@@ -5,7 +5,7 @@ description = "macOS menubar app: hold hotkey to record, release to transcribe a
 requires-python = ">=3.13"
 dependencies = [
     "pyobjc-framework-Cocoa==12.1",
-    "openai-agents==0.11.1",
+    "openai>=2.0.0",
     "pypinyin==0.55.0",
     "pyobjc-framework-Speech==12.1",
     "pyobjc-framework-webkit==12.1",

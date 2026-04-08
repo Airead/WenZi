@@ -158,13 +158,9 @@ a = Analysis(
         'wenzi.screenshot',
         'wenzi.screenshot.annotation',
         # third-party (Lite only — no local ASR packages)
-        'pynput',
-        'pynput.keyboard',
-        'pynput.keyboard._darwin',
         'openai',
         'simpleeval',
         'pint',
-        'yaml',
         # PyObjC frameworks
         'ApplicationServices',
         'CoreFoundation',
@@ -188,6 +184,7 @@ a = Analysis(
         'librosa',
         'funasr_onnx',
         'jieba',
+        'numpy',
         'onnxruntime',
         'sentencepiece',
         'tiktoken',
