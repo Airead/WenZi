@@ -5,15 +5,13 @@ description = "macOS menubar app: hold hotkey to record, release to transcribe a
 requires-python = ">=3.13"
 dependencies = [
     "pyobjc-framework-Cocoa==12.1",
-    "openai>=2.0.0",
-    "pypinyin==0.55.0",
     "pyobjc-framework-Speech==12.1",
     "pyobjc-framework-webkit==12.1",
     "pyobjc-framework-AVFoundation==12.1",
     "pyobjc-framework-Security==12.1",
     "pyobjc-framework-ApplicationServices==12.1",
-    "simpleeval==1.0.7",
-    "pint==0.25.2",
+    "openai>=2.0.0",
+    "pypinyin==0.55.0",
     "certifi==2026.2.25",
     "cryptography==46.0.5",
     "zhconv==1.4.3",

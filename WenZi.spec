@@ -185,8 +185,6 @@ a = Analysis(
         'modelscope.utils.file_utils',
         'modelscope.hub.snapshot_download',
         'openai',
-        'simpleeval',
-        'pint',
         # PyObjC frameworks
         'ApplicationServices',
         'CoreFoundation',

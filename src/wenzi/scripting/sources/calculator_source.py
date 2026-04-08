@@ -1,20 +1,17 @@
 """Calculator data source for the Chooser.
 
-Provides inline math evaluation and unit conversion directly in the
-search bar.  Math is powered by *simpleeval* (sandboxed) and unit
-conversion by *pint* (loaded lazily in a background thread).
+Provides inline math evaluation directly in the search bar.
+Math is powered by a safe AST-based evaluator (no ``eval``).
 """
 
 from __future__ import annotations
 
+import ast
 import logging
 import math
-import os
+import operator
 import re
-import threading
 from typing import List
-
-from simpleeval import SimpleEval
 
 from wenzi.scripting.sources import (
     ChooserItem, ChooserSource, copy_to_clipboard, paste_text,
@@ -36,36 +33,111 @@ _OPERATORS_RE = re.compile(r"[+\-*/^%]")
 _FUNC_CALL_RE = re.compile(r"\b(" + "|".join(_FUNC_NAMES) + r")\s*\(")
 _INCOMPLETE_RE = re.compile(r"[+\-*/^%(]\s*$")
 
-_CONVERSION_RE = re.compile(
-    r"^(-?\d+\.?\d*)\s*(.+?)\s+(?:to|in)\s+(.+?)\s*$",
-    re.IGNORECASE,
+_CALC_ICON = (
+    "data:image/svg+xml,"
+    "%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E"
+    "%3Crect x='3' y='2' width='26' height='28' rx='4' fill='%23fd9426'/%3E"
+    "%3Crect x='7' y='5' width='18' height='7' rx='1.5' fill='%23fff' opacity='.95'/%3E"
+    "%3Ccircle cx='10' cy='17' r='2' fill='%23fff' opacity='.9'/%3E"
+    "%3Ccircle cx='16' cy='17' r='2' fill='%23fff' opacity='.9'/%3E"
+    "%3Ccircle cx='22' cy='17' r='2' fill='%23fff' opacity='.9'/%3E"
+    "%3Ccircle cx='10' cy='23' r='2' fill='%23fff' opacity='.9'/%3E"
+    "%3Ccircle cx='16' cy='23' r='2' fill='%23fff' opacity='.9'/%3E"
+    "%3Ccircle cx='22' cy='23' r='2' fill='%2347d16c'/%3E"
+    "%3C/svg%3E"
 )
 
-_UNIT_ALIASES = {
-    "°c": "degC", "°f": "degF", "°k": "kelvin",
-    "c": "degC", "f": "degF",
+# ---------------------------------------------------------------------------
+# Safe AST evaluator
+# ---------------------------------------------------------------------------
+
+_SAFE_NAMES: dict[str, object] = {"pi": math.pi, "e": math.e}
+
+_SAFE_FUNCS: dict[str, object] = {
+    "sqrt": math.sqrt,
+    "sin": math.sin,
+    "cos": math.cos,
+    "tan": math.tan,
+    "asin": math.asin,
+    "acos": math.acos,
+    "atan": math.atan,
+    "log": math.log,
+    "log2": math.log2,
+    "log10": math.log10,
+    "abs": abs,
+    "round": round,
+    "ceil": math.ceil,
+    "floor": math.floor,
+    "min": min,
+    "max": max,
+    "pow": pow,
 }
 
-_CALC_APP = "/System/Applications/Calculator.app"
-_CALC_ICON = ""
+_BIN_OPS = {
+    ast.Add: operator.add,
+    ast.Sub: operator.sub,
+    ast.Mult: operator.mul,
+    ast.Div: operator.truediv,
+    ast.FloorDiv: operator.floordiv,
+    ast.Mod: operator.mod,
+    ast.Pow: operator.pow,
+}
+
+_UNARY_OPS = {
+    ast.UAdd: operator.pos,
+    ast.USub: operator.neg,
+}
+
+
+def _safe_eval(expr: str) -> object:
+    """Evaluate a math expression safely via the AST.
+
+    Only allows numeric literals, basic arithmetic operators, and
+    whitelisted function calls.  Raises ``ValueError`` for anything
+    unexpected.
+    """
+    tree = ast.parse(expr, mode="eval")
+    return _eval_node(tree.body)
+
+
+def _eval_node(node: ast.expr) -> object:
+    if isinstance(node, ast.Constant):
+        if not isinstance(node.value, (int, float)):
+            raise ValueError(f"unsupported constant: {node.value!r}")
+        return node.value
+
+    if isinstance(node, ast.Name):
+        if node.id in _SAFE_NAMES:
+            return _SAFE_NAMES[node.id]
+        raise ValueError(f"unknown name: {node.id!r}")
+
+    if isinstance(node, ast.UnaryOp):
+        op = _UNARY_OPS.get(type(node.op))
+        if op is None:
+            raise ValueError(f"unsupported unary op: {node.op!r}")
+        return op(_eval_node(node.operand))
+
+    if isinstance(node, ast.BinOp):
+        op = _BIN_OPS.get(type(node.op))
+        if op is None:
+            raise ValueError(f"unsupported binary op: {node.op!r}")
+        return op(_eval_node(node.left), _eval_node(node.right))
+
+    if isinstance(node, ast.Call):
+        if not isinstance(node.func, ast.Name):
+            raise ValueError("only simple function calls allowed")
+        func = _SAFE_FUNCS.get(node.func.id)
+        if func is None:
+            raise ValueError(f"unknown function: {node.func.id!r}")
+        args = [_eval_node(a) for a in node.args]
+        return func(*args)
+
+    raise ValueError(f"unsupported node: {type(node).__name__}")
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-def _get_calculator_icon() -> str:
-    global _CALC_ICON
-    if not _CALC_ICON:
-        icns = os.path.join(_CALC_APP, "Contents", "Resources", "AppIcon.icns")
-        if os.path.isfile(icns):
-            _CALC_ICON = "file://" + icns
-    return _CALC_ICON
-
-
-def _normalize_unit(unit_str: str) -> str:
-    return _UNIT_ALIASES.get(unit_str.strip().lower(), unit_str.strip())
 
 
 def _looks_like_math(expr: str) -> bool:
@@ -105,53 +177,13 @@ def _format_number(value: object) -> tuple[str, str]:
     return s, s
 
 
-
-
 # ---------------------------------------------------------------------------
 # CalculatorSource
 # ---------------------------------------------------------------------------
 
 
 class CalculatorSource:
-    """Inline calculator and unit converter for the Chooser."""
-
-    def __init__(self) -> None:
-        # simpleeval — lightweight, synchronous
-        self._eval = SimpleEval()
-        self._eval.names = {"pi": math.pi, "e": math.e}
-        self._eval.functions = {
-            "sqrt": math.sqrt,
-            "sin": math.sin,
-            "cos": math.cos,
-            "tan": math.tan,
-            "asin": math.asin,
-            "acos": math.acos,
-            "atan": math.atan,
-            "log": math.log,
-            "log2": math.log2,
-            "log10": math.log10,
-            "abs": abs,
-            "round": round,
-            "ceil": math.ceil,
-            "floor": math.floor,
-            "min": min,
-            "max": max,
-            "pow": pow,
-        }
-
-        # pint — heavy, loaded in background thread
-        self._ureg = None
-
-        def _init_pint() -> None:
-            try:
-                import pint
-
-                self._ureg = pint.UnitRegistry()
-                logger.info("Pint UnitRegistry initialized")
-            except Exception:
-                logger.exception("Failed to initialize pint")
-
-        threading.Thread(target=_init_pint, daemon=True).start()
+    """Inline calculator for the Chooser."""
 
     # -- public API ----------------------------------------------------------
 
@@ -168,12 +200,6 @@ class CalculatorSource:
         # Strip trailing '='
         expr = q.rstrip("= ")
 
-        # 1. Try unit conversion (if Pint is ready)
-        item = self._try_conversion_item(expr)
-        if item is not None:
-            return [item]
-
-        # 2. Try math expression
         item = self._try_math_item(expr)
         if item is not None:
             return [item]
@@ -188,48 +214,11 @@ class CalculatorSource:
             prefix=None,
             search=self.search,
             priority=12,
-            description="Calculator & unit conversion",
+            description="Calculator",
             action_hints={
                 "enter": t("chooser.action.paste"),
                 "cmd_enter": t("chooser.action.copy"),
             },
-        )
-
-    # -- unit conversion -----------------------------------------------------
-
-    def _try_conversion_item(self, expr: str) -> ChooserItem | None:
-        if self._ureg is None:
-            return None
-
-        m = _CONVERSION_RE.match(expr)
-        if not m:
-            return None
-
-        try:
-            number = float(m.group(1))
-            from_unit = _normalize_unit(m.group(2))
-            to_unit = _normalize_unit(m.group(3))
-
-            quantity = self._ureg.Quantity(number, from_unit)
-            result = quantity.to(to_unit)
-            magnitude = result.magnitude
-            unit_str = f"{result.units:~P}"
-        except Exception:
-            return None
-
-        display, raw = _format_number(magnitude)
-        display_text = f"{display} {unit_str}"
-        raw_text = f"{raw} {unit_str}"
-        title = f"{expr} = {display_text}"
-        icon = _get_calculator_icon()
-
-        return ChooserItem(
-            title=title,
-            subtitle="Unit Conversion",
-            icon=icon,
-            item_id=f"calc:{expr}",
-            action=lambda t=raw_text: paste_text(t),
-            secondary_action=lambda t=raw_text: copy_to_clipboard(t),
         )
 
     # -- math expression -----------------------------------------------------
@@ -244,7 +233,7 @@ class CalculatorSource:
         eval_expr = expr.replace("^", "**")
 
         try:
-            value = self._eval.eval(eval_expr)
+            value = _safe_eval(eval_expr)
         except Exception:
             return None
 
@@ -257,7 +246,7 @@ class CalculatorSource:
 
         display, raw = _format_number(value)
         title = f"{expr} = {display}"
-        icon = _get_calculator_icon()
+        icon = _CALC_ICON
 
         return ChooserItem(
             title=title,

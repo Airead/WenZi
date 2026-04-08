@@ -137,34 +137,6 @@ def __getattr__(name):
 
 ### 6. Tiered Fixtures for Optional Subsystems
 
-**Problem:** `CalculatorSource.__init__` spawns a background thread to load Pint's unit registry. Most tests only need basic math.
-
-**Solution:** Provide two fixture tiers — fast (no subsystem) and full (manually initialized).
-
-```python
-@pytest.fixture()
-def calc():
-    with patch("...calculator_source.threading.Thread"):
-        return CalculatorSource()  # No Pint background init
-
-@pytest.fixture()
-def calc_with_pint(calc):
-    import pint
-    calc._ureg = pint.UnitRegistry()
-    calc._ureg_ready = True
-    return calc
-```
-
-```python
-def test_addition(self, calc):           # Fast
-    assert calc.search("2+3")[0].title == "5"
-
-def test_unit_convert(self, calc_with_pint):  # Has Pint
-    assert calc_with_pint.search("10 km to mi")
-```
-
-**When to use:** Classes with optional heavy subsystems where most tests don't exercise that subsystem.
-
 ### 7. Mock System Calls at the Boundary
 
 **Problem:** AppKit calls like icon extraction and display name lookup hit the filesystem and IPC.

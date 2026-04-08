@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-from unittest.mock import patch
 
 from wenzi.scripting.sources.calculator_source import (
     CalculatorSource,
@@ -15,19 +14,7 @@ from wenzi.scripting.sources.calculator_source import (
 
 @pytest.fixture()
 def calc():
-    # Prevent pint background initialization (not needed for math-only tests)
-    with patch("wenzi.scripting.sources.calculator_source.threading.Thread"):
-        return CalculatorSource()
-
-
-@pytest.fixture()
-def calc_with_pint(calc):
-    """Ensure Pint is fully initialized before running tests."""
-    import pint
-
-    calc._ureg = pint.UnitRegistry()
-    calc._ureg_ready = True
-    return calc
+    return CalculatorSource()
 
 
 # ---------------------------------------------------------------------------
@@ -147,70 +134,6 @@ class TestDetectionLogic:
 
 
 # ---------------------------------------------------------------------------
-# Unit conversion
-# ---------------------------------------------------------------------------
-
-
-class TestUnitConversion:
-    def test_km_to_mi(self, calc_with_pint):
-        items = calc_with_pint.search("10 km to mi")
-        assert len(items) == 1
-        assert "6.21371" in items[0].title
-
-    def test_inches_to_cm(self, calc_with_pint):
-        items = calc_with_pint.search("10 in to cm")
-        assert len(items) == 1
-        assert "25.4" in items[0].title
-
-    def test_celsius_to_fahrenheit_symbol(self, calc_with_pint):
-        items = calc_with_pint.search("100 °C to °F")
-        assert len(items) == 1
-        assert "212" in items[0].title
-
-    def test_celsius_to_fahrenheit_letter(self, calc_with_pint):
-        items = calc_with_pint.search("0 C to F")
-        assert len(items) == 1
-        assert "32" in items[0].title
-
-    def test_fahrenheit_to_celsius(self, calc_with_pint):
-        items = calc_with_pint.search("72 F to C")
-        assert len(items) == 1
-        assert "22.2" in items[0].title
-
-    def test_kg_to_lb(self, calc_with_pint):
-        items = calc_with_pint.search("5 kg to lb")
-        assert len(items) == 1
-
-    def test_gb_to_mb(self, calc_with_pint):
-        items = calc_with_pint.search("1 GB to MB")
-        assert len(items) == 1
-        title = items[0].title
-        assert "1000" in title.replace(",", "") or "1,000" in title
-
-    def test_in_keyword(self, calc_with_pint):
-        items_to = calc_with_pint.search("10 km to mi")
-        items_in = calc_with_pint.search("10 km in mi")
-        assert len(items_to) == 1
-        assert len(items_in) == 1
-        # Both should produce the same magnitude in the result
-        assert "6.21371" in items_in[0].title
-
-    def test_incompatible_units(self, calc_with_pint):
-        assert calc_with_pint.search("10 kg to km") == []
-
-    def test_unknown_units(self, calc_with_pint):
-        assert calc_with_pint.search("10 foo to bar") == []
-
-    def test_pint_not_ready(self, calc):
-        # Ensure _ureg is None to simulate pint not yet initialized
-        calc._ureg = None
-        # Should fall through to math or return empty — not crash
-        result = calc.search("10 km to mi")
-        # No unit conversion available, no math match either
-        assert result == []
-
-
-# ---------------------------------------------------------------------------
 # ChooserSource metadata
 # ---------------------------------------------------------------------------
 
@@ -264,14 +187,6 @@ class TestChooserItem:
                     raw_value = val
                     break
         assert raw_value == "1000000"
-
-    def test_conversion_item_fields(self, calc_with_pint):
-        items = calc_with_pint.search("10 km to mi")
-        item = items[0]
-        assert item.action is not None
-        assert item.secondary_action is not None
-        assert item.item_id.startswith("calc:")
-        assert item.subtitle == "Unit Conversion"
 
 
 # ---------------------------------------------------------------------------
