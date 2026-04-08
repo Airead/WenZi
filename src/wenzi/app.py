@@ -1228,11 +1228,9 @@ class WenZiApp(StatusBarApp):
             self._sound_manager.warmup()
         except Exception:
             logger.debug("Sound warmup failed", exc_info=True)
-        try:
-            if hasattr(self._preview_panel, "warmup"):
-                self._preview_panel.warmup()
-        except Exception:
-            logger.debug("Preview panel warmup failed", exc_info=True)
+        # ResultPreviewPanel warmup intentionally deferred to first show()
+        # to avoid loading WebKit framework at startup (~8-12 MB).
+        # _build_panel() handles the cold path transparently.
 
     def _show_config_error(self) -> None:
         """Show config error alert if config loading failed."""
