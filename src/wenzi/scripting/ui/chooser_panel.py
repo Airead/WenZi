@@ -1752,7 +1752,7 @@ class ChooserPanel:
         panel.setFloatingPanel_(True)
         panel.setHidesOnDeactivate_(False)
         panel.setMovableByWindowBackground_(False)
-        panel.setCollectionBehavior_((1 << 4) | (1 << 8))  # stationary | fullScreenAuxiliary
+        panel.setCollectionBehavior_((1 << 0) | (1 << 4) | (1 << 8))  # canJoinAllSpaces | stationary | fullScreenAuxiliary
 
         # Transparent background — the HTML provides its own
         from AppKit import NSColor

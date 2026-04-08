@@ -79,7 +79,7 @@ def show_hud(message: str) -> None:
     panel.setIgnoresMouseEvents_(True)
     panel.setFloatingPanel_(True)
     panel.setHidesOnDeactivate_(False)
-    panel.setCollectionBehavior_((1 << 4) | (1 << 8))  # stationary | fullScreenAuxiliary
+    panel.setCollectionBehavior_((1 << 0) | (1 << 4) | (1 << 8))  # canJoinAllSpaces | stationary | fullScreenAuxiliary
     panel.setBackgroundColor_(NSColor.clearColor())
 
     # Rounded semi-transparent background

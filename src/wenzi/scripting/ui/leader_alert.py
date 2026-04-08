@@ -94,7 +94,7 @@ class LeaderAlertPanel:
         panel.setIgnoresMouseEvents_(True)
         panel.setMovableByWindowBackground_(False)
         panel.setHidesOnDeactivate_(False)
-        panel.setCollectionBehavior_((1 << 4) | (1 << 8))  # stationary | fullScreenAuxiliary
+        panel.setCollectionBehavior_((1 << 0) | (1 << 4) | (1 << 8))  # canJoinAllSpaces | stationary | fullScreenAuxiliary
 
         # --- Vibrancy background ---
         vibrancy = NSVisualEffectView.alloc().initWithFrame_(
