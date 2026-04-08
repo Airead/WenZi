@@ -291,12 +291,11 @@ class MenuAPI:
             event_down = Quartz.CGEventCreateKeyboardEvent(None, keycode, True)
             Quartz.CGEventSetFlags(event_down, flags)
             Quartz.CGEventPostToPid(pid, event_down)
-            Quartz.CFRelease(event_down)
+            # No CFRelease — PyObjC auto-releases the wrapped CGEventRef
 
             event_up = Quartz.CGEventCreateKeyboardEvent(None, keycode, False)
             Quartz.CGEventSetFlags(event_up, flags)
             Quartz.CGEventPostToPid(pid, event_up)
-            Quartz.CFRelease(event_up)
 
             logger.info("app_menu_trigger keystroke: pid=%s char=%s mods=%s", pid, cmd_char, cmd_mods)
             return True
