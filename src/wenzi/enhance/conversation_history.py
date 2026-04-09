@@ -6,6 +6,7 @@ import glob
 import json
 import logging
 import os
+import time
 from collections import deque
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -40,6 +41,7 @@ class ConversationHistory:
     _MAX_RECORDS = 20000
     _ROTATE_SIZE_THRESHOLD = 4 * 1024 * 1024  # 4 MB — cheap pre-check
     _CACHE_SIZE = 200
+    _FULL_CACHE_IDLE_TIMEOUT = 300  # 5 min — auto-release if unused
 
     def __init__(self, data_dir: str = DEFAULT_DATA_DIR) -> None:
         self._data_dir = os.path.expanduser(data_dir)
@@ -52,6 +54,7 @@ class ConversationHistory:
         # Full cache: all parsed records (oldest first), for get_all/search
         self._full_cache: list[dict[str, Any]] | None = None
         self._full_cache_mtime: float = 0.0
+        self._full_cache_last_access: float = 0.0
 
         # Monotonically increasing counter for change detection.
         # Bumped on every log() call so that consumers (e.g. TextEnhancer)
@@ -116,10 +119,12 @@ class ConversationHistory:
             return []
 
         if self._full_cache is not None and mtime == self._full_cache_mtime:
+            self._full_cache_last_access = time.monotonic()
             return self._full_cache
 
         self._full_cache = self._load_all_records()
         self._full_cache_mtime = mtime
+        self._full_cache_last_access = time.monotonic()
         return self._full_cache
 
     def _load_all_records(self) -> list[dict[str, Any]]:
@@ -152,6 +157,22 @@ class ConversationHistory:
         """
         self._full_cache = None
         self._full_cache_mtime = 0.0
+        self._full_cache_last_access = 0.0
+
+    def maybe_release_idle_cache(self) -> None:
+        """Release ``_full_cache`` if it has been idle for >5 minutes.
+
+        Called from :meth:`log` on every transcription cycle as a
+        defensive safeguard against leaked cache references.
+        """
+        if (
+            self._full_cache is not None
+            and self._full_cache_last_access > 0
+            and time.monotonic() - self._full_cache_last_access
+            > self._FULL_CACHE_IDLE_TIMEOUT
+        ):
+            logger.debug("Auto-releasing idle full cache (%d records)", len(self._full_cache))
+            self.release_full_cache()
 
     def _update_cache_record(self, timestamp: str, fields: dict[str, Any]) -> None:
         """Update matching record in both caches (if loaded)."""
@@ -178,6 +199,8 @@ class ConversationHistory:
                 self._cache = self._cache[-self._CACHE_SIZE:]
         if self._full_cache is not None:
             self._full_cache.append(record)
+            if len(self._full_cache) > self._MAX_RECORDS:
+                self._full_cache = self._full_cache[-self._MAX_RECORDS:]
             self._full_cache_mtime = self._get_mtime()
 
     def _invalidate_caches(self) -> None:
@@ -185,6 +208,7 @@ class ConversationHistory:
         self._cache = None
         self._full_cache = None
         self._full_cache_mtime = 0.0
+        self._full_cache_last_access = 0.0
 
     def _get_mtime(self) -> float:
         """Return the current mtime of the history file, or 0.0."""
@@ -244,6 +268,7 @@ class ConversationHistory:
         self._append_cache_record(record)
         self._log_count += 1
         self._maybe_rotate()
+        self.maybe_release_idle_cache()
         return ts
 
     def _maybe_rotate(self) -> None:

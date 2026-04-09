@@ -58,6 +58,9 @@ def _get_nav_delegate_class():
     return _OverlayNavDelegate
 
 
+_MAX_PENDING_JS = 500  # cap queued JS calls while WKWebView page loads
+
+
 class StreamingOverlayPanel:
     """Non-interactive floating overlay that displays streaming AI enhancement.
 
@@ -89,6 +92,8 @@ class StreamingOverlayPanel:
         """Evaluate JS in the webview. Queues if page not loaded yet."""
         if not self._page_loaded:
             self._pending_js.append(js_code)
+            if len(self._pending_js) > _MAX_PENDING_JS:
+                self._pending_js = self._pending_js[-_MAX_PENDING_JS:]
             return
         if self._webview is not None:
             self._webview.evaluateJavaScript_completionHandler_(js_code, None)

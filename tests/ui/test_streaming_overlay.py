@@ -372,6 +372,24 @@ class TestStreamingOverlayPanel:
         # Combined JS should have been executed
         panel._webview.evaluateJavaScript_completionHandler_.assert_called()
 
+    def test_pending_js_capped(self, _mock_appkit):
+        """_pending_js should not grow beyond _MAX_PENDING_JS."""
+        from wenzi.ui.streaming_overlay import _MAX_PENDING_JS
+
+        panel = _make_panel()
+        panel.show(asr_text="test")
+        assert not panel._page_loaded
+
+        # Queue more than the cap
+        for i in range(_MAX_PENDING_JS + 100):
+            panel._eval_js(f"call({i})")
+
+        assert len(panel._pending_js) == _MAX_PENDING_JS
+        # Most recent call should be kept
+        assert panel._pending_js[-1] == f"call({_MAX_PENDING_JS + 99})"
+        # Oldest should be dropped
+        assert panel._pending_js[0] == "call(100)"
+
     def test_set_cancel_event_registers_tap(self, _mock_appkit, _mock_cgeventtap):
         panel = _make_panel()
         panel.show(asr_text="test")
