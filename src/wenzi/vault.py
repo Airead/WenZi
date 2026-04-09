@@ -25,6 +25,7 @@ _DEFAULT_PATH = os.path.expanduser(
 _FLUSH_DELAY = 2.0
 _MASTER_KEY_ACCOUNT = "scripting.vault.master_key"
 _NONCE_SIZE = 12
+_TAG_SIZE = 16
 
 # ---------------------------------------------------------------------------
 # Private wrappers around wenzi.keychain (lazy-imported to avoid import-time
@@ -158,25 +159,28 @@ class Vault:
 
     def _encrypt(self, key: str, value: str) -> str:
         """Encrypt *value* with AES-256-GCM, using *key* as AAD."""
-        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+        from wenzi._commoncrypto import aes_gcm_encrypt
 
         nonce = os.urandom(_NONCE_SIZE)
-        aesgcm = AESGCM(self._master_key)
-        ct = aesgcm.encrypt(nonce, value.encode("utf-8"), key.encode("utf-8"))
+        ct = aes_gcm_encrypt(
+            self._master_key, nonce,
+            value.encode("utf-8"), key.encode("utf-8"),
+        )
         return base64.b64encode(nonce + ct).decode("ascii")
 
     def _decrypt(self, key: str, blob: str) -> Optional[str]:
         """Decrypt a vault entry.  Returns None on any failure."""
         try:
-            from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+            from wenzi._commoncrypto import aes_gcm_decrypt
 
             raw = base64.b64decode(blob)
-            if len(raw) < _NONCE_SIZE + 16:
+            if len(raw) < _NONCE_SIZE + _TAG_SIZE:
                 return None
             nonce = raw[:_NONCE_SIZE]
             ct = raw[_NONCE_SIZE:]
-            aesgcm = AESGCM(self._master_key)
-            plaintext = aesgcm.decrypt(nonce, ct, key.encode("utf-8"))
+            plaintext = aes_gcm_decrypt(
+                self._master_key, nonce, ct, key.encode("utf-8"),
+            )
             return plaintext.decode("utf-8")
         except Exception:
             logger.warning("Failed to decrypt vault entry %r", key)

@@ -11,7 +11,6 @@ dependencies = [
     "pyobjc-framework-Security==12.1",
     "pyobjc-framework-ApplicationServices==12.1",
     "openai>=2.0.0",
-    "cryptography==46.0.5",
 ]
 
 [project.optional-dependencies]
