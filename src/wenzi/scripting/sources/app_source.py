@@ -13,7 +13,6 @@ import logging
 import os
 import threading
 import time
-from typing import List, Optional
 
 import objc
 
@@ -76,7 +75,7 @@ def _get_display_name(path: str, fallback: str) -> str:
         return fallback
 
 
-def _get_app_icon_png(path: str) -> Optional[bytes]:
+def _get_app_icon_png(path: str) -> bytes | None:
     """Return raw PNG bytes for the app icon, or None on failure."""
     with objc.autorelease_pool():
         try:
@@ -240,7 +239,7 @@ class AppSource:
 
     _SCAN_TTL = 30  # seconds before app list is rescanned
 
-    def __init__(self, icon_cache_dir: Optional[str] = None) -> None:
+    def __init__(self, icon_cache_dir: str | None = None) -> None:
         self._apps: list[dict] = []
         self._scanned = False
         self._last_scan_time: float = 0
@@ -288,7 +287,7 @@ class AppSource:
             return ""
 
         try:
-            with open(meta_path, "r") as f:
+            with open(meta_path) as f:
                 cached_mtime = float(f.read().strip())
 
             current_mtime = os.path.getmtime(app_path)
@@ -350,7 +349,7 @@ class AppSource:
 
         threading.Thread(target=_load, daemon=True).start()
 
-    def search(self, query: str) -> List[ChooserItem]:
+    def search(self, query: str) -> list[ChooserItem]:
         """Search apps by fuzzy matching, running apps first.
 
         Matches against both the English bundle name and the localized

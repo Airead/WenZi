@@ -2,7 +2,7 @@
 """Inject git hash and build date into _build_info.py before packaging."""
 
 import subprocess
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 
@@ -23,7 +23,7 @@ def main() -> None:
     except (subprocess.CalledProcessError, FileNotFoundError):
         git_hash = "unknown"
 
-    build_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    build_date = datetime.now(UTC).strftime("%Y-%m-%d")
 
     content = f'''"""Build information injected during CI/release builds."""
 

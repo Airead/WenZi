@@ -4,9 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from wenzi.statusbar import StatusMenuItem
-
 from wenzi.scripting.api.menu import MenuAPI
+from wenzi.statusbar import StatusMenuItem
 
 
 def _build_menu():
@@ -146,8 +145,8 @@ class TestMenuTrigger:
 
 class TestWZNamespaceIntegration:
     def test_wz_menu_property_returns_menu_api(self):
-        from wenzi.scripting.registry import ScriptingRegistry
         from wenzi.scripting.api import _WZNamespace
+        from wenzi.scripting.registry import ScriptingRegistry
 
         registry = ScriptingRegistry()
         wz = _WZNamespace(registry)
@@ -156,8 +155,8 @@ class TestWZNamespaceIntegration:
         assert isinstance(wz.menu, MenuAPI)
 
     def test_wz_menu_is_same_instance(self):
-        from wenzi.scripting.registry import ScriptingRegistry
         from wenzi.scripting.api import _WZNamespace
+        from wenzi.scripting.registry import ScriptingRegistry
 
         registry = ScriptingRegistry()
         wz = _WZNamespace(registry)

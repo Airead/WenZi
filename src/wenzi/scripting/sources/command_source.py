@@ -13,8 +13,8 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable, Dict, List, Optional
 
 from wenzi.scripting.sources import (
     ChooserItem,
@@ -38,8 +38,8 @@ class CommandEntry:
     title: str  # Display title
     subtitle: str = ""
     icon: str = ""
-    action: Optional[Callable[[str], None]] = field(default=None, repr=False)
-    modifiers: Optional[Dict[str, ModifierAction]] = field(
+    action: Callable[[str], None] | None = field(default=None, repr=False)
+    modifiers: dict[str, ModifierAction] | None = field(
         default=None, repr=False,
     )
     promoted: bool = False  # Also appear in unprefixed main search
@@ -50,7 +50,7 @@ class CommandSource:
     """Manages a registry of named commands and provides chooser search."""
 
     def __init__(self) -> None:
-        self._commands: Dict[str, CommandEntry] = {}
+        self._commands: dict[str, CommandEntry] = {}
 
     # ── Registration ──────────────────────────────────────────────
 
@@ -79,7 +79,7 @@ class CommandSource:
 
     # ── Search ────────────────────────────────────────────────────
 
-    def search(self, query: str) -> List[ChooserItem]:
+    def search(self, query: str) -> list[ChooserItem]:
         """Search registered commands.
 
         * Empty query → return all commands sorted by name.
@@ -103,7 +103,7 @@ class CommandSource:
                 return [self._make_item(cmd, args)]
 
         # Fuzzy search mode
-        scored: List[tuple] = []
+        scored: list[tuple] = []
         for cmd in self._commands.values():
             matched, score = fuzzy_match_fields(query, (cmd.title, cmd.name))
             if matched:
@@ -114,7 +114,7 @@ class CommandSource:
 
     # ── Tab completion ────────────────────────────────────────────
 
-    def complete(self, query: str, item: ChooserItem) -> Optional[str]:
+    def complete(self, query: str, item: ChooserItem) -> str | None:
         """Tab-complete the selected command name.
 
         Returns the completed query (without prefix) with a trailing space
@@ -128,7 +128,7 @@ class CommandSource:
 
     # ── Promoted (unprefixed) search ─────────────────────────────
 
-    def promoted_search(self, query: str) -> List[ChooserItem]:
+    def promoted_search(self, query: str) -> list[ChooserItem]:
         """Search only promoted commands (no args mode, no prefix needed)."""
         promoted = [c for c in self._commands.values() if c.promoted]
         if not promoted:
@@ -137,7 +137,7 @@ class CommandSource:
         if not query.strip():
             return []
 
-        scored: List[tuple] = []
+        scored: list[tuple] = []
         for cmd in promoted:
             matched, score = fuzzy_match_fields(query, (cmd.title, cmd.name))
             if matched:
@@ -189,7 +189,7 @@ class CommandSource:
             subtitle = f"args: {args}" if not cmd.subtitle else f"{cmd.subtitle}  ·  args: {args}"
 
         # Build modifier actions that also receive args
-        modifiers: Optional[Dict[str, ModifierAction]] = None
+        modifiers: dict[str, ModifierAction] | None = None
         if cmd.modifiers:
             modifiers = {}
             for key, mod in cmd.modifiers.items():

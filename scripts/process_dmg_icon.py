@@ -4,10 +4,10 @@ Removes fake checkerboard transparency background, crops to the icon,
 resizes to 1024x1024, and generates .icns file.
 """
 
-import subprocess
-import tempfile
 import shutil
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import numpy as np

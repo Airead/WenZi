@@ -8,7 +8,6 @@ import pytest
 
 from wenzi.controllers.enhance_controller import EnhanceCacheEntry
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------

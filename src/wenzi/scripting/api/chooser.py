@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Callable, Dict, List, Optional
+from collections.abc import Callable
 
 from wenzi.scripting.api._async_util import wrap_async
 from wenzi.scripting.sources import ChooserItem, ChooserSource, ModifierAction
@@ -14,12 +14,12 @@ from wenzi.scripting.ui.chooser_panel import ChooserPanel
 logger = logging.getLogger(__name__)
 
 
-def _wrap_optional(fn: Optional[Callable]) -> Optional[Callable]:
+def _wrap_optional(fn: Callable | None) -> Callable | None:
     """Wrap an optional callable with async support."""
     return wrap_async(fn) if fn is not None else None
 
 
-def _parse_modifiers(raw: Optional[Dict]) -> Optional[Dict[str, ModifierAction]]:
+def _parse_modifiers(raw: dict | None) -> dict[str, ModifierAction] | None:
     """Convert user-script modifier dicts to ModifierAction objects.
 
     Accepts::
@@ -28,7 +28,7 @@ def _parse_modifiers(raw: Optional[Dict]) -> Optional[Dict[str, ModifierAction]]
     """
     if not raw:
         return None
-    result: Dict[str, ModifierAction] = {}
+    result: dict[str, ModifierAction] = {}
     for key, val in raw.items():
         if isinstance(val, dict):
             result[key] = ModifierAction(
@@ -38,7 +38,7 @@ def _parse_modifiers(raw: Optional[Dict]) -> Optional[Dict[str, ModifierAction]]
     return result or None
 
 
-def _convert_items(raw_items: Optional[List[dict]]) -> List[ChooserItem]:
+def _convert_items(raw_items: list[dict] | None) -> list[ChooserItem]:
     """Convert a list of raw dicts to ChooserItem objects."""
     return [_dict_to_chooser_item(item) for item in (raw_items or [])]
 
@@ -68,7 +68,7 @@ class ChooserAPI:
     def __init__(self) -> None:
         self._panel = ChooserPanel()
         self._panel._event_callback = self._fire_event
-        self._event_handlers: Dict[str, List[Callable]] = {}
+        self._event_handlers: dict[str, list[Callable]] = {}
         self._command_source = CommandSource()
 
     @property
@@ -221,7 +221,7 @@ class ChooserAPI:
         """Remove a data source by name."""
         self._panel.unregister_source(name)
 
-    def show(self, initial_query: Optional[str] = None) -> None:
+    def show(self, initial_query: str | None = None) -> None:
         """Show the chooser panel.
 
         Args:
@@ -247,10 +247,10 @@ class ChooserAPI:
     def show_universal_action(
         self,
         context_text: str,
-        exclusive_source: Optional[str] = None,
-        on_close: Optional[Callable] = None,
-        initial_query: Optional[str] = None,
-        placeholder: Optional[str] = None,
+        exclusive_source: str | None = None,
+        on_close: Callable | None = None,
+        initial_query: str | None = None,
+        placeholder: str | None = None,
     ) -> None:
         """Show the chooser in Universal Action mode.
 
@@ -307,7 +307,7 @@ class ChooserAPI:
 
     def pick(
         self,
-        items: List[dict],
+        items: list[dict],
         callback: Callable,
         placeholder: str = "Choose...",
     ) -> None:
@@ -331,7 +331,7 @@ class ChooserAPI:
 
         # Assign stable IDs so the select event can identify pick items.
         pick_id_prefix = f"__pick_{id(callback)}_"
-        id_to_orig: Dict[str, dict] = {}
+        id_to_orig: dict[str, dict] = {}
         for i, (ci, orig) in enumerate(zip(chooser_items, items or [])):
             if not ci.item_id:
                 ci.item_id = f"{pick_id_prefix}{i}"
@@ -340,7 +340,7 @@ class ChooserAPI:
         # Track selection via the synchronous "select" event which fires
         # on the main thread BEFORE close() runs — avoiding the race
         # condition where the deferred action thread sets a flag too late.
-        selected: List[Optional[dict]] = [None]
+        selected: list[dict | None] = [None]
 
         def _on_select(info: dict) -> None:
             item_id = info.get("item_id", "")
@@ -349,7 +349,7 @@ class ChooserAPI:
 
         self._event_handlers.setdefault("select", []).append(_on_select)
 
-        def _search(query: str) -> List[ChooserItem]:
+        def _search(query: str) -> list[ChooserItem]:
             if not query.strip():
                 return chooser_items
             from wenzi.scripting.sources import fuzzy_match
@@ -440,7 +440,7 @@ class ChooserAPI:
         action: Callable[[str], None],
         subtitle: str = "",
         icon: str = "",
-        modifiers: Optional[Dict] = None,
+        modifiers: dict | None = None,
         promoted: bool = False,
         universal_action: bool = False,
     ) -> None:
@@ -478,7 +478,7 @@ class ChooserAPI:
         title: str,
         subtitle: str = "",
         icon: str = "",
-        modifiers: Optional[Dict] = None,
+        modifiers: dict | None = None,
         promoted: bool = False,
         universal_action: bool = False,
     ) -> Callable:
@@ -520,13 +520,13 @@ class ChooserAPI:
     def source(
         self,
         name: str,
-        prefix: Optional[str] = None,
+        prefix: str | None = None,
         priority: int = 0,
-        action_hints: Optional[dict] = None,
+        action_hints: dict | None = None,
         description: str = "",
         show_preview: bool = False,
-        search_timeout: Optional[float] = None,
-        debounce_delay: Optional[float] = None,
+        search_timeout: float | None = None,
+        debounce_delay: float | None = None,
         universal_action: bool = False,
     ) -> Callable:
         """Decorator to register a search function as a chooser source.
@@ -565,18 +565,18 @@ class ChooserAPI:
                 None uses the global default (0.15s), 0 disables debouncing.
         """
 
-        def decorator(func: Callable[[str], List[dict]]) -> Callable:
+        def decorator(func: Callable[[str], list[dict]]) -> Callable:
             _is_async = asyncio.iscoroutinefunction(func)
 
             if _is_async:
 
-                async def _async_search(query: str) -> List[ChooserItem]:
+                async def _async_search(query: str) -> list[ChooserItem]:
                     return _convert_items(await func(query))
 
                 search_fn = _async_search
             else:
 
-                def _search(query: str) -> List[ChooserItem]:
+                def _search(query: str) -> list[ChooserItem]:
                     return _convert_items(func(query))
 
                 search_fn = _search

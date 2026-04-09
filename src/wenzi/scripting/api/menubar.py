@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +52,7 @@ class MenuBarItem:
         if self._destroyed:
             return
         from AppKit import NSMenu, NSMenuItem
+
         from wenzi.statusbar import _get_callback_handler, _ns_to_callback
 
         # Clean up old callbacks
@@ -101,6 +101,7 @@ class MenuBarItem:
         """Remove this item from the status bar and clean up callbacks."""
         self._destroyed = True
         from AppKit import NSStatusBar
+
         from wenzi.statusbar import _ns_to_callback
 
         for mi in self._menu_item_refs:
@@ -136,7 +137,7 @@ class MenuBarAPI:
         if item is not None:
             item._destroy()
 
-    def get(self, name: str) -> Optional[MenuBarItem]:
+    def get(self, name: str) -> MenuBarItem | None:
         """Return an existing item by name, or None."""
         return self._items.get(name)
 

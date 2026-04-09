@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Dict
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from wenzi.app import WenZiApp
@@ -34,7 +34,7 @@ class MenuBuilder:
         if ns_submenu:
             ns_submenu.removeAllItems()
 
-        hotkeys: Dict[str, bool] = app._config.get("hotkeys", {"fn": True})
+        hotkeys: dict[str, bool] = app._config.get("hotkeys", {"fn": True})
         for key_name, enabled in hotkeys.items():
             item = StatusMenuItem(key_name, callback=app._on_hotkey_item_click)
             item.state = 1 if enabled else 0

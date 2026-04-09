@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import collections
 import logging
-from typing import Any, Callable, Dict, Optional, Tuple
+from collections.abc import Callable
+from typing import Any
 
 import AppKit
 from AppKit import (
@@ -47,9 +48,9 @@ class _MenuCallbackTarget(NSObject):
 
 
 # Singleton handler instance, created lazily
-_callback_handler: Optional[_MenuCallbackTarget] = None
+_callback_handler: _MenuCallbackTarget | None = None
 # Map id(NSMenuItem) -> (StatusMenuItem, callable)
-_ns_to_callback: Dict[int, Tuple["StatusMenuItem", Callable]] = {}
+_ns_to_callback: dict[int, tuple[StatusMenuItem, Callable]] = {}
 
 
 def _get_callback_handler() -> _MenuCallbackTarget:
@@ -97,7 +98,7 @@ class StatusMenuItem:
     def __init__(
         self,
         title: str = "",
-        callback: Optional[Callable] = None,
+        callback: Callable | None = None,
         key: str = "",
     ) -> None:
         if isinstance(title, StatusMenuItem):
@@ -105,7 +106,7 @@ class StatusMenuItem:
         self._menuitem = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
             str(title), None, key or ""
         )
-        self._menu: Optional[NSMenu] = None  # lazy submenu
+        self._menu: NSMenu | None = None  # lazy submenu
         self._items: collections.OrderedDict[str, Any] = collections.OrderedDict()
         self._sep_count = 0
         if callback is not None:
@@ -129,7 +130,7 @@ class StatusMenuItem:
     def state(self, value: int) -> None:
         self._menuitem.setState_(int(value))
 
-    def set_callback(self, callback: Optional[Callable], key: Optional[str] = None) -> None:
+    def set_callback(self, callback: Callable | None, key: str | None = None) -> None:
         """Set or clear the click callback."""
         if key is not None:
             self._menuitem.setKeyEquivalent_(key)
@@ -151,7 +152,7 @@ class StatusMenuItem:
             self._menuitem.setSubmenu_(self._menu)
         return self._menu
 
-    def _process_value(self, value: Any) -> Tuple[str, Any]:
+    def _process_value(self, value: Any) -> tuple[str, Any]:
         """Convert raw value to (key, item) pair."""
         if value is None or value is separator:
             item = SeparatorMenuItem()
@@ -262,14 +263,14 @@ class StatusBarApp:
     def __init__(
         self,
         name: str,
-        icon: Optional[str] = None,
-        title: Optional[str] = None,
-        quit_button: Optional[str] = _QUIT_DEFAULT,
+        icon: str | None = None,
+        title: str | None = None,
+        quit_button: str | None = _QUIT_DEFAULT,
     ) -> None:
         self._name = name
         self._title = title
         self._icon = icon
-        self._icon_nsimage: Optional[NSImage] = None
+        self._icon_nsimage: NSImage | None = None
         self._menu = StatusMenuItem(name)
         if quit_button is self._QUIT_DEFAULT:
             quit_button = t("menu.quit")
@@ -279,11 +280,11 @@ class StatusBarApp:
     # -- Properties ---------------------------------------------------------
 
     @property
-    def title(self) -> Optional[str]:
+    def title(self) -> str | None:
         return self._title
 
     @title.setter
-    def title(self, value: Optional[str]) -> None:
+    def title(self, value: str | None) -> None:
         self._title = value
         if self._nsstatusitem is not None:
             self._nsstatusitem.setTitle_(value or "")
@@ -297,7 +298,7 @@ class StatusBarApp:
         self._menu.update(iterable)
 
     @property
-    def quit_button(self) -> Optional[StatusMenuItem]:
+    def quit_button(self) -> StatusMenuItem | None:
         return self._quit_button
 
     # -- Status bar ---------------------------------------------------------
@@ -458,9 +459,9 @@ class InputWindow:
         message: str = "",
         title: str = "",
         default_text: str = "",
-        ok: Optional[str] = None,
-        cancel: Optional[str] = None,
-        dimensions: Tuple[int, int] = (320, 160),
+        ok: str | None = None,
+        cancel: str | None = None,
+        dimensions: tuple[int, int] = (320, 160),
         secure: bool = False,
     ) -> None:
         self._alert = NSAlert.alloc().init()

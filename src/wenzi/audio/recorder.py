@@ -10,7 +10,6 @@ import struct
 import threading
 import time
 import wave
-from typing import Optional
 
 from AVFoundation import AVAudioEngine
 from Foundation import NSNotificationCenter
@@ -38,7 +37,7 @@ class Recorder:
         self,
         sample_rate: int = 16000,
         block_ms: int = 20,
-        device: Optional[str] = None,
+        device: str | None = None,
         max_session_bytes: int = 20 * 1024 * 1024,
         silence_rms: int = DEFAULT_SILENCE_RMS,
     ) -> None:
@@ -49,17 +48,17 @@ class Recorder:
         self.silence_rms = silence_rms
 
         self._queue: queue.Queue[bytes] = queue.Queue()
-        self._engine: Optional[AVAudioEngine] = None
+        self._engine: AVAudioEngine | None = None
         self._hw_sample_rate: float = 0.0
         self._resample_ratio: float = 0.0
         self._lock = threading.Lock()
         self._recording = False
         # Non-None while start() is in progress (value = monotonic timestamp).
-        self._starting_since: Optional[float] = None
+        self._starting_since: float | None = None
         self._total_bytes = 0
         self._current_rms: float = 0.0
-        self._on_audio_chunk: Optional[callable] = None
-        self._last_device_name: Optional[str] = None
+        self._on_audio_chunk: callable | None = None
+        self._last_device_name: str | None = None
         self._query_device_name_enabled: bool = True
         self._config_observer = None
 
@@ -68,7 +67,7 @@ class Recorder:
         return self._recording
 
     @property
-    def last_device_name(self) -> Optional[str]:
+    def last_device_name(self) -> str | None:
         """Return the last known input device name, or None."""
         return self._last_device_name
 
@@ -81,7 +80,7 @@ class Recorder:
         """
         return min(1.0, self._current_rms / self._LEVEL_REFERENCE_RMS)
 
-    def start(self) -> Optional[str]:
+    def start(self) -> str | None:
         """Start recording. Returns the input device name, or None.
 
         Engine creation happens **outside** the lock so that a hung
@@ -150,7 +149,7 @@ class Recorder:
             return None
 
         # --- Phase 3: device name query ---------------------------------
-        device_name: Optional[str] = None
+        device_name: str | None = None
         if self._query_device_name_enabled:
             device_name = self._query_device_name(engine)
 
@@ -180,7 +179,7 @@ class Recorder:
             )
             return device_name
 
-    def stop(self) -> Optional[bytes]:
+    def stop(self) -> bytes | None:
         """Stop recording and return WAV data as bytes, or None if nothing recorded."""
         with self._lock:
             if not self._recording:
@@ -332,7 +331,7 @@ class Recorder:
             )
 
     @staticmethod
-    def _query_device_name(engine: AVAudioEngine) -> Optional[str]:
+    def _query_device_name(engine: AVAudioEngine) -> str | None:
         """Return the name of the current input device, or None."""
         try:
             desc = engine.inputNode().auAudioUnit().deviceName()

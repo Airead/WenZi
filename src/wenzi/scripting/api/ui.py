@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Callable, List, Optional
+from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +19,7 @@ class UIAPI:
         width: int = 900,
         height: int = 700,
         resizable: bool = True,
-        allowed_read_paths: Optional[List[str]] = None,
+        allowed_read_paths: list[str] | None = None,
         titlebar_hidden: bool = False,
         floating: bool = True,
     ):
@@ -64,8 +64,8 @@ class UIAPI:
     def picture_editor(
         self,
         image_path: str,
-        on_done: Optional[Callable] = None,
-        on_cancel: Optional[Callable] = None,
+        on_done: Callable | None = None,
+        on_cancel: Callable | None = None,
     ) -> None:
         """Open the picture editor for an image file.
 

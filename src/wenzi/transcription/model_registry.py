@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -17,8 +17,8 @@ class ModelPreset:
     id: str
     display_name: str
     backend: str
-    model: Optional[str]
-    language: Optional[str]
+    model: str | None
+    language: str | None
 
 
 @dataclass(frozen=True)
@@ -84,10 +84,10 @@ PRESETS = [
     ),
 ]
 
-PRESET_BY_ID: Dict[str, ModelPreset] = {p.id: p for p in PRESETS}
+PRESET_BY_ID: dict[str, ModelPreset] = {p.id: p for p in PRESETS}
 
 # Cache backend availability at import time
-_backend_available: Dict[str, bool] = {}
+_backend_available: dict[str, bool] = {}
 
 
 def is_backend_available(backend: str) -> bool:
@@ -123,8 +123,8 @@ def is_backend_available(backend: str) -> bool:
 
 
 def resolve_preset_from_config(
-    backend: str, model: Optional[str] = None
-) -> Optional[str]:
+    backend: str, model: str | None = None
+) -> str | None:
     """Resolve a preset ID from a backend+model combination.
 
     Returns the preset ID if a match is found, otherwise None.
@@ -151,6 +151,7 @@ def get_model_cache_dir(preset: ModelPreset) -> Path:
     if preset.backend == "funasr":
         # FunASR models are cached under modelscope
         from modelscope.utils.file_utils import get_modelscope_cache_dir
+
         from wenzi.config import MODELS
 
         asr_model = MODELS["asr"]
@@ -205,7 +206,7 @@ def is_model_cached(preset: ModelPreset) -> bool:
     return False
 
 
-def find_fallback_preset() -> Optional[ModelPreset]:
+def find_fallback_preset() -> ModelPreset | None:
     """Find the best non-Apple preset to fall back to.
 
     Prefers already-cached models (no download), then any available backend.
@@ -241,7 +242,7 @@ def clear_model_cache(preset: ModelPreset) -> bool:
     return False
 
 
-def build_remote_asr_models(providers: Dict[str, Any]) -> List[RemoteASRModel]:
+def build_remote_asr_models(providers: dict[str, Any]) -> list[RemoteASRModel]:
     """Build a list of RemoteASRModel from the asr.providers config section."""
     result = []
     for pname, pcfg in providers.items():

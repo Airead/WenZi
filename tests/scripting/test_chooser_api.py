@@ -2,12 +2,12 @@
 
 from unittest.mock import MagicMock, patch
 
-from wenzi.scripting.sources import ChooserItem, ChooserSource, ModifierAction
 from wenzi.scripting.api.chooser import (
     ChooserAPI,
     _dict_to_chooser_item,
     _parse_modifiers,
 )
+from wenzi.scripting.sources import ChooserItem, ChooserSource, ModifierAction
 
 
 class TestParseModifiers:

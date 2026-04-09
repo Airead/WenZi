@@ -4,9 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-from wenzi.scripting.sources import ChooserItem, ChooserSource
 from wenzi.scripting.api.chooser import ChooserAPI
-
+from wenzi.scripting.sources import ChooserItem, ChooserSource
 
 # ---------------------------------------------------------------------------
 # ChooserSource debounce field

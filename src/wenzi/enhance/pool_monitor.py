@@ -17,7 +17,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import subprocess
-from typing import Any, Dict, List, Tuple
+from typing import Any
 from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
@@ -35,7 +35,7 @@ def _get_pool(client: Any) -> Any | None:
         return None
 
 
-def get_pool_stats(client: Any) -> Dict[str, int]:
+def get_pool_stats(client: Any) -> dict[str, int]:
     """Return connection counts from the httpcore pool.
 
     Keys: ``active``, ``idle``, ``closed``, ``total``.
@@ -57,7 +57,7 @@ def get_pool_stats(client: Any) -> Dict[str, int]:
     return {"active": active, "idle": idle, "closed": closed, "total": active + idle + closed}
 
 
-def get_pool_details(client: Any) -> List[str]:
+def get_pool_details(client: Any) -> list[str]:
     """Return per-connection detail strings from the httpcore pool."""
     pool = _get_pool(client)
     if pool is None:
@@ -69,7 +69,7 @@ def get_pool_details(client: Any) -> List[str]:
 # Layer 2: OS socket stats via lsof
 # ---------------------------------------------------------------------------
 
-def _parse_host_port(base_url: str) -> Tuple[str, int] | None:
+def _parse_host_port(base_url: str) -> tuple[str, int] | None:
     """Extract (host, port) from a provider base_url."""
     try:
         parsed = urlparse(base_url)
@@ -86,13 +86,13 @@ def _parse_host_port(base_url: str) -> Tuple[str, int] | None:
     return None
 
 
-def get_os_socket_stats(base_url: str) -> Dict[str, int]:
+def get_os_socket_stats(base_url: str) -> dict[str, int]:
     """Count OS-level TCP connections to the provider endpoint.
 
     Uses ``lsof`` on macOS to enumerate connections.
     Keys: ``ESTABLISHED``, ``TIME_WAIT``, ``CLOSE_WAIT``, ``total``.
     """
-    result: Dict[str, int] = {
+    result: dict[str, int] = {
         "ESTABLISHED": 0,
         "TIME_WAIT": 0,
         "CLOSE_WAIT": 0,
@@ -143,8 +143,8 @@ class PoolMonitor:
 
     def __init__(
         self,
-        providers: Dict[str, Tuple[Any, List[str], Dict[str, Any]]],
-        providers_config: Dict[str, Any],
+        providers: dict[str, tuple[Any, list[str], dict[str, Any]]],
+        providers_config: dict[str, Any],
     ) -> None:
         self._providers = providers
         self._providers_config = providers_config

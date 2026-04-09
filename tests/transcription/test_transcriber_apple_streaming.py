@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
+import struct
 import sys
 import time
 from unittest.mock import MagicMock
-
-import struct
 
 import pytest
 

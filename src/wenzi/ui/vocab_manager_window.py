@@ -7,7 +7,7 @@ editing, and managing manual vocabulary entries.
 from __future__ import annotations
 
 import logging
-from typing import Callable, Dict
+from collections.abc import Callable
 
 from wenzi.ui.templates import load_template
 from wenzi.ui.web_utils import cleanup_webview_handler
@@ -53,9 +53,8 @@ def _get_message_handler_class():
         import json as _json
 
         import objc
-        from Foundation import NSObject
-
         import WebKit  # noqa: F401
+        from Foundation import NSObject
 
         WKScriptMessageHandler = objc.protocolNamed("WKScriptMessageHandler")
 
@@ -99,7 +98,7 @@ class VocabManagerPanel:
         self._navigation_delegate = None
         self._page_loaded: bool = False
         self._pending_js: list[str] = []
-        self._callbacks: Dict[str, Callable] = {}
+        self._callbacks: dict[str, Callable] = {}
 
     # ------------------------------------------------------------------
     # Public API
@@ -109,7 +108,7 @@ class VocabManagerPanel:
     def is_visible(self) -> bool:
         return self._panel is not None and self._panel.isVisible()
 
-    def show(self, callbacks: Dict[str, Callable]) -> None:
+    def show(self, callbacks: dict[str, Callable]) -> None:
         """Show the vocabulary manager panel."""
         from AppKit import NSApp
 
@@ -303,7 +302,7 @@ class VocabManagerPanel:
             NSStatusWindowLevel,
             NSTitledWindowMask,
         )
-        from Foundation import NSMakeRect, NSMakeSize, NSURL
+        from Foundation import NSURL, NSMakeRect, NSMakeSize
         from WebKit import WKUserContentController, WKWebView
 
         from wenzi.i18n import t

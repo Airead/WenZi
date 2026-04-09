@@ -8,7 +8,8 @@ import os
 import shutil
 import sys
 import traceback as _tb
-from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 import wenzi.config as _cfg
 from wenzi.scripting.registry import ScriptingRegistry
@@ -24,9 +25,9 @@ class ScriptEngine:
 
     def __init__(
         self,
-        script_dir: Optional[str] = None,
-        config: Optional[Dict[str, Any]] = None,
-        plugins_dir: Optional[str] = None,
+        script_dir: str | None = None,
+        config: dict[str, Any] | None = None,
+        plugins_dir: str | None = None,
     ) -> None:
         self._script_dir = os.path.expanduser(
             script_dir or _cfg.DEFAULT_SCRIPTS_DIR
@@ -43,17 +44,17 @@ class ScriptEngine:
         self._snippet_source = None
         self._snippet_expander = None
         self._system_settings_source = None
-        self._system_settings_open_cb: Optional[Callable[[], None]] = None
-        self._open_settings_cb: Optional[Callable[[], None]] = None
+        self._system_settings_open_cb: Callable[[], None] | None = None
+        self._open_settings_cb: Callable[[], None] | None = None
         self._ua_controller = None
         self._reloading = False
-        self._post_reload_callback: Optional[Callable[[], None]] = None
-        self._plugin_metas: Dict[str, PluginMeta] = {}
-        self._plugin_load_errors: Dict[str, Dict[str, str]] = {}
+        self._post_reload_callback: Callable[[], None] | None = None
+        self._plugin_metas: dict[str, PluginMeta] = {}
+        self._plugin_load_errors: dict[str, dict[str, str]] = {}
 
         # Create wz namespace and install as module singleton
-        from wenzi.scripting.api import _WZNamespace
         import wenzi.scripting.api as api_mod
+        from wenzi.scripting.api import _WZNamespace
 
         self._wz = _WZNamespace(self._registry)
         self._wz._reload_callback = self.reload
@@ -830,7 +831,7 @@ class ScriptEngine:
         }
 
         try:
-            with open(init_path, "r", encoding="utf-8") as f:
+            with open(init_path, encoding="utf-8") as f:
                 code = f.read()
             exec(compile(code, init_path, "exec"), script_globals)  # noqa: S102
             logger.info("Script loaded successfully: %s", init_path)
@@ -849,7 +850,7 @@ class ScriptEngine:
         Load errors are stored in ``_plugin_load_errors`` keyed by dir name.
         """
         self._plugin_metas.clear()
-        errors: Dict[str, Dict[str, str]] = {}
+        errors: dict[str, dict[str, str]] = {}
 
         if not os.path.isdir(self._plugins_dir):
             self._plugin_load_errors = errors
@@ -958,13 +959,13 @@ class ScriptEngine:
 
         self._plugin_load_errors = errors
 
-    def get_plugin_metas(self) -> Dict[str, "PluginMeta"]:
+    def get_plugin_metas(self) -> dict[str, PluginMeta]:
         """Return metadata for all discovered plugins (keyed by directory name)."""
         return dict(self._plugin_metas)
 
-    def get_load_errors_by_id(self) -> Dict[str, Dict[str, str]]:
+    def get_load_errors_by_id(self) -> dict[str, dict[str, str]]:
         """Return plugin load errors keyed by plugin bundle ID."""
-        result: Dict[str, Dict[str, str]] = {}
+        result: dict[str, dict[str, str]] = {}
         for dir_name, error in self._plugin_load_errors.items():
             meta = self._plugin_metas.get(dir_name)
             key = meta.id if meta and meta.id else dir_name

@@ -11,7 +11,6 @@ import argparse
 import os
 import tomllib
 
-
 DEFAULT_PLUGINS_DIR = os.path.join(os.path.dirname(__file__), "..", "plugins")
 DEFAULT_BASE_URL = (
     "https://raw.githubusercontent.com/Airead/WenZi/refs/heads/main/plugins"

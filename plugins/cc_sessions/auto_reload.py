@@ -7,7 +7,7 @@ import logging
 import os
 import select
 import threading
-from typing import Callable, List
+from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ class AutoReloadWatcher:
     def __init__(
         self,
         filepath: str,
-        on_new_lines: Callable[[List[dict]], None],
+        on_new_lines: Callable[[list[dict]], None],
         *,
         poll_interval: float = 1.0,
     ) -> None:
@@ -216,7 +216,7 @@ class AutoReloadWatcher:
         else:
             self._buffer = ""
 
-        lines: List[dict] = []
+        lines: list[dict] = []
         for part in parts:
             part = part.strip()
             if not part:

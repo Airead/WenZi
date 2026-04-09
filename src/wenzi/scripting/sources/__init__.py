@@ -6,8 +6,8 @@ import functools
 import logging
 import re
 import unicodedata
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
-from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 _logger = logging.getLogger(__name__)
 
@@ -20,10 +20,10 @@ _logger = logging.getLogger(__name__)
 def paste_text(text: str) -> None:
     """Write *text* to clipboard and simulate Cmd+V to paste at cursor."""
     try:
-        from wenzi.input import _set_pasteboard_concealed
-
         import subprocess
         import time
+
+        from wenzi.input import _set_pasteboard_concealed
 
         _set_pasteboard_concealed(text)
         time.sleep(0.05)
@@ -55,7 +55,7 @@ class ModifierAction:
     """An alternative action triggered by holding a modifier key."""
 
     subtitle: str  # Shown when modifier is held
-    action: Optional[Callable] = field(default=None, repr=False)
+    action: Callable | None = field(default=None, repr=False)
 
 
 @dataclass
@@ -68,18 +68,18 @@ class ChooserItem:
     item_id: str = ""  # Stable identifier for usage tracking
     # {"type": "text"|"image", ...} or a callable returning such a dict
     preview: object = field(default=None, repr=False)
-    action: Optional[Callable] = field(default=None, repr=False)
-    secondary_action: Optional[Callable] = field(default=None, repr=False)  # Cmd+Enter
-    reveal_path: Optional[str] = None  # For Cmd+Enter (reveal in Finder)
-    modifiers: Optional[Dict[str, ModifierAction]] = field(
+    action: Callable | None = field(default=None, repr=False)
+    secondary_action: Callable | None = field(default=None, repr=False)  # Cmd+Enter
+    reveal_path: str | None = None  # For Cmd+Enter (reveal in Finder)
+    modifiers: dict[str, ModifierAction] | None = field(
         default=None,
         repr=False,
     )  # key: "cmd", "alt", "ctrl", "shift"
-    delete_action: Optional[Callable] = field(default=None, repr=False)
+    delete_action: Callable | None = field(default=None, repr=False)
     confirm_delete: bool = False  # Two-step delete confirmation
     icon_badge: str = ""  # Short text rendered as badge on icon corner
     icon_accessory: str = ""  # Raw HTML injected into icon container
-    complete_text: Optional[str] = None  # If set, Enter fills search box with this text instead of closing
+    complete_text: str | None = None  # If set, Enter fills search box with this text instead of closing
 
 
 @dataclass
@@ -92,26 +92,26 @@ class ChooserSource:
     """
 
     name: str
-    display_name: Optional[str] = None  # Localized label for UI (prefix hints)
-    prefix: Optional[str] = None
-    search: Callable[[str], List[ChooserItem]] = field(default=None, repr=False)
+    display_name: str | None = None  # Localized label for UI (prefix hints)
+    prefix: str | None = None
+    search: Callable[[str], list[ChooserItem]] = field(default=None, repr=False)
     priority: int = 0  # Higher values appear first
-    action_hints: Optional[Dict[str, str]] = field(default=None, repr=False)
+    action_hints: dict[str, str] | None = field(default=None, repr=False)
     # action_hints keys: "enter", "cmd_enter", "delete", "tab"
     # e.g. {"enter": "Paste", "cmd_enter": "Copy", "delete": "Delete"}
     description: str = ""  # Human-readable description shown in help
     show_preview: bool = False  # Show the preview panel when this source is active
-    complete: Optional[Callable[[str, "ChooserItem"], Optional[str]]] = field(
+    complete: Callable[[str, ChooserItem], str | None] | None = field(
         default=None,
         repr=False,
     )  # Tab completion: (query, selected_item) -> completed query (without prefix) or None
-    create_action: Optional[Callable[[str], None]] = field(
+    create_action: Callable[[str], None] | None = field(
         default=None,
         repr=False,
     )  # Optional "create new" action; receives stripped query
     is_async: bool = False
-    search_timeout: Optional[float] = None  # Async sources only; None = use global default
-    debounce_delay: Optional[float] = None  # Async sources only; None = use global default, 0 = no debounce
+    search_timeout: float | None = None  # Async sources only; None = use global default
+    debounce_delay: float | None = None  # Async sources only; None = use global default, 0 = no debounce
     universal_action: bool = False  # Opt-in to Universal Action mode
 
 
@@ -146,7 +146,7 @@ def _cf_to_pinyin(text: str) -> str:
 
 
 @functools.lru_cache(maxsize=4096)
-def _get_pinyin(text: str) -> Tuple[str, str]:
+def _get_pinyin(text: str) -> tuple[str, str]:
     """Return (full_pinyin, pinyin_initials) for *text*.
 
     full_pinyin:  "系统设置" → "xitongshezhi"
@@ -172,7 +172,7 @@ def _get_pinyin(text: str) -> Tuple[str, str]:
 # ---------------------------------------------------------------------------
 
 
-def fuzzy_match(query: str, text: str) -> Tuple[bool, int]:
+def fuzzy_match(query: str, text: str) -> tuple[bool, int]:
     """Match *query* against *text* using multiple strategies.
 
     Returns ``(matched, score)`` where higher score means better match.
@@ -269,7 +269,7 @@ def _chars_in_order(query: str, text: str) -> bool:
     return all(ch in it for ch in query)
 
 
-def fuzzy_match_fields(query: str, fields: Sequence[str]) -> Tuple[bool, int]:
+def fuzzy_match_fields(query: str, fields: Sequence[str]) -> tuple[bool, int]:
     """Multi-term AND fuzzy match across multiple fields.
 
     Splits *query* on whitespace.  Each term must fuzzy-match at least one

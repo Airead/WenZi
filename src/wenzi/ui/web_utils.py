@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-from typing import Optional
+from datetime import UTC, datetime, timedelta
 
 # ---------------------------------------------------------------------------
 # Panel close delegate factory
@@ -45,9 +44,9 @@ def make_panel_close_delegate_class(
     return cls
 
 
-def time_range_cutoff(time_range: str) -> Optional[str]:
+def time_range_cutoff(time_range: str) -> str | None:
     """Return ISO timestamp cutoff for a time range value, or None for 'all'."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     if time_range == "today":
         cutoff = now.replace(hour=0, minute=0, second=0, microsecond=0)
     elif time_range == "7d":

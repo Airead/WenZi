@@ -10,7 +10,6 @@ from __future__ import annotations
 import logging
 import string
 from dataclasses import dataclass
-from typing import List, Optional
 
 from wenzi.enhance.vocab_db import (
     CTX_APP,
@@ -85,7 +84,7 @@ class ManualVocabularyStore:
     MAX_LLM_ENTRIES: int = 5
 
     def _query_context_key(
-        self, prefix: str, model: Optional[str], app_bundle_id: Optional[str],
+        self, prefix: str, model: str | None, app_bundle_id: str | None,
     ) -> str:
         """Build a single context key for ranked queries (model takes priority)."""
         if model:
@@ -106,7 +105,7 @@ class ManualVocabularyStore:
         self._path = path
         self._db = VocabDB(path)
         self._stats_include_app = stats_include_app
-        self._cache: Optional[List[ManualVocabEntry]] = None
+        self._cache: list[ManualVocabEntry] | None = None
 
     @property
     def db(self) -> VocabDB:
@@ -167,7 +166,7 @@ class ManualVocabularyStore:
         normalized = [(_normalize(v), _normalize(t)) for v, t in pairs]
         return self._db.remove_batch(normalized)
 
-    def get(self, variant: str, term: str) -> Optional[ManualVocabEntry]:
+    def get(self, variant: str, term: str) -> ManualVocabEntry | None:
         """Return the entry for a (variant, term) pair, or None."""
         row = self._db.get(_normalize(variant), _normalize(term))
         return _entry_from_row(row) if row else None
@@ -291,8 +290,8 @@ class ManualVocabularyStore:
     def get_asr_hotwords(
         self,
         *,
-        asr_model: Optional[str] = None,
-        app_bundle_id: Optional[str] = None,
+        asr_model: str | None = None,
+        app_bundle_id: str | None = None,
         max_count: int = 0,
     ) -> list[str]:
         """Return *term* strings for ASR hotword injection.
@@ -321,8 +320,8 @@ class ManualVocabularyStore:
     def get_llm_vocab(
         self,
         *,
-        llm_model: Optional[str] = None,
-        app_bundle_id: Optional[str] = None,
+        llm_model: str | None = None,
+        app_bundle_id: str | None = None,
         max_entries: int = MAX_LLM_ENTRIES,
     ) -> list[ManualVocabEntry]:
         """Return entries for LLM prompt injection.
@@ -380,7 +379,7 @@ class ManualVocabularyStore:
             for dim, dim_buckets in buckets.items()
         }
 
-    def rename_entry(self, entry_id: int, new_variant: str, new_term: str) -> Optional[ManualVocabEntry]:
+    def rename_entry(self, entry_id: int, new_variant: str, new_term: str) -> ManualVocabEntry | None:
         """Rename an entry's variant/term in place, preserving stats and frequency."""
         self._cache = None
         row = self._db.rename_entry(entry_id, _normalize(new_variant), _normalize(new_term))

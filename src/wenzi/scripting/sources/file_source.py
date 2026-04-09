@@ -11,7 +11,6 @@ import logging
 import os
 import subprocess
 import threading
-from typing import List, Optional, Set
 
 import objc
 
@@ -195,12 +194,12 @@ class FileSource:
     def __init__(
         self,
         max_results: int = _MAX_RESULTS,
-        icon_cache_dir: Optional[str] = None,
+        icon_cache_dir: str | None = None,
     ) -> None:
         self._max_results = max_results
         self._icon_cache_dir = icon_cache_dir or _DEFAULT_ICON_CACHE_DIR
         # Track extensions already submitted for background extraction
-        self._pending_exts: Set[str] = set()
+        self._pending_exts: set[str] = set()
         self._lock = threading.Lock()
         self._prewarm_common_extensions()
 
@@ -259,7 +258,7 @@ class FileSource:
 
         threading.Thread(target=_extract, daemon=True).start()
 
-    def search(self, query: str) -> List[ChooserItem]:
+    def search(self, query: str) -> list[ChooserItem]:
         """Search files (excluding folders) by name using mdfind."""
         if not query.strip():
             return []
@@ -322,11 +321,11 @@ class FolderSource:
     def __init__(
         self,
         max_results: int = _MAX_RESULTS,
-        icon_cache_dir: Optional[str] = None,
+        icon_cache_dir: str | None = None,
     ) -> None:
         self._max_results = max_results
         self._icon_cache_dir = icon_cache_dir or _DEFAULT_ICON_CACHE_DIR
-        self._pending_folders: Set[str] = set()
+        self._pending_folders: set[str] = set()
         self._lock = threading.Lock()
 
     def _get_icon_url(self, path: str) -> str:
@@ -351,7 +350,7 @@ class FolderSource:
         threading.Thread(target=_extract, daemon=True).start()
         return ""
 
-    def search(self, query: str) -> List[ChooserItem]:
+    def search(self, query: str) -> list[ChooserItem]:
         """Search folders by name using mdfind."""
         if not query.strip():
             return []
@@ -400,6 +399,6 @@ class FolderSource:
         )
 
 
-def _make_file_preview(path: str) -> Optional[dict]:
+def _make_file_preview(path: str) -> dict | None:
     """Build a preview dict for a file path."""
     return {"type": "path", "content": path}

@@ -5,7 +5,8 @@ from __future__ import annotations
 import logging
 import os
 import time
-from typing import Any, Callable, Coroutine, List, Optional
+from collections.abc import Callable, Coroutine
+from typing import Any
 
 from wenzi.scripting.registry import LeaderMapping, ScriptingRegistry
 
@@ -44,7 +45,7 @@ class _WZNamespace:
         self._menubar_api = None
         self._keychain_api = None
         self._menu_api = None
-        self._reload_callback: Optional[Callable] = None
+        self._reload_callback: Callable | None = None
 
     @property
     def hotkey(self):
@@ -112,7 +113,7 @@ class _WZNamespace:
     def leader(
         self,
         trigger_key: str,
-        mappings: List[dict],
+        mappings: list[dict],
         position: str | tuple = "center",
     ) -> None:
         """Register a leader-key configuration.
@@ -150,7 +151,7 @@ class _WZNamespace:
         self._registry.register_leader(trigger_key, parsed, position=position)
 
     def on(
-        self, event_name: str, callback: Optional[Callable] = None
+        self, event_name: str, callback: Callable | None = None
     ) -> Callable:
         """Register a global event listener.
 
@@ -201,7 +202,7 @@ class _WZNamespace:
         command: str,
         background: bool = True,
         timeout: int = 30,
-        on_done: Optional[Callable] = None,
+        on_done: Callable | None = None,
     ) -> dict | None:
         """Execute a shell command.
 
@@ -288,4 +289,4 @@ class _WZNamespace:
 
 
 # Module-level singleton — created and set by ScriptEngine
-wz: Optional[_WZNamespace] = None
+wz: _WZNamespace | None = None

@@ -10,7 +10,6 @@ from __future__ import annotations
 import ctypes
 import ctypes.util
 import logging
-from typing import List
 
 logger = logging.getLogger(__name__)
 
@@ -168,7 +167,7 @@ def _build_query_string(query: str, content_type: str | None = None) -> str:
 
 def mdquery_search(
     query: str, max_results: int = 30, content_type: str | None = None,
-) -> List[str]:
+) -> list[str]:
     """Search Spotlight for files matching *query* by name.
 
     Returns up to *max_results* file paths.  Uses ``MDQuerySetMaxCount``

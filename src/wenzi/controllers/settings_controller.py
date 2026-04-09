@@ -17,9 +17,11 @@ if TYPE_CHECKING:
 
 from wenzi import get_version, is_version_compatible
 from wenzi.config import BUILTIN_REGISTRY_URL, is_keychain_enabled, save_config
-from wenzi.vault import get_vault
 from wenzi.enhance.enhancer import MODE_OFF
 from wenzi.i18n import build_doc_url, t
+from wenzi.scripting.plugin_installer import PluginInstaller
+from wenzi.scripting.plugin_registry import PluginInfo, PluginRegistry, PluginStatus
+from wenzi.statusbar import send_notification
 from wenzi.transcription.model_registry import (
     PRESET_BY_ID,
     PRESETS,
@@ -28,10 +30,8 @@ from wenzi.transcription.model_registry import (
     is_backend_available,
     is_model_cached,
 )
-from wenzi.scripting.plugin_installer import PluginInstaller
-from wenzi.scripting.plugin_registry import PluginInfo, PluginRegistry, PluginStatus
-from wenzi.statusbar import send_notification
 from wenzi.ui_helpers import restore_accessory, topmost_alert
+from wenzi.vault import get_vault
 
 logger = logging.getLogger(__name__)
 
@@ -620,7 +620,7 @@ class SettingsController:
 
         path = str(panel.URL().path())
         try:
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 b64_key = f.read().strip()
         except Exception as e:
             logger.error("Failed to read master key file: %s", e, exc_info=True)

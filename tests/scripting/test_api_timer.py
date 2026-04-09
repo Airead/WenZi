@@ -3,8 +3,8 @@
 import threading
 import time
 
-from wenzi.scripting.registry import ScriptingRegistry
 from wenzi.scripting.api.timer import TimerAPI
+from wenzi.scripting.registry import ScriptingRegistry
 
 
 class TestTimerAPI:

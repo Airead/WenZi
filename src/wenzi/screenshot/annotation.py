@@ -11,7 +11,8 @@ import base64
 import logging
 import os
 import struct
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +29,7 @@ _ANNOTATION_HTML = os.path.join(_TEMPLATES_DIR, "annotation.html")
 # ---------------------------------------------------------------------------
 
 
-def decode_data_url(data_url: str) -> Optional[bytes]:
+def decode_data_url(data_url: str) -> bytes | None:
     """Decode a ``data:image/png;base64,...`` URL to raw bytes."""
     prefix = "data:image/png;base64,"
     if not data_url.startswith(prefix):
@@ -88,11 +89,11 @@ class AnnotationLayer:
 
     def __init__(self) -> None:
         self._panel = None  # WebViewPanel instance
-        self._on_done: Optional[Callable] = None
-        self._on_cancel: Optional[Callable] = None
-        self._image_path: Optional[str] = None
+        self._on_done: Callable | None = None
+        self._on_cancel: Callable | None = None
+        self._image_path: str | None = None
         self._delete_on_close: bool = True
-        self._pending_action: Optional[str] = None
+        self._pending_action: str | None = None
 
     # ------------------------------------------------------------------
     # Public API
@@ -306,8 +307,8 @@ class AnnotationLayer:
 
     @staticmethod
     def _notify_copied() -> None:
-        from wenzi.statusbar import send_notification
         from wenzi.i18n import t
+        from wenzi.statusbar import send_notification
 
         send_notification(
             t("app.name"),

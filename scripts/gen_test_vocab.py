@@ -3,7 +3,7 @@
 
 import json
 import random
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 OUTPUT = "/Users/fanrenhao/.local/share/WenZi/manual_vocabulary_test.json"
 
@@ -110,7 +110,7 @@ ENHANCE_MODES = [
 # Four hit-tracking metrics and their context key prefixes.
 METRICS = ["asr_miss", "asr_hit", "llm_hit", "llm_miss"]
 
-NOW = datetime.now(timezone.utc)
+NOW = datetime.now(UTC)
 
 
 def random_ts(days_back_max: int = 90) -> str:

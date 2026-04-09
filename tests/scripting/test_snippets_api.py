@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional
-
 from wenzi.scripting.api.snippets import SnippetsAPI
 
 
@@ -11,13 +9,13 @@ class _FakeStore:
     """Minimal stub that mimics SnippetStore for testing."""
 
     def __init__(self) -> None:
-        self._snippets: List[Dict[str, str]] = []
+        self._snippets: list[dict[str, str]] = []
 
     @property
-    def snippets(self) -> List[Dict[str, str]]:
+    def snippets(self) -> list[dict[str, str]]:
         return list(self._snippets)
 
-    def find_by_keyword(self, keyword: str) -> Optional[Dict[str, str]]:
+    def find_by_keyword(self, keyword: str) -> dict[str, str] | None:
         for s in self._snippets:
             if s.get("keyword") == keyword:
                 return s
@@ -26,11 +24,11 @@ class _FakeStore:
     def add(
         self, name: str, keyword: str, content: str, category: str = "",
         auto_expand: bool = True, *, random: bool = False,
-        variants: Optional[List[str]] = None,
+        variants: list[str] | None = None,
     ) -> bool:
         if self.find_by_keyword(keyword) is not None:
             return False
-        d: Dict = {
+        d: dict = {
             "name": name, "keyword": keyword, "content": content,
             "category": category, "auto_expand": auto_expand,
         }
@@ -52,13 +50,13 @@ class _FakeStore:
         name: str,
         category: str = "",
         *,
-        new_name: Optional[str] = None,
-        new_keyword: Optional[str] = None,
-        content: Optional[str] = None,
-        new_category: Optional[str] = None,
-        new_auto_expand: Optional[bool] = None,
-        new_random: Optional[bool] = None,
-        new_variants: Optional[List[str]] = None,
+        new_name: str | None = None,
+        new_keyword: str | None = None,
+        content: str | None = None,
+        new_category: str | None = None,
+        new_auto_expand: bool | None = None,
+        new_random: bool | None = None,
+        new_variants: list[str] | None = None,
     ) -> bool:
         for s in self._snippets:
             if s["name"] == name and s.get("category", "") == category:

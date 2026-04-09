@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +17,7 @@ def _find_repeating_pattern(
     tail: str,
     min_repeated_chars: int = _MIN_REPEATED_CHARS,
     min_repeats: int = _MIN_REPEATS,
-) -> Optional[Tuple[str, int]]:
+) -> tuple[str, int] | None:
     """Find a repeating pattern at the end of *tail*.
 
     Returns ``(pattern, needed_repeats)`` if found, or ``None``.

@@ -5,13 +5,13 @@ from __future__ import annotations
 import json
 import logging
 import os
-from datetime import datetime, timezone
-from typing import Any, Dict, Tuple
+from datetime import UTC, datetime
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-def _parse_query(query: str) -> Tuple[str | None, str]:
+def _parse_query(query: str) -> tuple[str | None, str]:
     """Parse '@project rest' syntax. Returns (project_filter, remaining_query)."""
     query = query.strip()
     if query.startswith("@"):
@@ -26,7 +26,7 @@ def _time_ago(iso_timestamp: str) -> str:
     """Convert an ISO timestamp to a human-readable relative time."""
     try:
         dt = datetime.fromisoformat(iso_timestamp.replace("Z", "+00:00"))
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         delta = now - dt
         seconds = int(delta.total_seconds())
         if seconds < 60:
@@ -105,10 +105,10 @@ def _parse_subagent_meta(jsonl_path: str) -> dict:
 
 
 def _filter_sessions(
-    sessions: list[Dict[str, Any]],
+    sessions: list[dict[str, Any]],
     project_filter: str | None,
     query: str,
-) -> list[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Filter sessions by project name and/or title fuzzy match."""
     from wenzi.scripting.sources import fuzzy_match
 
@@ -217,7 +217,7 @@ def register(wz) -> None:
                 data.get("description", ""),
             )
 
-    def _open_viewer(session: Dict[str, Any]) -> None:
+    def _open_viewer(session: dict[str, Any]) -> None:
         """Open the session viewer panel using pull model."""
         logger.info("Opening viewer for session: %s, file: %s",
                      session["session_id"], session["file_path"])
@@ -307,7 +307,7 @@ def register(wz) -> None:
         _start_auto_reload(panel, subagent_path)
         panel.show()
 
-    def _delete_session(session: Dict[str, Any]) -> None:
+    def _delete_session(session: dict[str, Any]) -> None:
         """Move the session JSONL file to macOS Trash."""
         file_path = session.get("file_path", "")
         if not file_path:
@@ -341,18 +341,19 @@ def register(wz) -> None:
         except Exception:
             logger.debug("HUD notification failed", exc_info=True)
 
-    def _copy_full_path(session: Dict[str, Any]) -> None:
+    def _copy_full_path(session: dict[str, Any]) -> None:
         """Copy session JSONL file path to clipboard."""
         from wenzi.scripting.sources import copy_to_clipboard
 
         copy_to_clipboard(session["file_path"])
 
-    def _make_preview(session: Dict[str, Any]):
+    def _make_preview(session: dict[str, Any]):
         """Return a lazy callable that builds HTML preview on demand."""
         def _load():
             from pathlib import Path
-            from .reader import read_session_detail
+
             from .preview import build_preview_html
+            from .reader import read_session_detail
 
             file_path = session.get("file_path", "")
             detail = read_session_detail(Path(file_path)) if file_path else {

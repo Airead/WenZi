@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
+import array
 import logging
 import tempfile
 import threading
 import time
-from typing import Callable, List, Optional
-
-import array
+from collections.abc import Callable
 
 from wenzi.i18n import t
 
@@ -247,11 +246,11 @@ class AppleSpeechTranscriber(BaseTranscriber):
         # Streaming state
         self._stream_request = None
         self._stream_task = None
-        self._stream_runloop_thread: Optional[threading.Thread] = None
+        self._stream_runloop_thread: threading.Thread | None = None
         self._stream_runloop_stop = threading.Event()
         self._stream_final_event = threading.Event()
         self._stream_final_text: str = ""
-        self._stream_on_partial: Optional[Callable[[str, bool], None]] = None
+        self._stream_on_partial: Callable[[str, bool], None] | None = None
         self._stream_accumulated: str = ""
         self._stream_ending: bool = False
         self._stream_best_partial: str = ""
@@ -315,14 +314,14 @@ class AppleSpeechTranscriber(BaseTranscriber):
         self._initialized = True
         logger.info("Apple Speech recognizer ready (locale=%s)", self._locale_id)
 
-    def transcribe(self, wav_data: bytes, *, hotwords: Optional[List[str]] = None) -> str:
+    def transcribe(self, wav_data: bytes, *, hotwords: list[str] | None = None) -> str:
         """Transcribe WAV audio bytes using SFSpeechRecognizer."""
         if not self._initialized:
             self.initialize()
 
         import Speech
-        from Foundation import NSURL
         from CoreFoundation import CFRunLoopRunInMode, kCFRunLoopDefaultMode
+        from Foundation import NSURL
 
         # Write WAV to a temporary file for SFSpeechURLRecognitionRequest
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:

@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import builtins
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +69,7 @@ class MenuAPI:
         """Inject the app's root StatusMenuItem. Called by ScriptEngine."""
         self._root = root
 
-    def list(self, flat: bool = False) -> List[Dict[str, Any]]:
+    def list(self, flat: bool = False) -> builtins.list[dict[str, Any]]:
         """Return the menu item tree as a list of dicts.
 
         Each dict contains: ``title``, ``key``, ``state``, ``has_action``,
@@ -134,15 +135,15 @@ class MenuAPI:
             node = found
         return node
 
-    def _walk(self, parent: Any) -> List[Dict[str, Any]]:
+    def _walk(self, parent: Any) -> builtins.list[dict[str, Any]]:
         """Recursively walk the menu tree."""
         from wenzi.statusbar import SeparatorMenuItem, _ns_to_callback
 
-        results: List[Dict[str, Any]] = []
+        results: list[dict[str, Any]] = []
         for key, item in parent._items.items():
             if isinstance(item, SeparatorMenuItem):
                 continue
-            entry: Dict[str, Any] = {
+            entry: dict[str, Any] = {
                 "title": item.title,
                 "key": key,
                 "state": item.state,
@@ -154,10 +155,10 @@ class MenuAPI:
         return results
 
     def _flatten(
-        self, items: List[Dict[str, Any]], prefix: str = "",
-    ) -> List[Dict[str, Any]]:
+        self, items: builtins.list[dict[str, Any]], prefix: str = "",
+    ) -> builtins.list[dict[str, Any]]:
         """Flatten a nested item list, adding ``path`` to each item."""
-        flat: List[Dict[str, Any]] = []
+        flat: list[dict[str, Any]] = []
         for item in items:
             path = f"{prefix} > {item['title']}" if prefix else item["title"]
             children = item.pop("children", None)

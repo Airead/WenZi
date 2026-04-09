@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import dataclasses
 import logging
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from wenzi import async_loop
 from wenzi.lru_cache import LRUCache
@@ -51,10 +51,10 @@ class EnhanceController:
 
     def __init__(
         self,
-        enhancer: Optional[TextEnhancer],
+        enhancer: TextEnhancer | None,
         preview_panel: ResultPreviewPanel,
         usage_stats: UsageStats,
-        manual_vocab_store: "ManualVocabularyStore | None" = None,
+        manual_vocab_store: ManualVocabularyStore | None = None,
         cache_maxsize: int = 128,
     ) -> None:
         self._enhancer = enhancer
@@ -70,11 +70,11 @@ class EnhanceController:
         self._current_asr_text: str = ""
 
     @property
-    def enhancer(self) -> Optional[TextEnhancer]:
+    def enhancer(self) -> TextEnhancer | None:
         return self._enhancer
 
     @enhancer.setter
-    def enhancer(self, value: Optional[TextEnhancer]) -> None:
+    def enhancer(self, value: TextEnhancer | None) -> None:
         self._enhancer = value
 
     @property
@@ -150,7 +150,7 @@ class EnhanceController:
         self,
         asr_text: str,
         enhanced: str,
-        asr_miss_entries: "list[ManualVocabEntry] | None" = None,
+        asr_miss_entries: list[ManualVocabEntry] | None = None,
         *,
         llm_model: str = "",
         app_bundle_id: str = "",
@@ -188,7 +188,7 @@ class EnhanceController:
 
     @staticmethod
     def _entries_to_hit_dicts(
-        entries: "list[ManualVocabEntry]", enhanced_lower: str,
+        entries: list[ManualVocabEntry], enhanced_lower: str,
     ) -> list[dict]:
         """Convert matched entries to display dicts, filtered by term in enhanced text."""
         return [
@@ -219,7 +219,7 @@ class EnhanceController:
         self,
         asr_text: str,
         enhanced: str,
-        asr_miss_entries: "list[ManualVocabEntry] | None" = None,
+        asr_miss_entries: list[ManualVocabEntry] | None = None,
         *,
         llm_model: str = "",
         app_bundle_id: str = "",
@@ -245,7 +245,7 @@ class EnhanceController:
             self._preview_panel.set_vocab_hits(hits)
 
     @staticmethod
-    def _get_app_bundle_id(input_context: "InputContext | None") -> str:
+    def _get_app_bundle_id(input_context: InputContext | None) -> str:
         return getattr(input_context, "bundle_id", None) or ""
 
     def _get_llm_model(self) -> str:
@@ -254,8 +254,8 @@ class EnhanceController:
     def _run_asr_phase(
         self,
         asr_text: str,
-        input_context: "InputContext | None",
-    ) -> "list[ManualVocabEntry]":
+        input_context: InputContext | None,
+    ) -> list[ManualVocabEntry]:
         """Run phase 1 of hit detection: ASR output analysis.
 
         Returns the list of asr_miss entries for phase 2.
@@ -275,8 +275,8 @@ class EnhanceController:
         self,
         asr_text: str,
         enhanced: str,
-        asr_miss_entries: "list[ManualVocabEntry]",
-        input_context: "InputContext | None",
+        asr_miss_entries: list[ManualVocabEntry],
+        input_context: InputContext | None,
     ) -> None:
         """Run phase 2 tracking and push diffs to the preview panel."""
         self._push_diffs_and_hits(
@@ -296,7 +296,7 @@ class EnhanceController:
         asr_text: str,
         request_id: int,
         result_holder: dict | None = None,
-        input_context: "InputContext | None" = None,
+        input_context: InputContext | None = None,
     ) -> None:
         """Submit AI enhancement as a coroutine on the shared event loop."""
         if not self._enhancer:
@@ -432,7 +432,7 @@ class EnhanceController:
     async def _run_single_async(
         self, asr_text: str, request_id: int,
         result_holder: dict | None,
-        input_context: "InputContext | None" = None,
+        input_context: InputContext | None = None,
         track_corrections: bool = False,
     ) -> None:
         """Run a single-step streaming enhancement as a coroutine."""
@@ -487,7 +487,7 @@ class EnhanceController:
         self, asr_text: str, request_id: int,
         result_holder: dict | None,
         chain_steps: list[str], original_mode_id: str,
-        input_context: "InputContext | None" = None,
+        input_context: InputContext | None = None,
         track_corrections: bool = False,
     ) -> None:
         """Run a multi-step chain enhancement as a coroutine."""

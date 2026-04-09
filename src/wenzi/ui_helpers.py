@@ -190,9 +190,18 @@ def run_multiline_window(title: str, message: str, default_text: str = "",
     def _show():
         try:
             from AppKit import (
-                NSApp, NSBackingStoreBuffered, NSBezelBorder, NSButton,
-                NSClosableWindowMask, NSFont, NSPanel, NSScrollView,
-                NSStatusWindowLevel, NSTextField, NSTextView, NSTitledWindowMask,
+                NSApp,
+                NSBackingStoreBuffered,
+                NSBezelBorder,
+                NSButton,
+                NSClosableWindowMask,
+                NSFont,
+                NSPanel,
+                NSScrollView,
+                NSStatusWindowLevel,
+                NSTextField,
+                NSTextView,
+                NSTitledWindowMask,
             )
             from Foundation import NSMakeRect
 

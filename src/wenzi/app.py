@@ -9,12 +9,16 @@ import os
 import sys
 import threading
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 from ApplicationServices import AXIsProcessTrusted, AXIsProcessTrustedWithOptions
 from CoreFoundation import kCFBooleanTrue
 
 from wenzi import async_loop
+
+from .audio.recorder import Recorder
+from .audio.recording_indicator import RecordingIndicatorPanel
+from .audio.sound_manager import SoundManager
 from .config import (
     DEFAULT_LOG_DIR,
     load_config,
@@ -26,13 +30,26 @@ from .config import (
     save_config,
     set_config_readonly,
 )
+from .controllers.config_controller import ConfigController
 from .controllers.enhance_controller import EnhanceController
+from .controllers.enhance_mode_controller import EnhanceModeController
+from .controllers.menu_builder import MenuBuilder
+from .controllers.model_controller import ModelController, migrate_asr_config
+from .controllers.preview_controller import PreviewController
+from .controllers.recording_flow import RecordingFlow
+from .controllers.settings_controller import SettingsController
+from .controllers.universal_action_controller import UniversalActionController
+from .controllers.update_controller import UpdateController
 from .enhance.conversation_history import ConversationHistory
-from .usage_stats import UsageStats
 from .enhance.enhancer import MODE_OFF, create_enhancer
-from .ui.result_window_web import ResultPreviewPanel
-from .ui.settings_window_web import SettingsWebPanel as SettingsPanel
 from .hotkey import MultiHotkeyListener, TapHotkeyListener, _is_fn_key
+from .i18n import t
+from .statusbar import (
+    StatusBarApp,
+    StatusMenuItem,
+    quit_application,
+)
+from .transcription.base import create_transcriber
 from .transcription.model_registry import (
     PRESET_BY_ID,
     clear_model_cache,
@@ -41,32 +58,15 @@ from .transcription.model_registry import (
     is_model_cached,
     resolve_preset_from_config,
 )
-from .audio.recorder import Recorder
-from .audio.recording_indicator import RecordingIndicatorPanel
-from .audio.sound_manager import SoundManager
-from .statusbar import (
-    StatusBarApp,
-    StatusMenuItem,
-    quit_application,
-)
+from .ui.result_window_web import ResultPreviewPanel
+from .ui.settings_window_web import SettingsWebPanel as SettingsPanel
 from .ui.streaming_overlay import StreamingOverlayPanel
-from .controllers.menu_builder import MenuBuilder
-from .controllers.model_controller import ModelController, migrate_asr_config
-from .controllers.preview_controller import PreviewController
-from .controllers.recording_flow import RecordingFlow
-from .controllers.settings_controller import SettingsController
-from .controllers.config_controller import ConfigController
-from .controllers.enhance_mode_controller import EnhanceModeController
-from .controllers.update_controller import UpdateController
-from .controllers.universal_action_controller import UniversalActionController
-from .transcription.base import create_transcriber
-from .i18n import t
 from .ui_helpers import (
     activate_for_dialog,
     restore_accessory,
     topmost_alert,
 )
-
+from .usage_stats import UsageStats
 
 logger = logging.getLogger(__name__)
 
@@ -111,7 +111,7 @@ LOG_FILE = LOG_DIR / "wenzi.log"
 
 # Map status i18n keys to SF Symbol names for menu bar icons.
 # _set_status() receives a key from this dict (or a dynamic string like "DL 50%").
-_STATUS_ICONS: Dict[str, str] = {
+_STATUS_ICONS: dict[str, str] = {
     "statusbar.status.ready": "mic.fill",
     "statusbar.status.recording": "waveform",
     "statusbar.status.transcribing": "text.bubble",
@@ -130,7 +130,7 @@ _STATUS_ICONS: Dict[str, str] = {
 }
 
 # Cache for SF Symbol NSImage objects
-_sf_symbol_cache: Dict[str, Any] = {}
+_sf_symbol_cache: dict[str, Any] = {}
 
 # Canonical order for modifier display
 _MOD_DISPLAY_ORDER = ["ctrl", "alt", "shift", "cmd"]
@@ -179,9 +179,10 @@ def build_combo_string(modifiers: set[str], trigger: str) -> str:
 class WenZiApp(StatusBarApp):
     """Menubar app: hold hotkey to record, release to transcribe and type."""
 
-    def __init__(self, config_dir: Optional[str] = None) -> None:
+    def __init__(self, config_dir: str | None = None) -> None:
         # Load config and init i18n BEFORE super().__init__() so t() is available
         import os
+
         from wenzi.i18n import init_i18n
 
         migrate_legacy_paths()
@@ -223,7 +224,7 @@ class WenZiApp(StatusBarApp):
         migrate_asr_config(asr_cfg)
 
         # Remote ASR state: (provider_name, model_name) or None
-        self._current_remote_asr: Optional[Tuple[str, str]] = None
+        self._current_remote_asr: tuple[str, str] | None = None
         default_provider = asr_cfg.get("default_provider")
         default_model = asr_cfg.get("default_model")
 
@@ -266,7 +267,7 @@ class WenZiApp(StatusBarApp):
         self._output_method = self._config["output"]["method"]
         self._append_newline = self._config["output"]["append_newline"]
         self._preview_enabled = self._config["output"].get("preview", True)
-        self._hotkey_listener: Optional[MultiHotkeyListener] = None
+        self._hotkey_listener: MultiHotkeyListener | None = None
         self._voice_input_available = True
         self._busy = False
         self._preview_panel = ResultPreviewPanel()
@@ -290,7 +291,7 @@ class WenZiApp(StatusBarApp):
         self._recording_started = threading.Event()
 
         # Resolve current preset (None if using remote)
-        self._current_preset_id: Optional[str] = None
+        self._current_preset_id: str | None = None
         if not self._current_remote_asr:
             self._current_preset_id = asr_cfg.get("preset")
             if not self._current_preset_id:
@@ -304,7 +305,7 @@ class WenZiApp(StatusBarApp):
         self._status_item.set_callback(None)
         # Hotkey submenu
         self._hotkey_menu = StatusMenuItem(t("menu.hotkey"))
-        self._hotkey_menu_items: Dict[str, StatusMenuItem] = {}
+        self._hotkey_menu_items: dict[str, StatusMenuItem] = {}
         self._hotkey_record_item = StatusMenuItem(
             t("menu.record_hotkey"), callback=self._on_record_hotkey
         )
@@ -319,13 +320,13 @@ class WenZiApp(StatusBarApp):
 
         # STT Model submenu
         self._model_menu = StatusMenuItem(t("menu.stt_model"))
-        self._model_menu_items: Dict[str, StatusMenuItem] = {}
-        self._remote_asr_menu_items: Dict[Tuple[str, str], StatusMenuItem] = {}
+        self._model_menu_items: dict[str, StatusMenuItem] = {}
+        self._remote_asr_menu_items: dict[tuple[str, str], StatusMenuItem] = {}
         self._asr_add_provider_item = StatusMenuItem(
             t("menu.asr_add_provider"), callback=self._model_controller.on_asr_add_provider
         )
         self._asr_remove_provider_menu = StatusMenuItem(t("menu.asr_remove_provider"))
-        self._asr_remove_provider_items: Dict[str, StatusMenuItem] = {}
+        self._asr_remove_provider_items: dict[str, StatusMenuItem] = {}
         self._menu_builder.build_model_menu()
 
         # AI Enhance
@@ -352,7 +353,7 @@ class WenZiApp(StatusBarApp):
 
         # AI Enhance submenu (mode selection only)
         self._enhance_menu = StatusMenuItem(t("menu.ai_enhance"))
-        self._enhance_menu_items: Dict[str, StatusMenuItem] = {}
+        self._enhance_menu_items: dict[str, StatusMenuItem] = {}
 
         # Fixed "Off" item
         off_item = StatusMenuItem(t("menu.ai_enhance.off"))
@@ -400,12 +401,12 @@ class WenZiApp(StatusBarApp):
 
         # LLM Model top-level submenu
         self._llm_model_menu = StatusMenuItem(t("menu.llm_model"))
-        self._llm_model_menu_items: Dict[Tuple[str, str], StatusMenuItem] = {}
+        self._llm_model_menu_items: dict[tuple[str, str], StatusMenuItem] = {}
         self._llm_add_provider_item = StatusMenuItem(
             t("menu.llm_add_provider"), callback=self._model_controller.on_enhance_add_provider
         )
         self._llm_remove_provider_menu = StatusMenuItem(t("menu.llm_remove_provider"))
-        self._llm_remove_provider_items: Dict[str, StatusMenuItem] = {}
+        self._llm_remove_provider_items: dict[str, StatusMenuItem] = {}
         self._menu_builder.build_llm_model_menu()
 
         # AI Settings submenu (low-frequency AI configuration)
@@ -864,6 +865,7 @@ class WenZiApp(StatusBarApp):
         """
         from AppKit import NSAlert, NSApp, NSStatusWindowLevel
         from PyObjCTools import AppHelper
+
         from .hotkey import _QuartzAllKeysListener
 
         activate_for_dialog()
@@ -991,7 +993,7 @@ class WenZiApp(StatusBarApp):
 
     def _do_transcribe_with_preview(
         self, asr_text: str | None, use_enhance: bool,
-        audio_duration: float = 0.0, wav_data: Optional[bytes] = None,
+        audio_duration: float = 0.0, wav_data: bytes | None = None,
     ) -> None:
         self._preview_controller.do_transcribe_with_preview(
             asr_text, use_enhance, audio_duration, wav_data

@@ -18,7 +18,6 @@ import sqlite3
 import threading
 import time
 from dataclasses import dataclass, field
-from typing import List, Optional
 
 import objc
 
@@ -70,7 +69,7 @@ def _icon_fail_path(icon_cache_dir: str, bundle_id: str) -> str:
     return os.path.join(icon_cache_dir, f"cb_{key}.fail")
 
 
-def _get_app_icon_png(bundle_id: str) -> Optional[bytes]:
+def _get_app_icon_png(bundle_id: str) -> bytes | None:
     """Extract app icon as a 64x64 PNG by bundle identifier.
 
     Uses NSGraphicsContext.graphicsContextWithBitmapImageRep_ to draw
@@ -236,7 +235,7 @@ class _ClipboardDB:
         self._conn.commit()
         return True
 
-    def delete_expired(self, max_days: int) -> List[str]:
+    def delete_expired(self, max_days: int) -> list[str]:
         """Delete entries older than *max_days*. Returns removed image paths."""
         cutoff = time.time() - max_days * 86400
         cur = self._conn.execute(
@@ -297,7 +296,7 @@ class _ClipboardDB:
 
     # -- reads --
 
-    def load_all(self, max_days: int) -> List[ClipboardEntry]:
+    def load_all(self, max_days: int) -> list[ClipboardEntry]:
         """Return all non-expired entries, newest first."""
         cutoff = time.time() - max_days * 86400
         cur = self._conn.execute(
@@ -348,7 +347,7 @@ def _migrate_json_to_db(json_path: str, db: _ClipboardDB) -> int:
     if not os.path.isfile(json_path):
         return 0
     try:
-        with open(json_path, "r", encoding="utf-8") as f:
+        with open(json_path, encoding="utf-8") as f:
             data = json.load(f)
         if not isinstance(data, list):
             return 0
@@ -392,9 +391,9 @@ class ClipboardMonitor:
         self,
         max_days: int = 7,
         poll_interval: float = 0.5,
-        persist_path: Optional[str] = None,
-        image_dir: Optional[str] = None,
-        icon_cache_dir: Optional[str] = None,
+        persist_path: str | None = None,
+        image_dir: str | None = None,
+        icon_cache_dir: str | None = None,
         ocr_enabled: bool = True,
     ) -> None:
         self._max_days = max_days
@@ -402,14 +401,14 @@ class ClipboardMonitor:
         self._persist_path = persist_path
         self._image_dir = image_dir or _DEFAULT_IMAGE_DIR
         self._icon_cache_dir = icon_cache_dir or _DEFAULT_ICON_CACHE_DIR
-        self._entries: List[ClipboardEntry] = []
+        self._entries: list[ClipboardEntry] = []
         self._lock = threading.Lock()
         self._version: int = 0
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
         self._stop_event = threading.Event()
         self._last_change_count: int = -1
-        self._db: Optional[_ClipboardDB] = None
-        self._ocr_executor: Optional[concurrent.futures.ThreadPoolExecutor] = None
+        self._db: _ClipboardDB | None = None
+        self._ocr_executor: concurrent.futures.ThreadPoolExecutor | None = None
         if ocr_enabled:
             self._ocr_executor = concurrent.futures.ThreadPoolExecutor(
                 max_workers=1, thread_name_prefix="ocr",
@@ -508,7 +507,7 @@ class ClipboardMonitor:
             )
 
     @property
-    def entries(self) -> List[ClipboardEntry]:
+    def entries(self) -> list[ClipboardEntry]:
         """Return a copy of the history (newest first)."""
         with self._lock:
             return list(self._entries)
@@ -749,7 +748,7 @@ class ClipboardMonitor:
             image_size=file_size,
         )
 
-        removed: List[str] = []
+        removed: list[str] = []
         with self._lock:
             # Skip if same as the most recent entry (by filename hash)
             if self._entries and self._entries[0].image_path == filename:
@@ -812,7 +811,7 @@ class ClipboardMonitor:
 
     def _save_image(
         self, image_data: bytes, image_type: str
-    ) -> Optional[tuple]:
+    ) -> tuple | None:
         """Save image data as PNG, return (filename, width, height, size) or None."""
         try:
             from AppKit import NSBitmapImageRep, NSPNGFileType
@@ -862,7 +861,7 @@ class ClipboardMonitor:
             logger.debug("Failed to save clipboard image", exc_info=True)
             return None
 
-    def _cleanup_image_files(self, filenames: List[str]) -> None:
+    def _cleanup_image_files(self, filenames: list[str]) -> None:
         """Delete image files that are no longer referenced."""
         for fname in filenames:
             if not fname:
@@ -897,7 +896,7 @@ class ClipboardMonitor:
             source_bundle_id=source_bundle_id,
         )
 
-        removed: List[str] = []
+        removed: list[str] = []
         with self._lock:
             # Skip if same as the most recent entry
             if self._entries and self._entries[0].text == text:
@@ -915,14 +914,14 @@ class ClipboardMonitor:
             self._cleanup_image_files(removed)
         logger.debug("Clipboard entry added: %s (%d chars)", _mask_text(text), len(text))
 
-    def _trim_expired_locked(self) -> List[str]:
+    def _trim_expired_locked(self) -> list[str]:
         """Remove entries older than max_days. Must be called with _lock held.
 
         Returns a list of image filenames that were removed (for cleanup).
         """
         cutoff = time.time() - self._max_days * 86400
         kept = []
-        removed_images: List[str] = []
+        removed_images: list[str] = []
         for entry in self._entries:
             if entry.timestamp >= cutoff:
                 kept.append(entry)

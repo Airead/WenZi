@@ -6,7 +6,7 @@ import json
 import logging
 import os
 import re
-from typing import Any, Dict, Optional
+from typing import Any
 
 from wenzi.vault import get_vault
 
@@ -67,7 +67,7 @@ BUNDLE_ID = "io.github.airead.wenzi"
 _DEFAULTS_KEY = "config_dir"
 
 
-def _read_user_defaults_config_dir() -> Optional[str]:
+def _read_user_defaults_config_dir() -> str | None:
     """Read config_dir from NSUserDefaults (macOS preferences)."""
     try:
         from Foundation import NSUserDefaults
@@ -101,7 +101,7 @@ def reset_config_dir_preference() -> None:
     logger.info("Reset config_dir preference to default")
 
 
-def resolve_config_dir(config_dir: Optional[str] = None) -> str:
+def resolve_config_dir(config_dir: str | None = None) -> str:
     """Return the expanded absolute config directory path.
 
     Priority: explicit argument > NSUserDefaults > default path.
@@ -260,7 +260,7 @@ def migrate_xdg_paths() -> None:
     _migrate_file(config, cache, "_chooser.html")
 
 
-DEFAULT_CONFIG: Dict[str, Any] = {
+DEFAULT_CONFIG: dict[str, Any] = {
     "language": "auto",
     "hotkeys": {"fn": True},
     "audio": {
@@ -450,7 +450,7 @@ def _strip_jsonc(text: str) -> str:
     return cleaned
 
 
-def _merge_dict(base: Dict[str, Any], overrides: Dict[str, Any]) -> Dict[str, Any]:
+def _merge_dict(base: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:
     result = dict(base)
     # Deep-copy list values from base so mutations don't affect DEFAULT_CONFIG
     for key, value in result.items():
@@ -490,7 +490,7 @@ def set_config_readonly(readonly: bool = True) -> None:
     _config_readonly = readonly
 
 
-def save_config(config: Dict[str, Any], path: Optional[str] = None) -> None:
+def save_config(config: dict[str, Any], path: str | None = None) -> None:
     """Save configuration to a JSON file.
 
     If no path is given, uses ~/.config/WenZi/config.json.
@@ -521,7 +521,7 @@ def save_config(config: Dict[str, Any], path: Optional[str] = None) -> None:
     logger.info("Config saved to %s", expanded)
 
 
-def validate_config(config: Dict[str, Any]) -> Dict[str, Any]:
+def validate_config(config: dict[str, Any]) -> dict[str, Any]:
     """Validate config values and replace invalid ones with defaults.
 
     Logs a warning for each invalid value found.  Never raises — the app
@@ -622,12 +622,12 @@ SECRET_SECTIONS = ["ai_enhance", "asr"]
 SECRET_FIELDS = {"api_key", "base_url"}
 
 
-def is_keychain_enabled(config: Dict[str, Any]) -> bool:
+def is_keychain_enabled(config: dict[str, Any]) -> bool:
     """Check if Keychain integration is enabled in config."""
     return config.get("keychain", {}).get("enabled", False)
 
 
-def sync_secrets_to_keychain(config: Dict[str, Any]) -> bool:
+def sync_secrets_to_keychain(config: dict[str, Any]) -> bool:
     """Sync sensitive provider fields with the encrypted vault.
 
     - Plaintext values → write to vault (value stays in memory as-is)
@@ -667,7 +667,7 @@ def sync_secrets_to_keychain(config: Dict[str, Any]) -> bool:
     return dirty
 
 
-def _scrub_secrets_for_disk(config: Dict[str, Any]) -> Dict[str, Any]:
+def _scrub_secrets_for_disk(config: dict[str, Any]) -> dict[str, Any]:
     """Return a config copy with secret fields replaced by vault sentinels.
 
     When Keychain is disabled, returns the original dict unchanged (no copy).
@@ -712,7 +712,7 @@ class ConfigError:
         return f"{self.path}: {self.message}"
 
 
-def load_config(path: Optional[str] = None) -> tuple[Dict[str, Any], Optional[ConfigError]]:
+def load_config(path: str | None = None) -> tuple[dict[str, Any], ConfigError | None]:
     """Load configuration from a JSON/JSONC file.
 
     Supports ``//`` and ``/* */`` comments as well as trailing commas.
@@ -732,7 +732,7 @@ def load_config(path: Optional[str] = None) -> tuple[Dict[str, Any], Optional[Co
         return dict(DEFAULT_CONFIG), None
 
     try:
-        with open(expanded, "r", encoding="utf-8") as f:
+        with open(expanded, encoding="utf-8") as f:
             raw = f.read()
     except OSError as exc:
         msg = f"Cannot read config file: {exc}"

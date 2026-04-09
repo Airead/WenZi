@@ -15,7 +15,6 @@ import json
 import logging
 import os
 import threading
-from typing import List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +32,7 @@ _TAG_SIZE = 16
 # ---------------------------------------------------------------------------
 
 
-def _keychain_get(account: str) -> Optional[str]:
+def _keychain_get(account: str) -> str | None:
     from wenzi.keychain import _keychain_get as _kc_get
 
     return _kc_get(account)
@@ -71,18 +70,18 @@ class Vault:
     macOS Keychain.  Thread-safe with deferred atomic disk writes.
     """
 
-    def __init__(self, vault_path: Optional[str] = None) -> None:
+    def __init__(self, vault_path: str | None = None) -> None:
         self._path = vault_path or _DEFAULT_PATH
         self._data: dict[str, str] = {}
         self._loaded = False
         self._lock = threading.RLock()
         self._dirty = False
-        self._flush_timer: Optional[threading.Timer] = None
-        self._master_key: Optional[bytes] = self._init_master_key()
+        self._flush_timer: threading.Timer | None = None
+        self._master_key: bytes | None = self._init_master_key()
 
     # -- master key ---------------------------------------------------------
 
-    def _init_master_key(self) -> Optional[bytes]:
+    def _init_master_key(self) -> bytes | None:
         """Load or generate the AES-256 master key from macOS Keychain."""
         try:
             existing = _keychain_get(_MASTER_KEY_ACCOUNT)
@@ -116,7 +115,7 @@ class Vault:
             pass
         else:
             try:
-                with open(self._path, "r", encoding="utf-8") as f:
+                with open(self._path, encoding="utf-8") as f:
                     data = json.load(f)
                 if isinstance(data, dict):
                     self._data = data
@@ -168,7 +167,7 @@ class Vault:
         )
         return base64.b64encode(nonce + ct).decode("ascii")
 
-    def _decrypt(self, key: str, blob: str) -> Optional[str]:
+    def _decrypt(self, key: str, blob: str) -> str | None:
         """Decrypt a vault entry.  Returns None on any failure."""
         try:
             from wenzi._commoncrypto import aes_gcm_decrypt
@@ -188,7 +187,7 @@ class Vault:
 
     # -- public CRUD --------------------------------------------------------
 
-    def get(self, key: str) -> Optional[str]:
+    def get(self, key: str) -> str | None:
         """Return the decrypted value for *key*, or None."""
         if self._master_key is None:
             return None
@@ -245,7 +244,7 @@ class Vault:
         if removed:
             self._schedule_flush()
 
-    def keys(self) -> List[str]:
+    def keys(self) -> list[str]:
         """Return all stored key names."""
         with self._lock:
             self._ensure_loaded()
@@ -253,7 +252,7 @@ class Vault:
 
     # -- master key export / import ----------------------------------------
 
-    def export_master_key(self) -> Optional[str]:
+    def export_master_key(self) -> str | None:
         """Return the base64-encoded master key, or None if unavailable."""
         if self._master_key is None:
             return None
@@ -337,7 +336,7 @@ class Vault:
 # Thread-safe singleton
 # ---------------------------------------------------------------------------
 
-_vault: Optional[Vault] = None
+_vault: Vault | None = None
 _vault_lock = threading.Lock()
 
 

@@ -8,9 +8,9 @@ import os
 import tempfile
 import threading
 import time
-from typing import List, Optional
 
 from wenzi.config import MODEL_REVISION, MODELS
+
 from .base import BaseTranscriber
 
 logger = logging.getLogger(__name__)
@@ -118,7 +118,7 @@ class FunASRTranscriber(BaseTranscriber):
         gc.collect()
         logger.info("FunASR models cleaned up")
 
-    def transcribe(self, wav_data: bytes, *, hotwords: Optional[List[str]] = None) -> str:
+    def transcribe(self, wav_data: bytes, *, hotwords: list[str] | None = None) -> str:
         """Transcribe WAV audio bytes to text."""
         if not self._initialized:
             self.initialize()
@@ -190,6 +190,7 @@ class FunASRTranscriber(BaseTranscriber):
     def _get_model_dir(self, model_name: str) -> str:
         """Get local model cache path, download if needed."""
         from pathlib import Path
+
         from modelscope.utils.file_utils import get_modelscope_cache_dir
 
         cache_base = Path(get_modelscope_cache_dir()) / "models" / "iic"
@@ -267,10 +268,11 @@ class FunASRTranscriber(BaseTranscriber):
     def _warmup_librosa(self) -> None:
         """Warm up librosa to avoid first-call latency."""
         try:
-            import wave
             import tempfile
-            import numpy as np
+            import wave
+
             import librosa
+            import numpy as np
 
             samples = np.zeros(int(16000 * 0.01), dtype=np.int16)
             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:

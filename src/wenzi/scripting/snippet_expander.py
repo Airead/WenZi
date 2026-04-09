@@ -76,7 +76,7 @@ class SnippetExpander:
     replaced with the snippet content (via clipboard paste).
     """
 
-    def __init__(self, store: "SnippetStore") -> None:
+    def __init__(self, store: SnippetStore) -> None:
         self._store = store
         self._buffer = ""
         self._lock = threading.Lock()

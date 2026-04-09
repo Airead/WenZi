@@ -22,7 +22,8 @@ import os
 import tempfile
 import threading
 from collections import defaultdict
-from typing import Any, Callable, Dict, List, Optional
+from collections.abc import Callable
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -149,9 +150,8 @@ def _get_message_handler_class():
         return _MessageHandler
 
     import objc
-    from Foundation import NSObject
-
     import WebKit  # noqa: F401
+    from Foundation import NSObject
 
     WKScriptMessageHandler = objc.protocolNamed("WKScriptMessageHandler")
 
@@ -183,10 +183,10 @@ def _get_file_scheme_handler_class():
         return _FileSchemeHandler
 
     import mimetypes
-    import objc
-    from Foundation import NSData, NSObject
 
+    import objc
     import WebKit  # noqa: F401
+    from Foundation import NSData, NSObject
 
     WKURLSchemeHandler = objc.protocolNamed("WKURLSchemeHandler")
 
@@ -321,7 +321,7 @@ class WebViewPanel:
         width: int = 900,
         height: int = 700,
         resizable: bool = True,
-        allowed_read_paths: Optional[List[str]] = None,
+        allowed_read_paths: list[str] | None = None,
         titlebar_hidden: bool = False,
         floating: bool = True,
     ) -> None:
@@ -342,14 +342,14 @@ class WebViewPanel:
         self._open = False
 
         # Bridge state
-        self._event_handlers: Dict[str, List[Callable]] = defaultdict(list)
-        self._call_handlers: Dict[str, Callable] = {}
+        self._event_handlers: dict[str, list[Callable]] = defaultdict(list)
+        self._call_handlers: dict[str, Callable] = {}
 
         # Close callbacks
         self._on_close_callbacks: list = []
 
         # Temp file for HTML loading with allowed_read_paths
-        self._tmp_html_path: Optional[str] = None
+        self._tmp_html_path: str | None = None
 
         if self._titlebar_hidden:
             import weakref
@@ -488,7 +488,7 @@ class WebViewPanel:
     # JS message routing
     # ------------------------------------------------------------------
 
-    def _handle_js_message(self, body: Dict[str, Any]) -> None:
+    def _handle_js_message(self, body: dict[str, Any]) -> None:
         """Route an incoming message from the JS bridge."""
         if not self._open:
             return

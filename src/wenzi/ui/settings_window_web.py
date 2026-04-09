@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 
 from wenzi.ui.templates import load_template
 
@@ -59,10 +59,10 @@ def _get_message_handler_class():
     global _MessageHandler
     if _MessageHandler is None:
         import objc
-        from Foundation import NSObject
 
         # Load WebKit framework first so the protocol is available
         import WebKit  # noqa: F401
+        from Foundation import NSObject
 
         WKScriptMessageHandler = objc.protocolNamed("WKScriptMessageHandler")
         logger.debug("WKScriptMessageHandler protocol: %s", WKScriptMessageHandler)
@@ -116,7 +116,7 @@ class SettingsWebPanel:
         self._webview = None
         self._close_delegate = None
         self._message_handler = None
-        self._callbacks: Optional[Dict[str, Any]] = None
+        self._callbacks: dict[str, Any] | None = None
 
     # ------------------------------------------------------------------
     # Public API

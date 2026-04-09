@@ -5,8 +5,6 @@ Thin delegation to the shared ``wenzi.vault.Vault`` singleton.
 
 from __future__ import annotations
 
-from typing import List, Optional
-
 from wenzi.vault import Vault, get_vault
 
 
@@ -19,7 +17,7 @@ class KeychainAPI:
     def __init__(self) -> None:
         self._vault: Vault = get_vault()
 
-    def get(self, key: str) -> Optional[str]:
+    def get(self, key: str) -> str | None:
         return self._vault.get(key)
 
     def set(self, key: str, value: str) -> bool:
@@ -28,7 +26,7 @@ class KeychainAPI:
     def delete(self, key: str) -> None:
         self._vault.delete(key)
 
-    def keys(self) -> List[str]:
+    def keys(self) -> list[str]:
         return self._vault.keys()
 
     def flush_sync(self) -> None:

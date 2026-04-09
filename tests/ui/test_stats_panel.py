@@ -33,18 +33,16 @@ class TestGetDailyRange:
     """Tests for get_daily_range helper."""
 
     def test_returns_correct_number_of_days(self, tmp_path):
-        from wenzi.usage_stats import UsageStats
-
         from wenzi.ui.stats_panel import get_daily_range
+        from wenzi.usage_stats import UsageStats
 
         stats = UsageStats(data_dir=str(tmp_path / "cfg"))
         result = get_daily_range(stats, days=7)
         assert len(result) == 7
 
     def test_days_are_chronologically_ordered(self, tmp_path):
-        from wenzi.usage_stats import UsageStats
-
         from wenzi.ui.stats_panel import get_daily_range
+        from wenzi.usage_stats import UsageStats
 
         stats = UsageStats(data_dir=str(tmp_path / "cfg"))
         result = get_daily_range(stats, days=5)
@@ -52,18 +50,16 @@ class TestGetDailyRange:
         assert dates == sorted(dates)
 
     def test_last_day_is_today(self, tmp_path):
-        from wenzi.usage_stats import UsageStats
-
         from wenzi.ui.stats_panel import get_daily_range
+        from wenzi.usage_stats import UsageStats
 
         stats = UsageStats(data_dir=str(tmp_path / "cfg"))
         result = get_daily_range(stats, days=3)
         assert result[-1]["date"] == date.today().isoformat()
 
     def test_includes_recorded_data(self, tmp_path):
-        from wenzi.usage_stats import UsageStats
-
         from wenzi.ui.stats_panel import get_daily_range
+        from wenzi.usage_stats import UsageStats
 
         stats = UsageStats(data_dir=str(tmp_path / "cfg"))
         stats.record_transcription(mode="direct")
@@ -72,9 +68,8 @@ class TestGetDailyRange:
         assert result[0]["totals"]["direct_mode"] == 1
 
     def test_empty_days_have_zero_totals(self, tmp_path):
-        from wenzi.usage_stats import UsageStats
-
         from wenzi.ui.stats_panel import get_daily_range
+        from wenzi.usage_stats import UsageStats
 
         stats = UsageStats(data_dir=str(tmp_path / "cfg"))
         result = get_daily_range(stats, days=7)
@@ -87,9 +82,8 @@ class TestBuildStatsPayload:
     """Tests for build_stats_payload."""
 
     def test_payload_structure(self, tmp_path):
-        from wenzi.usage_stats import UsageStats
-
         from wenzi.ui.stats_panel import build_stats_payload
+        from wenzi.usage_stats import UsageStats
 
         stats = UsageStats(data_dir=str(tmp_path / "cfg"))
         payload = build_stats_payload(stats, days=7)
@@ -99,9 +93,8 @@ class TestBuildStatsPayload:
         assert len(payload["daily"]) == 7
 
     def test_payload_is_json_serializable(self, tmp_path):
-        from wenzi.usage_stats import UsageStats
-
         from wenzi.ui.stats_panel import build_stats_payload
+        from wenzi.usage_stats import UsageStats
 
         stats = UsageStats(data_dir=str(tmp_path / "cfg"))
         stats.record_transcription(mode="preview", enhance_mode="proofread")
@@ -115,9 +108,8 @@ class TestBuildHtml:
     """Tests for build_html."""
 
     def test_placeholder_replaced(self, tmp_path):
-        from wenzi.usage_stats import UsageStats
-
         from wenzi.ui.stats_panel import build_html, build_stats_payload
+        from wenzi.usage_stats import UsageStats
 
         stats = UsageStats(data_dir=str(tmp_path / "cfg"))
         payload = build_stats_payload(stats, days=3)
@@ -172,9 +164,8 @@ class TestStatsChartPanel:
     """Tests for StatsChartPanel lifecycle."""
 
     def test_show_sets_regular_activation_policy(self, tmp_path, _mock_appkit):
-        from wenzi.usage_stats import UsageStats
-
         from wenzi.ui.stats_panel import StatsChartPanel
+        from wenzi.usage_stats import UsageStats
 
         stats = UsageStats(data_dir=str(tmp_path / "cfg"))
         panel = StatsChartPanel()
@@ -182,9 +173,8 @@ class TestStatsChartPanel:
         _mock_appkit.appkit.NSApp.setActivationPolicy_.assert_called_with(0)
 
     def test_close_restores_accessory_policy(self, tmp_path, _mock_appkit):
-        from wenzi.usage_stats import UsageStats
-
         from wenzi.ui.stats_panel import StatsChartPanel
+        from wenzi.usage_stats import UsageStats
 
         stats = UsageStats(data_dir=str(tmp_path / "cfg"))
         panel = StatsChartPanel()
@@ -196,9 +186,8 @@ class TestStatsChartPanel:
         _mock_appkit.appkit.NSApp.setActivationPolicy_.assert_called_with(1)
 
     def test_panel_reused_on_second_show(self, tmp_path, _mock_appkit):
-        from wenzi.usage_stats import UsageStats
-
         from wenzi.ui.stats_panel import StatsChartPanel
+        from wenzi.usage_stats import UsageStats
 
         stats = UsageStats(data_dir=str(tmp_path / "cfg"))
         panel = StatsChartPanel()
@@ -214,9 +203,8 @@ class TestStatsChartPanel:
         panel.close()  # Should not raise
 
     def test_webview_loads_html(self, tmp_path, _mock_appkit):
-        from wenzi.usage_stats import UsageStats
-
         from wenzi.ui.stats_panel import StatsChartPanel
+        from wenzi.usage_stats import UsageStats
 
         stats = UsageStats(data_dir=str(tmp_path / "cfg"))
         panel = StatsChartPanel()

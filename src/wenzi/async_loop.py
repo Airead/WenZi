@@ -11,9 +11,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import threading
-from typing import Any, Coroutine, TypeVar
-
-T = TypeVar("T")
+from collections.abc import Coroutine
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +51,7 @@ def get_loop() -> asyncio.AbstractEventLoop:
         return loop
 
 
-def submit(coro: Coroutine[Any, Any, T]) -> asyncio.Future[T]:
+def submit[T](coro: Coroutine[Any, Any, T]) -> asyncio.Future[T]:
     """Submit a coroutine to the shared loop (thread-safe).
 
     Returns a :class:`concurrent.futures.Future` that can be used to

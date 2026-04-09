@@ -46,7 +46,7 @@ def _migrate_jsonl(path: str, dry_run: bool = False) -> tuple[int, int]:
     if not os.path.exists(path):
         return 0, 0
 
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         lines = f.readlines()
 
     total = 0

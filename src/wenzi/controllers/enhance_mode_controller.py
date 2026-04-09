@@ -15,9 +15,9 @@ from wenzi.i18n import t
 from wenzi.ui_helpers import (
     activate_for_dialog,
     restore_accessory,
-    topmost_alert,
-    run_window,
     run_multiline_window,
+    run_window,
+    topmost_alert,
 )
 
 logger = logging.getLogger(__name__)

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import logging
 import threading
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, Dict, List, Optional
 
 import numpy as np
 
@@ -18,7 +18,7 @@ _HOTWORD_BOOST = 1.5  # Boost score for hotword terms
 _HOTWORDS_FILENAME = "sherpa_hotwords.txt"
 
 # Pre-configured model definitions
-SHERPA_MODELS: Dict[str, Dict] = {
+SHERPA_MODELS: dict[str, dict] = {
     "zipformer-zh": {
         "display_name": "Zipformer Chinese (14M)",
         "language": "zh",
@@ -80,8 +80,8 @@ class SherpaOnnxTranscriber(BaseTranscriber):
     def __init__(
         self,
         model: str = "zipformer-zh",
-        language: Optional[str] = None,
-        hotwords: Optional[List[str]] = None,
+        language: str | None = None,
+        hotwords: list[str] | None = None,
     ) -> None:
         self._model_id = model
         self._language = language
@@ -89,8 +89,8 @@ class SherpaOnnxTranscriber(BaseTranscriber):
         self._initialized = False
         self._recognizer = None
         self._stream = None
-        self._on_partial: Optional[Callable[[str, bool], None]] = None
-        self._decode_thread: Optional[threading.Thread] = None
+        self._on_partial: Callable[[str, bool], None] | None = None
+        self._decode_thread: threading.Thread | None = None
         self._stream_stop = threading.Event()
         self._last_text = ""
 
@@ -158,7 +158,7 @@ class SherpaOnnxTranscriber(BaseTranscriber):
         from wenzi.config import resolve_cache_dir
         return Path(resolve_cache_dir()) / _HOTWORDS_FILENAME
 
-    def _write_hotwords_file(self) -> Optional[str]:
+    def _write_hotwords_file(self) -> str | None:
         """Write hotwords to a cache file. Returns the path or None on failure."""
         hotwords_path = self._hotwords_path()
         try:
@@ -185,7 +185,7 @@ class SherpaOnnxTranscriber(BaseTranscriber):
             sample_rate=16000,
         )
 
-    def transcribe(self, wav_data: bytes, *, hotwords: Optional[List[str]] = None) -> str:
+    def transcribe(self, wav_data: bytes, *, hotwords: list[str] | None = None) -> str:
         """Batch transcription: decode entire WAV at once."""
         if not self._initialized:
             self.initialize()

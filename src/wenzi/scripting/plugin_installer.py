@@ -11,7 +11,7 @@ import threading
 import time
 import tomllib
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from wenzi.scripting.plugin_meta import (
     INSTALL_TOML,
@@ -321,7 +321,7 @@ class PluginInstaller:
             "[install]\n"
             f'source_url = "{esc(source_url)}"\n'
             f'installed_version = "{esc(version)}"\n'
-            f'installed_at = "{datetime.now(timezone.utc).isoformat()}"\n'
+            f'installed_at = "{datetime.now(UTC).isoformat()}"\n'
         )
         if pinned_ref is not None:
             content += f'pinned_ref = "{esc(pinned_ref)}"\n'

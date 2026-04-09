@@ -5,16 +5,16 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from wenzi.app import WenZiApp
 
-from wenzi.controllers import fire_scripting_event
 from wenzi.config import save_config
+from wenzi.controllers import fire_scripting_event
 from wenzi.enhance.enhancer import MODE_OFF
-from wenzi.i18n import t
 from wenzi.enhance.preview_history import PreviewHistoryStore, PreviewRecord
+from wenzi.i18n import t
 from wenzi.input import (
     copy_selection_to_clipboard,
     get_clipboard_text,
@@ -396,7 +396,7 @@ class PreviewController:
             (llm_models, llm_model_keys, llm_current_index)
         """
         app = self._app
-        llm_models: List[str] = []
+        llm_models: list[str] = []
         llm_model_keys: list = []
         llm_current_index = 0
 
@@ -688,7 +688,7 @@ class PreviewController:
             asr_info_parts.append(f"{audio_duration:.1f}s")
 
         # Build STT model list for popup
-        stt_models: List[str] = []
+        stt_models: list[str] = []
         stt_model_keys: list = []
         stt_current_index = 0
 

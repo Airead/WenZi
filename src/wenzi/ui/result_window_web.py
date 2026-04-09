@@ -8,7 +8,8 @@ from __future__ import annotations
 import html
 import json
 import logging
-from typing import TYPE_CHECKING, Callable, List, Optional, Tuple
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 from wenzi.ui.templates import load_template
 from wenzi.ui.web_utils import cleanup_webview_handler
@@ -146,7 +147,7 @@ document.querySelectorAll('.cell-time[data-ts]').forEach(function(el) {
 
 
 def _build_vocab_table_html(
-    entries: "List[HotwordDetail] | List[ManualVocabEntry]",
+    entries: list[HotwordDetail] | list[ManualVocabEntry],
 ) -> tuple[str, str]:
     """Build vocab table rows (tbody) and header row (thead tr) HTML.
 
@@ -241,7 +242,7 @@ def _build_context_section_html(context_text: str) -> str:
 
 
 def _build_hotwords_html(
-    details: List[HotwordDetail], context_text: str = "",
+    details: list[HotwordDetail], context_text: str = "",
 ) -> str:
     """Build an HTML page with a styled table of hotword details."""
     tbody, thead = _build_vocab_table_html(details)
@@ -271,7 +272,7 @@ thead {{ position: sticky; top: 0; z-index: 1; }}
 
 
 def _build_context_panel_html(
-    context_text: str, vocab_entries: List[ManualVocabEntry],
+    context_text: str, vocab_entries: list[ManualVocabEntry],
 ) -> str:
     """Build HTML page with input context and LLM vocabulary table."""
     from wenzi.i18n import t
@@ -320,9 +321,8 @@ def _get_navigation_delegate_class():
     global _NavigationDelegate
     if _NavigationDelegate is None:
         import objc
-        from Foundation import NSObject
-
         import WebKit  # noqa: F401
+        from Foundation import NSObject
 
         WKNavigationDelegate = objc.protocolNamed("WKNavigationDelegate")
 
@@ -362,10 +362,10 @@ def _get_message_handler_class():
     global _MessageHandler
     if _MessageHandler is None:
         import objc
-        from Foundation import NSObject
 
         # Load WebKit framework first so the protocol is available
         import WebKit  # noqa: F401
+        from Foundation import NSObject
 
         WKScriptMessageHandler = objc.protocolNamed("WKScriptMessageHandler")
         logger.debug("WKScriptMessageHandler protocol: %s", WKScriptMessageHandler)
@@ -420,39 +420,39 @@ class ResultPreviewPanel:
         self._webview = None
         self._close_delegate = None
         self._message_handler = None
-        self._on_confirm: Optional[Callable] = None
-        self._on_cancel: Optional[Callable] = None
-        self._on_mode_change: Optional[Callable[[str], None]] = None
-        self._on_stt_model_change: Optional[Callable[[int], None]] = None
-        self._on_llm_model_change: Optional[Callable[[int], None]] = None
-        self._on_punc_toggle: Optional[Callable[[bool], None]] = None
-        self._on_thinking_toggle: Optional[Callable[[bool], None]] = None
-        self._on_google_translate: Optional[Callable[[], None]] = None
-        self._on_select_history: Optional[Callable[[int], None]] = None
+        self._on_confirm: Callable | None = None
+        self._on_cancel: Callable | None = None
+        self._on_mode_change: Callable[[str], None] | None = None
+        self._on_stt_model_change: Callable[[int], None] | None = None
+        self._on_llm_model_change: Callable[[int], None] | None = None
+        self._on_punc_toggle: Callable[[bool], None] | None = None
+        self._on_thinking_toggle: Callable[[bool], None] | None = None
+        self._on_google_translate: Callable[[], None] | None = None
+        self._on_select_history: Callable[[int], None] | None = None
         self._preview_history_items: list = []
         self._user_edited = False
         self._show_enhance = False
         self._asr_text = ""
-        self._available_modes: List[Tuple[str, str]] = []
+        self._available_modes: list[tuple[str, str]] = []
         self._current_mode: str = "off"
         self._asr_info: str = ""
-        self._asr_wav_data: Optional[bytes] = None
+        self._asr_wav_data: bytes | None = None
         self._asr_sound = None
         self._enhance_info: str = ""
         self._enhance_request_id: int = 0
         self._asr_request_id: int = 0
         self._system_prompt: str = ""
         self._input_context_text: str = ""
-        self._stt_models: List[str] = []
-        self._llm_models: List[str] = []
+        self._stt_models: list[str] = []
+        self._llm_models: list[str] = []
         self._stt_current_index: int = 0
         self._llm_current_index: int = 0
         self._source: str = "voice"
         self._punc_enabled: bool = True
         self._thinking_enabled: bool = False
         self._thinking_text: str = ""
-        self._hotwords_detail: List[HotwordDetail] = []
-        self._llm_vocab_detail: List[ManualVocabEntry] = []
+        self._hotwords_detail: list[HotwordDetail] = []
+        self._llm_vocab_detail: list[ManualVocabEntry] = []
         self._loading_timer = None
         self._loading_seconds: int = 0
         self._playback_timer = None
@@ -464,11 +464,11 @@ class ResultPreviewPanel:
         self._pending_js: list[str] = []
         self._navigation_delegate = None
         # Diff panel / manual vocabulary
-        self._on_add_manual_vocab: Optional[Callable] = None
-        self._on_remove_manual_vocab: Optional[Callable] = None
-        self._on_diff_panel_toggle: Optional[Callable[[bool], None]] = None
+        self._on_add_manual_vocab: Callable | None = None
+        self._on_remove_manual_vocab: Callable | None = None
+        self._on_diff_panel_toggle: Callable[[bool], None] | None = None
         self._diff_panel_open: bool = False
-        self._diff_panel_original_x: Optional[float] = None
+        self._diff_panel_original_x: float | None = None
         self._enhanced_text_cache: str = ""
 
     # ------------------------------------------------------------------
@@ -554,30 +554,30 @@ class ResultPreviewPanel:
         show_enhance: bool,
         on_confirm: Callable,
         on_cancel: Callable,
-        available_modes: Optional[List[Tuple[str, str]]] = None,
-        current_mode: Optional[str] = None,
-        on_mode_change: Optional[Callable[[str], None]] = None,
+        available_modes: list[tuple[str, str]] | None = None,
+        current_mode: str | None = None,
+        on_mode_change: Callable[[str], None] | None = None,
         asr_info: str = "",
-        asr_wav_data: Optional[bytes] = None,
+        asr_wav_data: bytes | None = None,
         enhance_info: str = "",
-        stt_models: Optional[List[str]] = None,
+        stt_models: list[str] | None = None,
         stt_current_index: int = 0,
-        on_stt_model_change: Optional[Callable[[int], None]] = None,
-        llm_models: Optional[List[str]] = None,
+        on_stt_model_change: Callable[[int], None] | None = None,
+        llm_models: list[str] | None = None,
         llm_current_index: int = 0,
-        on_llm_model_change: Optional[Callable[[int], None]] = None,
+        on_llm_model_change: Callable[[int], None] | None = None,
         source: str = "voice",
         punc_enabled: bool = True,
-        on_punc_toggle: Optional[Callable[[bool], None]] = None,
+        on_punc_toggle: Callable[[bool], None] | None = None,
         thinking_enabled: bool = False,
-        on_thinking_toggle: Optional[Callable[[bool], None]] = None,
-        on_google_translate: Optional[Callable[[], None]] = None,
-        on_select_history: Optional[Callable[[int], None]] = None,
-        preview_history_items: Optional[list] = None,
+        on_thinking_toggle: Callable[[bool], None] | None = None,
+        on_google_translate: Callable[[], None] | None = None,
+        on_select_history: Callable[[int], None] | None = None,
+        preview_history_items: list | None = None,
         animate_from_frame: object = None,
-        on_add_manual_vocab: Optional[Callable] = None,
-        on_remove_manual_vocab: Optional[Callable] = None,
-        on_diff_panel_toggle: Optional[Callable[[bool], None]] = None,
+        on_add_manual_vocab: Callable | None = None,
+        on_remove_manual_vocab: Callable | None = None,
+        on_diff_panel_toggle: Callable[[bool], None] | None = None,
         diff_panel_open: bool = False,
     ) -> None:
         """Show the preview panel with ASR text."""
@@ -816,7 +816,7 @@ class ResultPreviewPanel:
     def load_history_record(
         self,
         asr_text: str,
-        enhanced_text: Optional[str],
+        enhanced_text: str | None,
         final_text: str,
         enhance_mode: str,
         has_audio: bool,
@@ -867,7 +867,7 @@ class ResultPreviewPanel:
         """
         self._input_context_text = text
 
-    def set_llm_vocab(self, entries: List[ManualVocabEntry]) -> None:
+    def set_llm_vocab(self, entries: list[ManualVocabEntry]) -> None:
         """Cache LLM vocabulary entries for display in the context panel."""
         self._llm_vocab_detail = list(entries)
 
@@ -967,7 +967,7 @@ class ResultPreviewPanel:
 
         AppHelper.callAfter(_update)
 
-    def set_hotwords(self, details: List[HotwordDetail]) -> None:
+    def set_hotwords(self, details: list[HotwordDetail]) -> None:
         """Cache hotword details and update the button count in the UI."""
         self._hotwords_detail = details
 
@@ -1002,7 +1002,7 @@ class ResultPreviewPanel:
         self._enhance_request_id = value
 
     @property
-    def hotwords_detail(self) -> List[HotwordDetail]:
+    def hotwords_detail(self) -> list[HotwordDetail]:
         return self._hotwords_detail
 
     @property
@@ -1327,7 +1327,7 @@ class ResultPreviewPanel:
     def _build_panel(self) -> None:
         """Build NSPanel + WKWebView, reusing pre-created objects from warmup()."""
         from AppKit import NSApp
-        from Foundation import NSMakeRect, NSURL
+        from Foundation import NSURL, NSMakeRect
 
         # Enable ⌘C/⌘V/⌘A via Edit menu in the responder chain
         _ensure_edit_menu()
@@ -1626,7 +1626,7 @@ class ResultPreviewPanel:
             NSStatusWindowLevel,
             NSTitledWindowMask,
         )
-        from Foundation import NSMakeRect, NSURL
+        from Foundation import NSURL, NSMakeRect
         from WebKit import WKWebView
 
         if old_panel is not None:
@@ -1668,7 +1668,7 @@ class ResultPreviewPanel:
         panel.makeKeyAndOrderFront_(None)
         return panel
 
-    def _show_hotwords_panel(self, details: List[HotwordDetail]) -> None:
+    def _show_hotwords_panel(self, details: list[HotwordDetail]) -> None:
         """Display hotword details in a WKWebView-based table panel."""
         self._hotwords_webview_panel = self._open_webview_panel(
             f"Hotwords ({len(details)})",

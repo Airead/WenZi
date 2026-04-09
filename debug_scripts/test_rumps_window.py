@@ -1,6 +1,7 @@
 """Minimal test to debug statusbar window/alert in menu callbacks."""
 
 from AppKit import NSAlert, NSApp
+
 from wenzi.statusbar import (
     InputWindow,
     StatusBarApp,

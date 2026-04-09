@@ -1,13 +1,8 @@
 """py2app setup for building WenZi.app (闻字)."""
 
-import sys
-
-if sys.version_info >= (3, 11):
-    import tomllib
-else:
-    import tomli as tomllib
-
+import tomllib
 from pathlib import Path
+
 from setuptools import setup
 
 # Read version from pyproject.toml (single source of truth)

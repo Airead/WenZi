@@ -6,7 +6,6 @@ import logging
 import os
 import re
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
 
 from wenzi.config import DEFAULT_ENHANCE_MODES_DIR
 
@@ -25,7 +24,7 @@ class ModeDefinition:
     label: str
     prompt: str
     order: int = 50
-    steps: List[str] = None  # type: ignore[assignment]
+    steps: list[str] = None  # type: ignore[assignment]
     track_corrections: bool = False
 
     def __post_init__(self) -> None:
@@ -33,7 +32,7 @@ class ModeDefinition:
             self.steps = []
 
 
-_BUILTIN_MODES: Dict[str, ModeDefinition] = {
+_BUILTIN_MODES: dict[str, ModeDefinition] = {
     "proofread": ModeDefinition(
         mode_id="proofread",
         label="纠错润色",
@@ -109,13 +108,13 @@ _BUILTIN_MODES: Dict[str, ModeDefinition] = {
 }
 
 
-def parse_mode_file(file_path: str) -> Optional[ModeDefinition]:
+def parse_mode_file(file_path: str) -> ModeDefinition | None:
     """Parse a Markdown mode file with optional YAML front matter.
 
     Returns None if the file is empty or unreadable.
     """
     try:
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, encoding="utf-8") as f:
             content = f.read()
     except OSError as e:
         logger.warning("Failed to read mode file %s: %s", file_path, e)
@@ -127,7 +126,7 @@ def parse_mode_file(file_path: str) -> Optional[ModeDefinition]:
     basename = os.path.splitext(os.path.basename(file_path))[0]
     label = basename
     order = 50
-    steps: List[str] = []
+    steps: list[str] = []
     track_corrections = False
     prompt = content.strip()
 
@@ -163,7 +162,7 @@ def parse_mode_file(file_path: str) -> Optional[ModeDefinition]:
     return ModeDefinition(mode_id=basename, label=label, prompt=prompt, order=order, steps=steps, track_corrections=track_corrections)
 
 
-def load_modes(modes_dir: Optional[str] = None) -> Dict[str, ModeDefinition]:
+def load_modes(modes_dir: str | None = None) -> dict[str, ModeDefinition]:
     """Load enhancement modes from a directory of Markdown files.
 
     Falls back to builtin defaults if the directory does not exist or
@@ -173,7 +172,7 @@ def load_modes(modes_dir: Optional[str] = None) -> Dict[str, ModeDefinition]:
         modes_dir = DEFAULT_MODES_DIR
     expanded = os.path.expanduser(modes_dir)
 
-    modes: Dict[str, ModeDefinition] = {}
+    modes: dict[str, ModeDefinition] = {}
 
     if os.path.isdir(expanded):
         for name in os.listdir(expanded):
@@ -194,7 +193,7 @@ def load_modes(modes_dir: Optional[str] = None) -> Dict[str, ModeDefinition]:
     return modes
 
 
-def ensure_default_modes(modes_dir: Optional[str] = None) -> str:
+def ensure_default_modes(modes_dir: str | None = None) -> str:
     """Ensure each builtin default mode has a corresponding Markdown file.
 
     Missing builtin mode files are created; existing ones are never overwritten.
@@ -230,7 +229,7 @@ def ensure_default_modes(modes_dir: Optional[str] = None) -> str:
     return expanded
 
 
-def get_sorted_modes(modes: Dict[str, ModeDefinition]) -> List[Tuple[str, str]]:
+def get_sorted_modes(modes: dict[str, ModeDefinition]) -> list[tuple[str, str]]:
     """Return (mode_id, label) pairs sorted by order."""
     sorted_modes = sorted(modes.values(), key=lambda m: (m.order, m.mode_id))
     return [(m.mode_id, m.label) for m in sorted_modes]

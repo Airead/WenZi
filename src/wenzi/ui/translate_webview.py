@@ -78,7 +78,7 @@ class TranslateWebViewPanel:
             NSStatusWindowLevel,
             NSTitledWindowMask,
         )
-        from Foundation import NSMakeRect, NSURL, NSURLRequest
+        from Foundation import NSURL, NSMakeRect, NSURLRequest
         from WebKit import WKWebView
 
         # Close existing panel if any

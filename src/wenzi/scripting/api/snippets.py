@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+import builtins
 import logging
-from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ class SnippetsAPI:
         """Inject the SnippetStore instance (called by ScriptEngine)."""
         self._store = store
 
-    def list(self) -> List[Dict[str, str]]:
+    def list(self) -> builtins.list[dict[str, str]]:
         """Return all snippets as a list of dicts.
 
         Each dict has keys: ``name``, ``keyword``, ``content``, ``category``.
@@ -28,7 +28,7 @@ class SnippetsAPI:
             return []
         return self._store.snippets
 
-    def get(self, keyword: str) -> Optional[Dict[str, str]]:
+    def get(self, keyword: str) -> dict[str, str] | None:
         """Find a snippet by its keyword.
 
         Returns the snippet dict or ``None`` if not found.
@@ -46,7 +46,7 @@ class SnippetsAPI:
         auto_expand: bool = True,
         *,
         random: bool = False,
-        variants: Optional[List[str]] = None,
+        variants: builtins.list[str] | None = None,
     ) -> bool:
         """Add a new snippet.
 
@@ -82,13 +82,13 @@ class SnippetsAPI:
         self,
         keyword: str,
         *,
-        new_name: Optional[str] = None,
-        new_keyword: Optional[str] = None,
-        content: Optional[str] = None,
-        new_category: Optional[str] = None,
-        new_auto_expand: Optional[bool] = None,
-        new_random: Optional[bool] = None,
-        new_variants: Optional[List[str]] = None,
+        new_name: str | None = None,
+        new_keyword: str | None = None,
+        content: str | None = None,
+        new_category: str | None = None,
+        new_auto_expand: bool | None = None,
+        new_random: bool | None = None,
+        new_variants: builtins.list[str] | None = None,
     ) -> bool:
         """Update an existing snippet identified by its keyword.
 

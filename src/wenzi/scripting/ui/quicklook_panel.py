@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +32,7 @@ class QuickLookPanel:
         self._native_panel = None  # QLPreviewPanel singleton ref
         self._data_source = None
         self._delegate = None
-        self._current_path: Optional[str] = None
+        self._current_path: str | None = None
         self._on_resign_key = on_resign_key
         self._on_shift_toggle = on_shift_toggle
         self._key_monitor = None
@@ -225,9 +224,8 @@ def _get_ql_data_source_class():
         return _QLDataSource
 
     import objc
-    from Foundation import NSObject
-
     import Quartz  # noqa: F401 — ensure protocol is loaded
+    from Foundation import NSObject
 
     QLPreviewPanelDataSource = objc.protocolNamed("QLPreviewPanelDataSource")
 

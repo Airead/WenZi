@@ -5,9 +5,9 @@ from __future__ import annotations
 import configparser
 import json
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 # XML-like tags injected by Claude Code for system messages and commands
 _NOISE_PATTERN = re.compile(
@@ -71,7 +71,7 @@ def _make_session(
     git_branch: str = "",
     created: str = "",
     modified: str = "",
-    message_count: Optional[int] = None,
+    message_count: int | None = None,
     version: str = "",
     summary: str = "",
     custom_title: str = "",
@@ -324,7 +324,7 @@ def _scan_session_jsonl(
 
     try:
         stat = jsonl_path.stat()
-        file_modified = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat()
+        file_modified = datetime.fromtimestamp(stat.st_mtime, tz=UTC).isoformat()
     except OSError:
         file_modified = last_timestamp or ""
 

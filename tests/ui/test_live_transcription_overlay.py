@@ -55,6 +55,7 @@ class TestLiveTranscriptionOverlayInit:
 
     def test_show_uses_clear_panel_background(self):
         from AppKit import NSColor
+
         from wenzi.ui.live_transcription_overlay import LiveTranscriptionOverlay
 
         overlay = LiveTranscriptionOverlay()

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import abc
 import logging
-from typing import Callable, List, Optional
+from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ class BaseTranscriber(abc.ABC):
         """Load models. Call once at startup."""
 
     @abc.abstractmethod
-    def transcribe(self, wav_data: bytes, *, hotwords: Optional[List[str]] = None) -> str:
+    def transcribe(self, wav_data: bytes, *, hotwords: list[str] | None = None) -> str:
         """Transcribe WAV audio bytes to text."""
 
     @abc.abstractmethod
@@ -80,7 +80,7 @@ class BaseTranscriber(abc.ABC):
 _MAX_PROMPT_CHARS = 200
 
 
-def build_hotwords_prompt(hotwords: List[str]) -> str:
+def build_hotwords_prompt(hotwords: list[str]) -> str:
     """Join hotwords into a prompt string, truncating to fit token limit.
 
     Shared by MLX Whisper and Whisper API backends.
@@ -101,12 +101,12 @@ def create_transcriber(
     *,
     use_vad: bool = False,
     use_punc: bool = True,
-    language: Optional[str] = None,
-    model: Optional[str] = None,
-    temperature: Optional[float] = None,
-    base_url: Optional[str] = None,
-    api_key: Optional[str] = None,
-    hotwords: Optional[List[str]] = None,
+    language: str | None = None,
+    model: str | None = None,
+    temperature: float | None = None,
+    base_url: str | None = None,
+    api_key: str | None = None,
+    hotwords: list[str] | None = None,
 ) -> BaseTranscriber:
     """Create a transcriber for the given backend.
 

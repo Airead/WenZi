@@ -10,8 +10,10 @@ import pytest
 
 from wenzi.config import (
     DEFAULT_CONFIG,
-    ConfigError,
     KEYCHAIN_SENTINEL,
+    ConfigError,
+    _merge_dict,
+    _strip_jsonc,
     is_keychain_enabled,
     load_config,
     resolve_config_dir,
@@ -20,8 +22,6 @@ from wenzi.config import (
     set_config_readonly,
     sync_secrets_to_keychain,
     validate_config,
-    _merge_dict,
-    _strip_jsonc,
 )
 
 
@@ -558,6 +558,7 @@ class TestConfigDirPreference:
         with patch.dict("sys.modules", {"Foundation": MagicMock(NSUserDefaults=mock_cls)}):
             # Re-import to pick up the patched Foundation
             import importlib
+
             import wenzi.config as cfg_mod
             importlib.reload(cfg_mod)
             cfg_mod.save_config_dir_preference("/new/path")
@@ -574,6 +575,7 @@ class TestConfigDirPreference:
         mock_cls.alloc.return_value.initWithSuiteName_.return_value = mock_defaults
         with patch.dict("sys.modules", {"Foundation": MagicMock(NSUserDefaults=mock_cls)}):
             import importlib
+
             import wenzi.config as cfg_mod
             importlib.reload(cfg_mod)
             cfg_mod.reset_config_dir_preference()
@@ -589,6 +591,7 @@ class TestConfigDirPreference:
         mock_cls.alloc.return_value.initWithSuiteName_.return_value = mock_defaults
         with patch.dict("sys.modules", {"Foundation": MagicMock(NSUserDefaults=mock_cls)}):
             import importlib
+
             import wenzi.config as cfg_mod
             importlib.reload(cfg_mod)
             result = cfg_mod._read_user_defaults_config_dir()
@@ -603,6 +606,7 @@ class TestConfigDirPreference:
         mock_cls.alloc.return_value.initWithSuiteName_.return_value = mock_defaults
         with patch.dict("sys.modules", {"Foundation": MagicMock(NSUserDefaults=mock_cls)}):
             import importlib
+
             import wenzi.config as cfg_mod
             importlib.reload(cfg_mod)
             result = cfg_mod._read_user_defaults_config_dir()

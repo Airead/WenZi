@@ -13,7 +13,7 @@ from wenzi.app import (
     build_combo_string,
     format_combo_display,
 )
-from wenzi.hotkey import MODIFIER_KEY_NAMES, _SPECIAL_VK, _VK_TO_NAME
+from wenzi.hotkey import _SPECIAL_VK, _VK_TO_NAME, MODIFIER_KEY_NAMES
 
 
 class TestModifierKeyNames:

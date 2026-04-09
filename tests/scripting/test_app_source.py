@@ -1,14 +1,14 @@
 """Tests for the App search data source."""
 
 import os
-
-import pytest
 from unittest.mock import patch
 
+import pytest
+
 from wenzi.scripting.sources.app_source import (
-    AppSource,
     _APP_DIRS,
     _CORE_SERVICES_APPS,
+    AppSource,
     _cache_key,
     _scan_apps,
 )

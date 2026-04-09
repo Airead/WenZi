@@ -1,10 +1,10 @@
 """Tests for wz.hotkey API — leader-key logic and custom key registration."""
 
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-from wenzi.hotkey import _SPECIAL_VK, _VK_TO_NAME, _ALL_KEY_NAMES, unregister_custom_keys
-from wenzi.scripting.registry import LeaderMapping, RemapEntry, ScriptingRegistry
+from wenzi.hotkey import _ALL_KEY_NAMES, _SPECIAL_VK, _VK_TO_NAME, unregister_custom_keys
 from wenzi.scripting.api.hotkey import HotkeyAPI
+from wenzi.scripting.registry import LeaderMapping, RemapEntry, ScriptingRegistry
 
 
 class TestHotkeyAPI:

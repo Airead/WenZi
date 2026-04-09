@@ -6,8 +6,6 @@ import difflib
 import re
 import unicodedata
 from difflib import SequenceMatcher
-from typing import List
-
 
 # ASCII words as whole units, each non-ASCII char individually,
 # whitespace runs, or any other single character.
@@ -34,7 +32,7 @@ def _normalize_cjk_spacing(text: str) -> str:
     return text
 
 
-def tokenize_for_diff(text: str) -> List[str]:
+def tokenize_for_diff(text: str) -> list[str]:
     """Split text into diff-friendly tokens.
 
     English/number sequences stay as whole tokens; each CJK character
@@ -54,7 +52,7 @@ def _hant_to_hans(text: str) -> str:
     return str(result) if result is not None else text
 
 
-def _to_simplified(tokens: List[str]) -> List[str]:
+def _to_simplified(tokens: list[str]) -> list[str]:
     """Convert tokens to Simplified Chinese so SequenceMatcher treats trad/simp
     variants as equal.  Returns a same-length list (1:1 mapping) so opcodes
     index correctly back into the original token lists.
@@ -67,7 +65,7 @@ def _to_simplified(tokens: List[str]) -> List[str]:
         return tokens
     # Fast path: zh-hans conversions are almost always char-to-char (same length)
     if len(converted) == len(joined):
-        result: List[str] = []
+        result: list[str] = []
         pos = 0
         for t in tokens:
             end = pos + len(t)
@@ -100,10 +98,10 @@ def _strip_boundary_punctuation(text: str) -> tuple[str, str, str]:
 
 
 def _merge_adjacent_opcodes(
-    opcodes: List[tuple],
-    asr_tokens: List[str],
-    final_tokens: List[str],
-) -> List[tuple]:
+    opcodes: list[tuple],
+    asr_tokens: list[str],
+    final_tokens: list[str],
+) -> list[tuple]:
     """Merge a delete immediately followed by a replace (or vice versa).
 
     When SequenceMatcher produces ``delete + equal(whitespace/punc) + replace``
@@ -112,11 +110,11 @@ def _merge_adjacent_opcodes(
     text is not silently lost.  Same logic applies for ``replace + equal + delete``
     and ``replace + delete``.
     """
-    merged: List[tuple] = list(opcodes)
+    merged: list[tuple] = list(opcodes)
     changed = True
     while changed:
         changed = False
-        new: List[tuple] = []
+        new: list[tuple] = []
         i = 0
         while i < len(merged):
             op, i1, i2, j1, j2 = merged[i]
@@ -203,7 +201,7 @@ def inline_diff(asr: str, final: str) -> str:
         matcher.get_opcodes(), asr_tokens, final_tokens,
     )
 
-    parts: List[str] = []
+    parts: list[str] = []
     for op, i1, i2, j1, j2 in opcodes:
         if op == "equal":
             parts.append("".join(asr_tokens[i1:i2]))

@@ -10,8 +10,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from wenzi.transcription.mlx import MLXWhisperTranscriber, DEFAULT_MODEL
-
+from wenzi.transcription.mlx import DEFAULT_MODEL, MLXWhisperTranscriber
 
 # ---------------------------------------------------------------------------
 # Helpers

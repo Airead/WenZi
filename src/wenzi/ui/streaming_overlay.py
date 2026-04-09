@@ -8,7 +8,6 @@ from __future__ import annotations
 import json
 import logging
 import threading
-from typing import Optional
 
 from wenzi.ui.templates import load_template
 
@@ -41,9 +40,8 @@ def _get_nav_delegate_class():
     global _OverlayNavDelegate
     if _OverlayNavDelegate is None:
         import objc
-        from Foundation import NSObject
-
         import WebKit  # noqa: F401
+        from Foundation import NSObject
 
         WKNavigationDelegate = objc.protocolNamed("WKNavigationDelegate")
 
@@ -73,7 +71,7 @@ class StreamingOverlayPanel:
         self._webview: object = None
         self._nav_delegate: object = None
         self._tap_runner: object = None
-        self._cancel_event: Optional[threading.Event] = None
+        self._cancel_event: threading.Event | None = None
         self._on_cancel: object = None
         self._on_confirm_asr: object = None
         self._loading_timer: object = None
@@ -120,7 +118,7 @@ class StreamingOverlayPanel:
     def show(
         self,
         asr_text: str = "",
-        cancel_event: Optional[threading.Event] = None,
+        cancel_event: threading.Event | None = None,
         animate_from_frame: object = None,
         stt_info: str = "",
         llm_info: str = "",
@@ -136,7 +134,7 @@ class StreamingOverlayPanel:
         """
         try:
             from AppKit import NSColor, NSPanel, NSScreen, NSStatusWindowLevel
-            from Foundation import NSMakeRect, NSURL
+            from Foundation import NSURL, NSMakeRect
             from WebKit import WKWebView
 
             if self._panel is not None:

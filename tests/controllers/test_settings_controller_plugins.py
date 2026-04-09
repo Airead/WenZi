@@ -8,7 +8,6 @@ from wenzi.controllers.settings_controller import SettingsController
 from wenzi.scripting.plugin_meta import PluginMeta
 from wenzi.scripting.plugin_registry import PluginInfo, PluginStatus
 
-
 # ── Fixtures ──────────────────────────────────────────────────────
 
 
