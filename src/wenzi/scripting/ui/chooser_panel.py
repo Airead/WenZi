@@ -817,11 +817,12 @@ class ChooserPanel:
 
         self._teardown_webview()
 
-        # Build fresh panel + webview (new Web Content process).
-        # Reset _last_screen so the next show() always repositions —
-        # _build_panel() positions at the current mouse location which
-        # will be stale by the time the user actually opens the chooser.
-        self._build_panel()
+        # Build fresh panel + webview (new Web Content process) but skip
+        # HTML loading.  Loading HTML triggers IOSurface compositing layer
+        # allocation (~72 MB at Retina) that persists even while hidden.
+        # The next show() will hit the warm path and call
+        # _reload_chooser_html() on demand.
+        self._build_panel(load_html=False)
         self._last_screen = None
         logger.debug("ChooserPanel recycled: old webview destroyed, fresh one built")
 
@@ -1784,7 +1785,7 @@ class ChooserPanel:
             NSURL.fileURLWithPath_(home_dir),
         )
 
-    def _build_panel(self) -> None:
+    def _build_panel(self, *, load_html: bool = True) -> None:
         """Create NSPanel + WKWebView."""
         from AppKit import (
             NSBackingStoreBuffered,
@@ -1886,6 +1887,9 @@ class ChooserPanel:
         self._page_loaded = False
         self._pending_js = []
         self._current_items = []
+
+        if not load_html:
+            return
 
         # Load HTML from a temp file so WKWebView grants file:// access.
         # Icons live in ~/.cache/WenZi and clipboard images in
