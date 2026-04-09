@@ -51,7 +51,27 @@
   wz.on("init", function (data) {
     var w = data.width;
     var h = data.height;
+    var windowWidth = data.windowWidth || w;
     var imageUrl = data.imageUrl;
+
+    // Center canvas when window is wider than the image
+    if (windowWidth > w) {
+      var offset = Math.floor((windowWidth - w) / 2);
+      var container = document.getElementById("annotation-canvas").parentElement || document.body;
+      var wrapper = document.getElementById("canvas-wrapper");
+      if (!wrapper) {
+        wrapper = document.createElement("div");
+        wrapper.id = "canvas-wrapper";
+        wrapper.style.position = "absolute";
+        wrapper.style.top = "0";
+        wrapper.style.left = offset + "px";
+        wrapper.style.width = w + "px";
+        wrapper.style.height = h + "px";
+        var canvasEl = document.getElementById("annotation-canvas");
+        canvasEl.parentNode.insertBefore(wrapper, canvasEl);
+        wrapper.appendChild(canvasEl);
+      }
+    }
 
     // Create Fabric canvas
     canvas = new fabric.Canvas("annotation-canvas", {

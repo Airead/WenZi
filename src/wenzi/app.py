@@ -1083,7 +1083,7 @@ class WenZiApp(StatusBarApp):
             os.close(fd)
 
             result = subprocess.run(
-                ["screencapture", "-i", tmp_path],
+                ["screencapture", "-i", "-x", tmp_path],
                 capture_output=True,
             )
 

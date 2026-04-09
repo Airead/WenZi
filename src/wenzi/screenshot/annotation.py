@@ -19,6 +19,9 @@ logger = logging.getLogger(__name__)
 # Height reserved for the toolbar area below the canvas.
 _TOOLBAR_HEIGHT = 80
 
+# Minimum window width so the toolbar is never clipped.
+_MIN_WINDOW_WIDTH = 480
+
 # Path to the annotation HTML template
 _TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "templates")
 _ANNOTATION_HTML = os.path.join(_TEMPLATES_DIR, "annotation.html")
@@ -132,6 +135,7 @@ class AnnotationLayer:
         scale = min(1.0, max_w / max(img_w, 1), max_h / max(img_h, 1))
         canvas_w = int(img_w * scale)
         canvas_h = int(img_h * scale)
+        window_w = max(canvas_w, _MIN_WINDOW_WIDTH)
 
         from wenzi.scripting.ui.webview_panel import WebViewPanel
 
@@ -139,14 +143,14 @@ class AnnotationLayer:
         self._panel = WebViewPanel(
             title="WenZi Picture Editor",
             html_file=_ANNOTATION_HTML,
-            width=canvas_w,
+            width=window_w,
             height=canvas_h + _TOOLBAR_HEIGHT,
             resizable=False,
             allowed_read_paths=[image_dir, _TEMPLATES_DIR],
-            floating=True,
+            floating=False,
         )
 
-        self._panel.on("ready", lambda _: self._send_init(canvas_w, canvas_h))
+        self._panel.on("ready", lambda _: self._send_init(canvas_w, canvas_h, window_w))
         self._panel.on("confirm", lambda _: self._request_export("clipboard"))
         self._panel.on("cancel", lambda _: self._do_cancel())
         self._panel.on("save", lambda _: self._request_export("save"))
@@ -155,8 +159,8 @@ class AnnotationLayer:
         self._panel.show()
 
         logger.debug(
-            "Annotation layer shown: %dx%d (image %dx%d, scale %.2f)",
-            canvas_w, canvas_h + _TOOLBAR_HEIGHT, img_w, img_h, scale,
+            "Annotation layer shown: %dx%d window=%d (image %dx%d, scale %.2f)",
+            canvas_w, canvas_h + _TOOLBAR_HEIGHT, window_w, img_w, img_h, scale,
         )
 
     def close(self) -> None:
@@ -182,7 +186,7 @@ class AnnotationLayer:
     # Event handlers
     # ------------------------------------------------------------------
 
-    def _send_init(self, canvas_w: int, canvas_h: int) -> None:
+    def _send_init(self, canvas_w: int, canvas_h: int, window_w: int) -> None:
         """Send init data to JS once the page signals ready.
 
         The image is sent as a base64 data URL to avoid canvas taint
@@ -202,6 +206,7 @@ class AnnotationLayer:
             "imageUrl": f"data:{mime};base64,{b64}",
             "width": canvas_w,
             "height": canvas_h,
+            "windowWidth": window_w,
         })
 
     def _request_export(self, action: str) -> None:
@@ -308,14 +313,9 @@ class AnnotationLayer:
     @staticmethod
     def _notify_copied() -> None:
         from wenzi.i18n import t
-        from wenzi.statusbar import send_notification
+        from wenzi.scripting.api.alert import alert
 
-        send_notification(
-            t("app.name"),
-            "",
-            t("screenshot.copied_to_clipboard"),
-            sound=None,
-        )
+        alert(t("screenshot.copied_to_clipboard"), duration=1.5)
 
     @staticmethod
     def _get_screen_size() -> tuple[float, float]:

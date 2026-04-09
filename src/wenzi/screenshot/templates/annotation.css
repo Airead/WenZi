@@ -198,6 +198,17 @@ html, body {
   border-radius: 1px;
 }
 
+/* ── Canvas wrapper (centers canvas when window is wider than image) ── */
+
+#canvas-wrapper {
+  position: absolute;
+  top: 0;
+}
+
+#canvas-wrapper .canvas-container {
+  position: relative !important;
+}
+
 /* ── Fabric.js overrides ── */
 
 .canvas-container {
