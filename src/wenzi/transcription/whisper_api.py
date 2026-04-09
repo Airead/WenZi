@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 from .base import BaseTranscriber, build_hotwords_prompt
 
 if TYPE_CHECKING:
-    from openai import OpenAI
+    from wenzi.llm_http import TranscriptionClient
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ class WhisperAPITranscriber(BaseTranscriber):
         self._language = language
         self._temperature = temperature if temperature is not None else 0.0
         self._hotwords = hotwords
-        self._client: OpenAI | None = None
+        self._client: TranscriptionClient | None = None
         self._initialized = False
 
     @property
@@ -47,8 +47,8 @@ class WhisperAPITranscriber(BaseTranscriber):
     def initialize(self) -> None:
         if self._initialized:
             return
-        from openai import OpenAI
-        self._client = OpenAI(base_url=self._base_url, api_key=self._api_key)
+        from wenzi.llm_http import TranscriptionClient
+        self._client = TranscriptionClient(base_url=self._base_url, api_key=self._api_key)
         self._initialized = True
         logger.info(
             "Whisper API transcriber ready (base_url=%s, model=%s)",
@@ -84,8 +84,7 @@ class WhisperAPITranscriber(BaseTranscriber):
                 kwargs["prompt"] = prompt
                 logger.debug("ASR hotwords prompt: %s", prompt)
 
-        response = self._client.audio.transcriptions.create(**kwargs)
-        text = response.text.strip()
+        text = self._client.create(**kwargs).strip()
 
         logger.info("Transcription result: %s", text[:100])
         return text
@@ -112,11 +111,11 @@ class WhisperAPITranscriber(BaseTranscriber):
 
         client = None
         try:
-            from openai import OpenAI
-            client = OpenAI(base_url=base_url, api_key=api_key)
+            from wenzi.llm_http import TranscriptionClient
+            client = TranscriptionClient(base_url=base_url, api_key=api_key)
             audio_file = io.BytesIO(wav_data)
             audio_file.name = "test.wav"
-            client.audio.transcriptions.create(model=model, file=audio_file)
+            client.create(model=model, file=audio_file)
             return None
         except Exception as e:
             return str(e)

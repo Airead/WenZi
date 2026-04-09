@@ -116,7 +116,7 @@
   "alert.provider.remove_llm.title": "移除服务商",
   "alert.provider.remove_llm.message": "移除服务商「{name}」及其所有模型？",
   "alert.provider.llm_not_initialized": "AI 增强器未初始化。",
-  "alert.provider.init_failed": "初始化服务商失败。请检查 openai 包是否已安装。",
+  "alert.provider.init_failed": "初始化服务商失败。请检查连接设置。",
   "notification.provider.asr_added": "ASR 服务商已添加",
   "notification.provider.asr_removed": "ASR 服务商已移除",
   "notification.provider.added": "服务商已添加",

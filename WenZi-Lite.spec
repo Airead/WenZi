@@ -154,8 +154,7 @@ a = Analysis(
         # wenzi.screenshot
         'wenzi.screenshot',
         'wenzi.screenshot.annotation',
-        # third-party (Lite only — no local ASR packages)
-        'openai',
+        'wenzi.llm_http',
         # PyObjC frameworks
         'ApplicationServices',
         'CoreFoundation',

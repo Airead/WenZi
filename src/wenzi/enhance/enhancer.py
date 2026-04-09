@@ -49,20 +49,20 @@ THINKING_BREVITY_HINT = (
 )
 
 
-def _extract_cache_read_tokens(usage: Any) -> int:
-    """Extract cached input tokens from a usage object.
+def _extract_cache_read_tokens(usage: dict[str, Any]) -> int:
+    """Extract cached input tokens from a usage dict.
 
     Tries prompt_tokens_details.cached_tokens first (OpenAI standard),
     then falls back to prompt_cache_hit_tokens (DeepSeek).
     Returns 0 if the provider does not report cache info.
     """
-    details = getattr(usage, "prompt_tokens_details", None)
-    if details is not None:
-        cached = getattr(details, "cached_tokens", None)
+    details = usage.get("prompt_tokens_details")
+    if details is not None and isinstance(details, dict):
+        cached = details.get("cached_tokens")
         if cached:
             return int(cached)
     # DeepSeek fallback
-    hit = getattr(usage, "prompt_cache_hit_tokens", None)
+    hit = usage.get("prompt_cache_hit_tokens")
     if hit:
         return int(hit)
     return 0
@@ -312,25 +312,22 @@ class TextEnhancer:
             self._init_single_provider(name, pcfg)
 
     def _init_single_provider(self, name: str, pcfg: dict[str, Any]) -> None:
-        """Initialize a single provider and cache its AsyncOpenAI client."""
-        try:
-            from openai import AsyncOpenAI
+        """Initialize a single provider and cache its ChatClient."""
+        from wenzi.llm_http import ChatClient
 
-            base_url = pcfg.get("base_url", "http://localhost:11434/v1")
-            api_key = pcfg.get("api_key", "ollama")
-            models = pcfg.get("models", [])
-            extra_body = pcfg.get("extra_body", {})
+        base_url = pcfg.get("base_url", "http://localhost:11434/v1")
+        api_key = pcfg.get("api_key", "ollama")
+        models = pcfg.get("models", [])
+        extra_body = pcfg.get("extra_body", {})
 
-            client = AsyncOpenAI(base_url=base_url, api_key=api_key, max_retries=0)
-            self._providers[name] = (client, models, extra_body)
-            logger.info(
-                "AI provider initialized: %s (models=%s, base_url=%s)",
-                name,
-                models,
-                base_url,
-            )
-        except ImportError as e:
-            logger.warning("Failed to initialize AI provider %s: %s", name, e)
+        client = ChatClient(base_url=base_url, api_key=api_key)
+        self._providers[name] = (client, models, extra_body)
+        logger.info(
+            "AI provider initialized: %s (models=%s, base_url=%s)",
+            name,
+            models,
+            base_url,
+        )
 
     async def close(self) -> None:
         """Close all cached provider clients to release connection pools.
@@ -510,9 +507,9 @@ class TextEnhancer:
 
         Returns None on success, or an error message string on failure.
         """
-        from openai import AsyncOpenAI, RateLimitError
+        from wenzi.llm_http import ChatClient, RateLimitError
 
-        client = AsyncOpenAI(base_url=base_url, api_key=api_key, max_retries=0)
+        client = ChatClient(base_url=base_url, api_key=api_key)
         try:
             kwargs: dict[str, Any] = {
                 "model": model,
@@ -522,7 +519,7 @@ class TextEnhancer:
             if extra_body:
                 kwargs["extra_body"] = extra_body
             await asyncio.wait_for(
-                client.chat.completions.create(**kwargs),
+                client.create(**kwargs),
                 timeout=timeout,
             )
             return None
@@ -970,7 +967,7 @@ class TextEnhancer:
         if not mode_def:
             return text, None
 
-        from openai import RateLimitError
+        from wenzi.llm_http import RateLimitError
 
         try:
             system_content = self._build_system_content(text, mode_def, input_context=input_context)
@@ -981,21 +978,22 @@ class TextEnhancer:
                 self._pool_monitor.start_periodic(interval=60.0)
                 self._pool_monitor_started = True
             response = await asyncio.wait_for(
-                client.chat.completions.create(**kwargs),
+                client.create(**kwargs),
                 timeout=self._timeout,
             )
-            enhanced = response.choices[0].message.content
+            enhanced = response["choices"][0]["message"]["content"]
             if enhanced:
                 enhanced = strip_think_tags(enhanced)
 
             # Extract token usage
             usage = None
-            if response.usage is not None:
+            resp_usage = response.get("usage")
+            if resp_usage is not None:
                 usage = {
-                    "prompt_tokens": response.usage.prompt_tokens or 0,
-                    "completion_tokens": response.usage.completion_tokens or 0,
-                    "total_tokens": response.usage.total_tokens or 0,
-                    "cache_read_tokens": _extract_cache_read_tokens(response.usage),
+                    "prompt_tokens": resp_usage.get("prompt_tokens") or 0,
+                    "completion_tokens": resp_usage.get("completion_tokens") or 0,
+                    "total_tokens": resp_usage.get("total_tokens") or 0,
+                    "cache_read_tokens": _extract_cache_read_tokens(resp_usage),
                 }
 
             if enhanced and enhanced.strip():
@@ -1045,7 +1043,7 @@ class TextEnhancer:
             yield text, None, False
             return
 
-        from openai import RateLimitError
+        from wenzi.llm_http import RateLimitError
 
         try:
             system_content = self._build_system_content(text, mode_def, input_context=input_context)
@@ -1076,7 +1074,7 @@ class TextEnhancer:
 
                 try:
                     stream = await asyncio.wait_for(
-                        client.chat.completions.create(**kwargs),
+                        client.create(**kwargs),
                         timeout=self._connection_timeout,
                     )
                     self._pool_monitor.log_stats("stream:after_create", self._active_provider)
@@ -1121,33 +1119,36 @@ class TextEnhancer:
                         )
                     except StopAsyncIteration:
                         break
-                    if chunk.usage is not None:
+                    chunk_usage = chunk.get("usage")
+                    if chunk_usage is not None:
                         usage = {
-                            "prompt_tokens": chunk.usage.prompt_tokens or 0,
-                            "completion_tokens": chunk.usage.completion_tokens or 0,
-                            "total_tokens": chunk.usage.total_tokens or 0,
-                            "cache_read_tokens": _extract_cache_read_tokens(chunk.usage),
+                            "prompt_tokens": chunk_usage.get("prompt_tokens") or 0,
+                            "completion_tokens": chunk_usage.get("completion_tokens") or 0,
+                            "total_tokens": chunk_usage.get("total_tokens") or 0,
+                            "cache_read_tokens": _extract_cache_read_tokens(chunk_usage),
                         }
-                    if chunk.choices:
-                        delta = chunk.choices[0].delta
+                    choices = chunk.get("choices", [])
+                    if choices:
+                        delta = choices[0].get("delta", {})
                         if delta:
                             # Thinking/reasoning tokens (Qwen, GLM, DeepSeek, OpenAI)
                             reasoning = (
-                                getattr(delta, "reasoning_content", None)
-                                or getattr(delta, "reasoning", None)
-                                or getattr(delta, "reasoning_text", None)
+                                delta.get("reasoning_content")
+                                or delta.get("reasoning")
+                                or delta.get("reasoning_text")
                             )
                             if reasoning:
                                 yield reasoning, None, True
-                            if delta.content:
+                            content = delta.get("content")
+                            if content:
                                 # Parse <think> tags inline (MiniMax and similar models)
-                                for segment, is_thinking in think_parser.feed(delta.content):
+                                for segment, is_thinking in think_parser.feed(content):
                                     if is_thinking:
                                         yield segment, None, True
                                     else:
                                         collected.append(segment)
                                         yield segment, None, False
-                                chars_since_check += len(delta.content)
+                                chars_since_check += len(content)
                                 if chars_since_check >= 200:
                                     chars_since_check = 0
                                     if detect_repetition("".join(collected)):

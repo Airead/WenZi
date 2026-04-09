@@ -38,10 +38,8 @@ def _make_initialized_transcriber(text="hello", **kwargs) -> WhisperAPITranscrib
     """Create an initialized WhisperAPITranscriber with a mock client."""
     t = _make_transcriber(**kwargs)
     t._initialized = True
-    mock_response = MagicMock()
-    mock_response.text = text
     mock_client = MagicMock()
-    mock_client.audio.transcriptions.create.return_value = mock_response
+    mock_client.create.return_value = text
     t._client = mock_client
     return t
 
@@ -95,11 +93,11 @@ class TestProperties:
 # ---------------------------------------------------------------------------
 
 class TestInitialize:
-    def test_initialize_creates_openai_client(self):
+    def test_initialize_creates_client(self):
         t = _make_transcriber()
         mock_client = MagicMock()
 
-        with patch("openai.OpenAI", return_value=mock_client) as mock_cls:
+        with patch("wenzi.llm_http.TranscriptionClient", return_value=mock_client) as mock_cls:
             t.initialize()
 
         mock_cls.assert_called_once_with(
@@ -114,7 +112,7 @@ class TestInitialize:
         t = _make_transcriber()
         mock_client = MagicMock()
 
-        with patch("openai.OpenAI", return_value=mock_client) as mock_cls:
+        with patch("wenzi.llm_http.TranscriptionClient", return_value=mock_client) as mock_cls:
             t.initialize()
             t.initialize()
 
@@ -122,7 +120,7 @@ class TestInitialize:
 
     def test_initialize_sets_initialized_flag(self):
         t = _make_transcriber()
-        with patch("openai.OpenAI"):
+        with patch("wenzi.llm_http.TranscriptionClient"):
             t.initialize()
         assert t._initialized is True
 
@@ -160,10 +158,8 @@ class TestTranscribe:
 
     def test_transcribe_calls_initialize_when_not_ready(self):
         t = _make_transcriber()
-        mock_response = MagicMock()
-        mock_response.text = "ok"
         mock_client = MagicMock()
-        mock_client.audio.transcriptions.create.return_value = mock_response
+        mock_client.create.return_value = "ok"
 
         def fake_init():
             t._initialized = True
@@ -177,7 +173,7 @@ class TestTranscribe:
         t = _make_initialized_transcriber(temperature=0.3)
         t.transcribe(_make_wav())
 
-        _, kwargs = t._client.audio.transcriptions.create.call_args
+        _, kwargs = t._client.create.call_args
         assert kwargs["model"] == "whisper-large-v3"
         assert kwargs["temperature"] == 0.3
 
@@ -185,21 +181,21 @@ class TestTranscribe:
         t = _make_initialized_transcriber(language="zh")
         t.transcribe(_make_wav())
 
-        _, kwargs = t._client.audio.transcriptions.create.call_args
+        _, kwargs = t._client.create.call_args
         assert kwargs.get("language") == "zh"
 
     def test_transcribe_omits_language_when_none(self):
         t = _make_initialized_transcriber(language=None)
         t.transcribe(_make_wav())
 
-        _, kwargs = t._client.audio.transcriptions.create.call_args
+        _, kwargs = t._client.create.call_args
         assert "language" not in kwargs
 
     def test_transcribe_sends_file_with_wav_name(self):
         t = _make_initialized_transcriber()
         t.transcribe(_make_wav())
 
-        _, kwargs = t._client.audio.transcriptions.create.call_args
+        _, kwargs = t._client.create.call_args
         audio_file = kwargs["file"]
         assert hasattr(audio_file, "read")  # BytesIO-like
         assert audio_file.name == "audio.wav"
@@ -209,7 +205,7 @@ class TestTranscribe:
         wav_data = _make_wav()
         t.transcribe(wav_data)
 
-        _, kwargs = t._client.audio.transcriptions.create.call_args
+        _, kwargs = t._client.create.call_args
         audio_file = kwargs["file"]
         assert audio_file.read() == wav_data
 
@@ -221,9 +217,9 @@ class TestTranscribe:
 class TestVerifyProvider:
     def test_returns_none_on_success(self):
         mock_client = MagicMock()
-        mock_client.audio.transcriptions.create.return_value = MagicMock()
+        mock_client.create.return_value = ""
 
-        with patch("openai.OpenAI", return_value=mock_client):
+        with patch("wenzi.llm_http.TranscriptionClient", return_value=mock_client):
             result = WhisperAPITranscriber.verify_provider(
                 base_url="https://api.example.com/v1",
                 api_key="key",
@@ -234,7 +230,7 @@ class TestVerifyProvider:
 
     def test_returns_error_string_on_failure(self):
         with patch(
-            "openai.OpenAI",
+            "wenzi.llm_http.TranscriptionClient",
             side_effect=Exception("connection refused"),
         ):
             result = WhisperAPITranscriber.verify_provider(
@@ -247,9 +243,9 @@ class TestVerifyProvider:
 
     def test_returns_error_string_on_api_error(self):
         mock_client = MagicMock()
-        mock_client.audio.transcriptions.create.side_effect = Exception("401 Unauthorized")
+        mock_client.create.side_effect = Exception("401 Unauthorized")
 
-        with patch("openai.OpenAI", return_value=mock_client):
+        with patch("wenzi.llm_http.TranscriptionClient", return_value=mock_client):
             result = WhisperAPITranscriber.verify_provider(
                 base_url="https://api.example.com/v1",
                 api_key="bad-key",
@@ -261,16 +257,16 @@ class TestVerifyProvider:
     def test_sends_silent_wav(self):
         """verify_provider must send a valid WAV file to the API."""
         mock_client = MagicMock()
-        mock_client.audio.transcriptions.create.return_value = MagicMock()
+        mock_client.create.return_value = ""
 
-        with patch("openai.OpenAI", return_value=mock_client):
+        with patch("wenzi.llm_http.TranscriptionClient", return_value=mock_client):
             WhisperAPITranscriber.verify_provider(
                 base_url="https://api.example.com/v1",
                 api_key="key",
                 model="whisper-large-v3",
             )
 
-        _, kwargs = mock_client.audio.transcriptions.create.call_args
+        _, kwargs = mock_client.create.call_args
         audio_file = kwargs["file"]
         # Verify we sent a proper WAV
         audio_file.seek(0)
@@ -280,11 +276,11 @@ class TestVerifyProvider:
             assert wf.getsampwidth() == 2
             assert wf.getnframes() == 8000  # 0.5s at 16kHz
 
-    def test_creates_openai_client_with_given_credentials(self):
+    def test_creates_client_with_given_credentials(self):
         mock_client = MagicMock()
-        mock_client.audio.transcriptions.create.return_value = MagicMock()
+        mock_client.create.return_value = ""
 
-        with patch("openai.OpenAI", return_value=mock_client) as mock_cls:
+        with patch("wenzi.llm_http.TranscriptionClient", return_value=mock_client) as mock_cls:
             WhisperAPITranscriber.verify_provider(
                 base_url="https://custom.api/v1",
                 api_key="mykey",
@@ -298,16 +294,16 @@ class TestVerifyProvider:
 
     def test_passes_correct_model(self):
         mock_client = MagicMock()
-        mock_client.audio.transcriptions.create.return_value = MagicMock()
+        mock_client.create.return_value = ""
 
-        with patch("openai.OpenAI", return_value=mock_client):
+        with patch("wenzi.llm_http.TranscriptionClient", return_value=mock_client):
             WhisperAPITranscriber.verify_provider(
                 base_url="https://api.example.com/v1",
                 api_key="key",
                 model="distil-whisper",
             )
 
-        _, kwargs = mock_client.audio.transcriptions.create.call_args
+        _, kwargs = mock_client.create.call_args
         assert kwargs["model"] == "distil-whisper"
 
 
@@ -327,25 +323,25 @@ class TestHotwords:
     def test_transcribe_with_hotwords_adds_prompt(self):
         t = _make_initialized_transcriber(hotwords=["Python", "Kubernetes"])
         t.transcribe(_make_wav())
-        _, kwargs = t._client.audio.transcriptions.create.call_args
+        _, kwargs = t._client.create.call_args
         assert kwargs["prompt"] == "Python, Kubernetes"
 
     def test_transcribe_without_hotwords_no_prompt(self):
         t = _make_initialized_transcriber()
         t.transcribe(_make_wav())
-        _, kwargs = t._client.audio.transcriptions.create.call_args
+        _, kwargs = t._client.create.call_args
         assert "prompt" not in kwargs
 
     def test_dynamic_hotwords_override_static(self):
         t = _make_initialized_transcriber(hotwords=["StaticWord"])
         t.transcribe(_make_wav(), hotwords=["DynamicWord"])
-        _, kwargs = t._client.audio.transcriptions.create.call_args
+        _, kwargs = t._client.create.call_args
         assert kwargs["prompt"] == "DynamicWord"
 
     def test_fallback_to_static_when_dynamic_none(self):
         t = _make_initialized_transcriber(hotwords=["StaticWord"])
         t.transcribe(_make_wav(), hotwords=None)
-        _, kwargs = t._client.audio.transcriptions.create.call_args
+        _, kwargs = t._client.create.call_args
         assert kwargs["prompt"] == "StaticWord"
 
     def test_transcribe_accepts_hotwords_kwarg(self):

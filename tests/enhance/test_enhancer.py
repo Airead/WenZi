@@ -406,9 +406,9 @@ class TestTextEnhancerAddRemoveProvider:
 class TestTextEnhancerVerifyProvider:
     """Tests for verify_provider."""
 
-    def _make_mock_openai(self):
+    def _make_mock_chat_client(self):
         mock_client = MagicMock()
-        mock_client.chat.completions.create = AsyncMock(return_value=MagicMock())
+        mock_client.create = AsyncMock(return_value={})
         mock_client.close = AsyncMock()
         return MagicMock(return_value=mock_client)
 
@@ -416,7 +416,7 @@ class TestTextEnhancerVerifyProvider:
         with patch("wenzi.enhance.enhancer.TextEnhancer._init_providers"):
             enhancer = TextEnhancer(_make_config())
 
-        with patch("openai.AsyncOpenAI", self._make_mock_openai()):
+        with patch("wenzi.llm_http.ChatClient", self._make_mock_chat_client()):
             result = asyncio.run(
                 enhancer.verify_provider(
                     "http://localhost:11434/v1", "ollama", "qwen2.5:7b"
@@ -429,12 +429,10 @@ class TestTextEnhancerVerifyProvider:
             enhancer = TextEnhancer(_make_config())
 
         mock_client = MagicMock()
-        mock_client.chat.completions.create = AsyncMock(
-            side_effect=TimeoutError()
-        )
+        mock_client.create = AsyncMock(side_effect=TimeoutError())
         mock_client.close = AsyncMock()
-        mock_openai = MagicMock(return_value=mock_client)
-        with patch("openai.AsyncOpenAI", mock_openai):
+        mock_cls = MagicMock(return_value=mock_client)
+        with patch("wenzi.llm_http.ChatClient", mock_cls):
             result = asyncio.run(
                 enhancer.verify_provider(
                     "http://localhost:11434/v1", "ollama", "qwen2.5:7b", timeout=5
@@ -447,12 +445,10 @@ class TestTextEnhancerVerifyProvider:
             enhancer = TextEnhancer(_make_config())
 
         mock_client = MagicMock()
-        mock_client.chat.completions.create = AsyncMock(
-            side_effect=Exception("Connection refused")
-        )
+        mock_client.create = AsyncMock(side_effect=Exception("Connection refused"))
         mock_client.close = AsyncMock()
-        mock_openai = MagicMock(return_value=mock_client)
-        with patch("openai.AsyncOpenAI", mock_openai):
+        mock_cls = MagicMock(return_value=mock_client)
+        with patch("wenzi.llm_http.ChatClient", mock_cls):
             result = asyncio.run(
                 enhancer.verify_provider(
                     "http://localhost:99999/v1", "bad", "bad-model"
@@ -556,23 +552,24 @@ extra_body: not-json"""
 
 
 def _make_mock_client(content="enhanced text", usage=None):
-    """Create a mock AsyncOpenAI client that returns given content."""
-    mock_choice = MagicMock()
-    mock_choice.message.content = content
-    mock_response = MagicMock()
-    mock_response.choices = [mock_choice]
+    """Create a mock ChatClient that returns given content as a dict."""
+    mock_response = {
+        "choices": [{"message": {"content": content}}],
+    }
     if usage is not None:
-        mock_response.usage.prompt_tokens = usage.get("prompt_tokens", 0)
-        mock_response.usage.completion_tokens = usage.get("completion_tokens", 0)
-        mock_response.usage.total_tokens = usage.get("total_tokens", 0)
-        mock_response.usage.prompt_tokens_details = None
-        mock_response.usage.prompt_cache_hit_tokens = None
+        mock_response["usage"] = {
+            "prompt_tokens": usage.get("prompt_tokens", 0),
+            "completion_tokens": usage.get("completion_tokens", 0),
+            "total_tokens": usage.get("total_tokens", 0),
+            "prompt_tokens_details": None,
+            "prompt_cache_hit_tokens": None,
+        }
     else:
-        mock_response.usage = None
+        mock_response["usage"] = None
 
     mock_client = MagicMock()
     mock_create = AsyncMock(return_value=mock_response)
-    mock_client.chat.completions.create = mock_create
+    mock_client.create = mock_create
     return mock_client
 
 
@@ -921,7 +918,7 @@ class TestThinkingAndExtraBody:
             enhancer._active_model = "qwen2.5:7b"
 
         asyncio.run(enhancer.enhance("hello"))
-        call_kwargs = mock_client.chat.completions.create.call_args
+        call_kwargs = mock_client.create.call_args
         assert call_kwargs.kwargs.get("extra_body") == {
             "chat_template_kwargs": {"enable_thinking": False}
         }
@@ -937,7 +934,7 @@ class TestThinkingAndExtraBody:
             enhancer._active_model = "glm-4-flash"
 
         asyncio.run(enhancer.enhance("hello"))
-        call_kwargs = mock_client.chat.completions.create.call_args
+        call_kwargs = mock_client.create.call_args
         assert call_kwargs.kwargs.get("extra_body") == {
             "thinking": {"type": "disabled"}
         }
@@ -953,7 +950,7 @@ class TestThinkingAndExtraBody:
             enhancer._active_model = "qwen2.5:7b"
 
         asyncio.run(enhancer.enhance("hello"))
-        call_kwargs = mock_client.chat.completions.create.call_args
+        call_kwargs = mock_client.create.call_args
         assert call_kwargs.kwargs.get("extra_body") == {
             "chat_template_kwargs": {"enable_thinking": True}
         }
@@ -969,7 +966,7 @@ class TestThinkingAndExtraBody:
             enhancer._active_model = "llama-3.1:8b"
 
         asyncio.run(enhancer.enhance("hello"))
-        call_kwargs = mock_client.chat.completions.create.call_args
+        call_kwargs = mock_client.create.call_args
         assert "extra_body" not in call_kwargs.kwargs
 
     def test_enhance_no_extra_body_when_thinking_off_unknown(self):
@@ -983,7 +980,7 @@ class TestThinkingAndExtraBody:
             enhancer._active_model = "llama-3.1:8b"
 
         asyncio.run(enhancer.enhance("hello"))
-        call_kwargs = mock_client.chat.completions.create.call_args
+        call_kwargs = mock_client.create.call_args
         assert "extra_body" not in call_kwargs.kwargs
 
 
@@ -1173,7 +1170,7 @@ class TestConversationHistoryIntegration:
 
         asyncio.run(enhancer.enhance("新输入"))
 
-        call_kwargs = mock_client.chat.completions.create.call_args
+        call_kwargs = mock_client.create.call_args
         system_msg = call_kwargs.kwargs["messages"][0]["content"]
         assert "对话记录" in system_msg
 
@@ -1191,7 +1188,7 @@ class TestConversationHistoryIntegration:
 
         asyncio.run(enhancer.enhance("hello"))
 
-        call_kwargs = mock_client.chat.completions.create.call_args
+        call_kwargs = mock_client.create.call_args
         system_msg = call_kwargs.kwargs["messages"][0]["content"]
         assert "对话历史记录" not in system_msg
 
@@ -1240,7 +1237,7 @@ class TestConversationHistoryIntegration:
 
         asyncio.run(enhancer.enhance("hello"))
 
-        call_kwargs = mock_client.chat.completions.create.call_args
+        call_kwargs = mock_client.create.call_args
         system_msg = call_kwargs.kwargs["messages"][0]["content"]
         assert "对话历史记录" not in system_msg
 
@@ -1598,34 +1595,28 @@ class TestLastSystemPrompt:
 
 
 def _make_mock_stream_client(chunks, usage=None):
-    """Create a mock AsyncOpenAI client that returns a streaming response."""
+    """Create a mock ChatClient that returns a streaming response of dicts."""
     async def _async_iter():
         for text in chunks:
-            chunk = MagicMock()
-            chunk.usage = None
-            delta = MagicMock(spec=["content", "reasoning_content"])
-            delta.content = text
-            delta.reasoning_content = None
-            choice = MagicMock()
-            choice.delta = delta
-            chunk.choices = [choice]
-            yield chunk
+            yield {
+                "usage": None,
+                "choices": [{"delta": {"content": text, "reasoning_content": None}}],
+            }
         # Final chunk with usage
-        final = MagicMock()
+        final_usage = None
         if usage is not None:
-            final.usage.prompt_tokens = usage.get("prompt_tokens", 0)
-            final.usage.completion_tokens = usage.get("completion_tokens", 0)
-            final.usage.total_tokens = usage.get("total_tokens", 0)
-            final.usage.prompt_tokens_details = None
-            final.usage.prompt_cache_hit_tokens = None
-        else:
-            final.usage = None
-        final.choices = []
-        yield final
+            final_usage = {
+                "prompt_tokens": usage.get("prompt_tokens", 0),
+                "completion_tokens": usage.get("completion_tokens", 0),
+                "total_tokens": usage.get("total_tokens", 0),
+                "prompt_tokens_details": None,
+                "prompt_cache_hit_tokens": None,
+            }
+        yield {"usage": final_usage, "choices": []}
 
     mock_client = MagicMock()
     mock_create = AsyncMock(return_value=_async_iter())
-    mock_client.chat.completions.create = mock_create
+    mock_client.create = mock_create
     return mock_client
 
 
@@ -1825,10 +1816,10 @@ class TestConnectionTimeoutRetry:
             call_count += 1
             if call_count <= 2:
                 raise TimeoutError()
-            return mock_stream_iter.chat.completions.create.return_value
+            return mock_stream_iter.create.return_value
 
         mock_client = MagicMock()
-        mock_client.chat.completions.create = AsyncMock(side_effect=_create_side_effect)
+        mock_client.create = AsyncMock(side_effect=_create_side_effect)
 
         with patch("wenzi.enhance.enhancer.TextEnhancer._init_providers"):
             enhancer = TextEnhancer(_make_config(
@@ -1864,7 +1855,7 @@ class TestConnectionTimeoutRetry:
     def test_enhance_stream_all_retries_exhausted(self):
         """All 3 attempts timeout — verify error yield, no content."""
         mock_client = MagicMock()
-        mock_client.chat.completions.create = AsyncMock(
+        mock_client.create = AsyncMock(
             side_effect=TimeoutError(),
         )
 
@@ -1908,7 +1899,7 @@ class TestRateLimitHandling:
     def test_enhance_stream_rate_limit_no_retry(self, rate_limit_error):
         """429 during stream connection — should yield error and stop immediately."""
         mock_client = MagicMock()
-        mock_client.chat.completions.create = AsyncMock(side_effect=rate_limit_error)
+        mock_client.create = AsyncMock(side_effect=rate_limit_error)
 
         with patch("wenzi.enhance.enhancer.TextEnhancer._init_providers"):
             enhancer = TextEnhancer(_make_config(
@@ -1930,7 +1921,7 @@ class TestRateLimitHandling:
         asyncio.run(collect())
 
         # Should only be called once — no retry
-        assert mock_client.chat.completions.create.call_count == 1
+        assert mock_client.create.call_count == 1
         # Single retry-type yield with rate limit message
         assert len(results) == 1
         assert results[0][2] == "retry"
@@ -1939,7 +1930,7 @@ class TestRateLimitHandling:
     def test_enhance_nonstream_rate_limit(self, rate_limit_error):
         """429 during non-streaming enhance — should return original text."""
         mock_client = MagicMock()
-        mock_client.chat.completions.create = AsyncMock(side_effect=rate_limit_error)
+        mock_client.create = AsyncMock(side_effect=rate_limit_error)
 
         with patch("wenzi.enhance.enhancer.TextEnhancer._init_providers"):
             enhancer = TextEnhancer(_make_config(

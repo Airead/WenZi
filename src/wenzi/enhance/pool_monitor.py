@@ -1,12 +1,11 @@
-"""Connection pool monitoring for AI enhancement LLM clients.
+"""Connection monitoring for AI enhancement LLM clients.
 
-Provides dual-layer monitoring:
-1. httpcore pool layer — ACTIVE / IDLE / CLOSED connection counts
-2. OS socket layer — actual TCP connections (ESTABLISHED / TIME_WAIT / CLOSE_WAIT)
+Monitors OS-level TCP connections (ESTABLISHED / TIME_WAIT / CLOSE_WAIT)
+to API provider endpoints via ``lsof``.
 
 Usage::
 
-    monitor = PoolMonitor(providers)
+    monitor = PoolMonitor(providers, providers_config)
     monitor.log_stats("before stream")   # one-shot log
     monitor.start_periodic(interval=60)  # background periodic logging
     monitor.stop_periodic()
@@ -24,49 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Layer 1: httpcore connection pool stats
-# ---------------------------------------------------------------------------
-
-def _get_pool(client: Any) -> Any | None:
-    """Extract the httpcore AsyncConnectionPool from an AsyncOpenAI client."""
-    try:
-        return client._client._transport._pool
-    except AttributeError:
-        return None
-
-
-def get_pool_stats(client: Any) -> dict[str, int]:
-    """Return connection counts from the httpcore pool.
-
-    Keys: ``active``, ``idle``, ``closed``, ``total``.
-    """
-    pool = _get_pool(client)
-    if pool is None:
-        return {"active": 0, "idle": 0, "closed": 0, "total": 0}
-
-    active = idle = closed = 0
-    for conn in pool.connections:
-        info = str(conn.info())
-        if "IDLE" in info:
-            idle += 1
-        elif "CLOSED" in info:
-            closed += 1
-        else:
-            # ACTIVE, CONNECTING, etc.
-            active += 1
-    return {"active": active, "idle": idle, "closed": closed, "total": active + idle + closed}
-
-
-def get_pool_details(client: Any) -> list[str]:
-    """Return per-connection detail strings from the httpcore pool."""
-    pool = _get_pool(client)
-    if pool is None:
-        return []
-    return [repr(conn) for conn in pool.connections]
-
-
-# ---------------------------------------------------------------------------
-# Layer 2: OS socket stats via lsof
+# OS socket stats via lsof
 # ---------------------------------------------------------------------------
 
 def _parse_host_port(base_url: str) -> tuple[str, int] | None:
@@ -154,32 +111,23 @@ class PoolMonitor:
     # -- one-shot logging ---------------------------------------------------
 
     def log_stats(self, label: str, provider_name: str = "") -> None:
-        """Log pool + OS socket stats for one or all providers."""
+        """Log OS socket stats for one or all providers."""
         names = [provider_name] if provider_name else list(self._providers.keys())
         for name in names:
-            entry = self._providers.get(name)
-            if entry is None:
+            if name not in self._providers:
                 continue
-            client = entry[0]
-            pool = get_pool_stats(client)
             base_url = self._providers_config.get(name, {}).get(
                 "base_url", ""
             )
             os_stats = get_os_socket_stats(base_url) if base_url else {}
             logger.info(
-                "[ConnPool:%s] %s | pool: active=%d idle=%d closed=%d total=%d"
-                " | os: ESTABLISHED=%d TIME_WAIT=%d CLOSE_WAIT=%d total=%d",
+                "[Conn:%s] %s | os: ESTABLISHED=%d TIME_WAIT=%d CLOSE_WAIT=%d total=%d",
                 name, label,
-                pool["active"], pool["idle"], pool["closed"], pool["total"],
                 os_stats.get("ESTABLISHED", 0),
                 os_stats.get("TIME_WAIT", 0),
                 os_stats.get("CLOSE_WAIT", 0),
                 os_stats.get("total", 0),
             )
-            details = get_pool_details(client)
-            if details:
-                for d in details:
-                    logger.info("[ConnPool:%s]   %s", name, d)
 
     # -- periodic background logging ----------------------------------------
 

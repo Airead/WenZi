@@ -182,7 +182,7 @@ a = Analysis(
         'sherpa_onnx',
         'modelscope.utils.file_utils',
         'modelscope.hub.snapshot_download',
-        'openai',
+        'wenzi.llm_http',
         # PyObjC frameworks
         'ApplicationServices',
         'CoreFoundation',

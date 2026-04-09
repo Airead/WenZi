@@ -1,4 +1,4 @@
-"""Tests for the connection pool monitoring module."""
+"""Tests for the connection monitoring module."""
 
 from __future__ import annotations
 
@@ -8,8 +8,6 @@ from wenzi.enhance.pool_monitor import (
     PoolMonitor,
     _parse_host_port,
     get_os_socket_stats,
-    get_pool_details,
-    get_pool_stats,
 )
 
 # ---------------------------------------------------------------------------
@@ -34,69 +32,6 @@ class TestParseHostPort:
 
     def test_empty_string(self):
         assert _parse_host_port("") is None
-
-
-# ---------------------------------------------------------------------------
-# get_pool_stats — with mock httpcore pool
-# ---------------------------------------------------------------------------
-
-def _make_mock_conn(info_str: str):
-    conn = MagicMock()
-    conn.info.return_value = info_str
-    return conn
-
-
-def _make_mock_client(connections: list):
-    """Build a mock AsyncOpenAI client with a fake httpcore pool."""
-    pool = MagicMock()
-    pool.connections = connections
-    transport = MagicMock()
-    transport._pool = pool
-    http_client = MagicMock()
-    http_client._transport = transport
-    client = MagicMock()
-    client._client = http_client
-    return client
-
-
-class TestGetPoolStats:
-    def test_empty_pool(self):
-        client = _make_mock_client([])
-        stats = get_pool_stats(client)
-        assert stats == {"active": 0, "idle": 0, "closed": 0, "total": 0}
-
-    def test_mixed_connections(self):
-        conns = [
-            _make_mock_conn("ACTIVE"),
-            _make_mock_conn("IDLE"),
-            _make_mock_conn("IDLE"),
-            _make_mock_conn("CLOSED"),
-            _make_mock_conn("CONNECTING"),
-        ]
-        client = _make_mock_client(conns)
-        stats = get_pool_stats(client)
-        assert stats["active"] == 2  # ACTIVE + CONNECTING
-        assert stats["idle"] == 2
-        assert stats["closed"] == 1
-        assert stats["total"] == 5
-
-    def test_no_pool_attribute(self):
-        client = MagicMock(spec=[])
-        stats = get_pool_stats(client)
-        assert stats == {"active": 0, "idle": 0, "closed": 0, "total": 0}
-
-
-class TestGetPoolDetails:
-    def test_returns_repr(self):
-        conn = MagicMock()
-        conn.__repr__ = lambda _: "<Conn IDLE>"
-        client = _make_mock_client([conn])
-        details = get_pool_details(client)
-        assert details == ["<Conn IDLE>"]
-
-    def test_no_pool(self):
-        client = MagicMock(spec=[])
-        assert get_pool_details(client) == []
 
 
 # ---------------------------------------------------------------------------
@@ -135,10 +70,7 @@ class TestGetOsSocketStats:
 
 class TestPoolMonitor:
     def _make_monitor(self):
-        client = _make_mock_client([
-            _make_mock_conn("ACTIVE"),
-            _make_mock_conn("IDLE"),
-        ])
+        client = MagicMock()
         providers = {"test_provider": (client, ["model1"], {})}
         providers_config = {"test_provider": {"base_url": "http://localhost:11434/v1"}}
         return PoolMonitor(providers, providers_config)
@@ -147,22 +79,20 @@ class TestPoolMonitor:
         monitor = self._make_monitor()
         with caplog.at_level("INFO"):
             monitor.log_stats("test_label", "test_provider")
-        assert "[ConnPool:test_provider] test_label" in caplog.text
-        assert "active=1" in caplog.text
-        assert "idle=1" in caplog.text
+        assert "[Conn:test_provider] test_label" in caplog.text
 
     def test_log_stats_all_providers(self, caplog):
         monitor = self._make_monitor()
         with caplog.at_level("INFO"):
             monitor.log_stats("all_test")
-        assert "[ConnPool:test_provider]" in caplog.text
+        assert "[Conn:test_provider]" in caplog.text
 
     def test_log_stats_unknown_provider(self, caplog):
         monitor = self._make_monitor()
         with caplog.at_level("INFO"):
             monitor.log_stats("test", "nonexistent")
         # Should not crash, just no output
-        assert "[ConnPool:" not in caplog.text
+        assert "[Conn:" not in caplog.text
 
     def test_stop_periodic_no_task(self):
         monitor = self._make_monitor()

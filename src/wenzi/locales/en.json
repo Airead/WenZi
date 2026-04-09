@@ -116,7 +116,7 @@
   "alert.provider.remove_llm.title": "Remove Provider",
   "alert.provider.remove_llm.message": "Remove provider '{name}' and all its models?",
   "alert.provider.llm_not_initialized": "AI enhancer is not initialized.",
-  "alert.provider.init_failed": "Failed to initialize provider. Check that the openai package is installed.",
+  "alert.provider.init_failed": "Failed to initialize provider. Check your connection settings.",
   "notification.provider.asr_added": "ASR Provider added",
   "notification.provider.asr_removed": "ASR Provider removed",
   "notification.provider.added": "Provider added",
