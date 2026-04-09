@@ -520,6 +520,8 @@ The Launcher is configured under `scripting.chooser` in `config.json`:
       "snippets": false,
       "bookmarks": true,
       "usage_learning": true,
+      "switch_to_english": true,
+      "recycle_mode": "preload_html",
       "prefixes": {
         "clipboard": "cb",
         "files": "f",
@@ -547,8 +549,21 @@ The Launcher is configured under `scripting.chooser` in `config.json`:
 | `snippets` | `false` | Enable snippet search and expansion |
 | `bookmarks` | `true` | Enable browser bookmark search |
 | `usage_learning` | `true` | Track selection frequency for smarter ranking |
+| `switch_to_english` | `true` | Temporarily switch to an English input source while the Launcher is open |
+| `recycle_mode` | `"preload_html"` | Idle WebView strategy after the Launcher has been hidden for 60 seconds |
 | `prefixes` | *(see above)* | Prefix strings to activate each source |
 | `source_hotkeys` | *(empty)* | Direct hotkeys to open Launcher with a source pre-selected |
+
+### `recycle_mode`
+
+After the Launcher is closed, WenZi keeps the hidden chooser alive for a short
+period so reopening stays fast. Once the chooser has been hidden for 60
+seconds, `recycle_mode` controls what happens next:
+
+- `destroy`: fully tear down the hidden `WKWebView`; lowest idle memory, slowest next open
+- `prebuild`: destroy the old WebView, then prebuild a fresh empty panel/WebView shell; lower idle memory than `preload_html`
+- `preload_html`: destroy the old WebView, then prebuild and preload `chooser.html` in the background; uses more idle memory for a faster next open
+- `keep_alive`: skip idle recycle entirely and keep reusing the hidden WebView; fastest reopen, highest long-lived memory
 
 ## Script Environment
 

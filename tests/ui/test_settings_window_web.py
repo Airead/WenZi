@@ -74,6 +74,7 @@ def _make_state():
             "hotkey": "option+space",
             "usage_learning": True,
             "switch_english": True,
+            "recycle_mode": "prebuild",
             "new_snippet_hotkey": "",
             "sources": [
                 {
@@ -115,9 +116,11 @@ def _make_callbacks():
         "on_launcher_toggle", "on_launcher_hotkey_record",
         "on_launcher_hotkey_clear", "on_launcher_source_toggle",
         "on_launcher_prefix_change", "on_launcher_usage_learning_toggle",
-        "on_launcher_switch_english_toggle", "on_launcher_refresh_icons",
+        "on_launcher_switch_english_toggle", "on_launcher_recycle_mode_change",
+        "on_launcher_refresh_icons",
         "on_launcher_source_hotkey_record", "on_launcher_source_hotkey_clear",
         "on_new_snippet_hotkey_record", "on_new_snippet_hotkey_clear",
+        "on_launcher_ua_hotkey_record", "on_launcher_ua_hotkey_clear",
         "on_language_change", "_reopen",
     ]
     return {name: MagicMock(name=name) for name in names}
@@ -525,6 +528,7 @@ class TestPrepareStateEdgeCases:
             "hotkey": "option+space",
             "usage_learning": True,
             "switch_english": False,
+            "recycle_mode": "preload_html",
             "new_snippet_hotkey": "cmd+shift+n",
             "sources": [{"config_key": "app_search", "enabled": True}],
             "registered_sources": [{"name": "test", "prefix": "t"}],
@@ -533,6 +537,7 @@ class TestPrepareStateEdgeCases:
         prepared = SettingsWebPanel._prepare_state(state)
         assert prepared["launcher"]["hotkey"] == "option+space"
         assert prepared["launcher"]["switch_english"] is False
+        assert prepared["launcher"]["recycle_mode"] == "preload_html"
         assert len(prepared["launcher"]["sources"]) == 1
         assert len(prepared["launcher"]["registered_sources"]) == 1
 

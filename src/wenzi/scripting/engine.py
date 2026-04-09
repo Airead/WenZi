@@ -514,6 +514,7 @@ class ScriptEngine:
         # Switch-to-English setting
         panel = self._wz.chooser._get_panel()
         panel._switch_english = chooser_config.get("switch_to_english", True)
+        panel.set_recycle_mode(chooser_config.get("recycle_mode", "preload_html"))
 
         # Usage learning tracker
         if chooser_config.get("usage_learning", True):

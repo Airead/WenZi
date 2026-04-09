@@ -520,6 +520,8 @@ wz.hotkey.bind("ctrl+cmd+n", lambda: wz.execute("open -a Notes"))
       "snippets": false,
       "bookmarks": true,
       "usage_learning": true,
+      "switch_to_english": true,
+      "recycle_mode": "preload_html",
       "prefixes": {
         "clipboard": "cb",
         "files": "f",
@@ -547,8 +549,20 @@ wz.hotkey.bind("ctrl+cmd+n", lambda: wz.execute("open -a Notes"))
 | `snippets` | `false` | 启用代码片段搜索和自动展开 |
 | `bookmarks` | `true` | 启用浏览器书签搜索 |
 | `usage_learning` | `true` | 跟踪选择频率以优化排序 |
+| `switch_to_english` | `true` | 启动器打开期间临时切换到英文输入法 |
+| `recycle_mode` | `"preload_html"` | 启动器隐藏 60 秒后的空闲 WebView 策略 |
 | `prefixes` | *（见上方）* | 各数据源的前缀字符串 |
 | `source_hotkeys` | *（空）* | 直接打开启动器并预选数据源的快捷键 |
+
+### `recycle_mode`
+
+启动器关闭后，WenZi 会先短时间保留隐藏的 chooser，这样立刻重新打开会更快。
+当 chooser 已经隐藏 60 秒后，`recycle_mode` 决定下一步怎么处理：
+
+- `destroy`：完全销毁隐藏的 `WKWebView`；空闲内存最低，但下次打开最慢
+- `prebuild`：销毁旧 WebView，然后预建一个新的空 panel/WebView 外壳；空闲内存低于 `preload_html`
+- `preload_html`：销毁旧 WebView，然后后台预建并预加载 `chooser.html`；会占用更多空闲内存来换取更快的下次打开
+- `keep_alive`：跳过空闲 recycle，持续复用隐藏的 WebView；重新打开最快，但长期内存最高
 
 ## 脚本运行环境
 

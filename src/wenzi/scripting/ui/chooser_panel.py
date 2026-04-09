@@ -197,6 +197,17 @@ class ChooserPanel:
     _DEFAULT_ASYNC_TIMEOUT = 5.0  # seconds
     _UA_USAGE_PREFIX = "_ua"  # Synthetic query prefix for UA mode usage tracking
     _RECYCLE_DELAY = 60.0  # seconds before recycling idle webview
+    _RECYCLE_MODE_DESTROY = "destroy"
+    _RECYCLE_MODE_PREBUILD = "prebuild"
+    _RECYCLE_MODE_PRELOAD_HTML = "preload_html"
+    _RECYCLE_MODE_KEEP_ALIVE = "keep_alive"
+    _VALID_RECYCLE_MODES = frozenset({
+        _RECYCLE_MODE_DESTROY,
+        _RECYCLE_MODE_PREBUILD,
+        _RECYCLE_MODE_PRELOAD_HTML,
+        _RECYCLE_MODE_KEEP_ALIVE,
+    })
+    _DEFAULT_RECYCLE_MODE = _RECYCLE_MODE_PRELOAD_HTML
 
     def __init__(self, usage_tracker=None) -> None:
         self._panel = None
@@ -240,6 +251,8 @@ class ChooserPanel:
         self._loading_visible: bool = False
         self._debounce_state: dict[str, _DebounceEntry] = {}  # source_name -> pending debounce
         self._recycle_timer = None  # deferred webview recycle timer
+        self._recycle_mode: str = self._DEFAULT_RECYCLE_MODE
+        self._recycle_preloading: bool = False
         self._last_screen = None  # last screen the panel was positioned on
 
     # ------------------------------------------------------------------
@@ -377,6 +390,12 @@ class ChooserPanel:
             parts.append("clearContext()")
         # Apply placeholder
         parts.append(f"setPlaceholder({json.dumps(placeholder or '')})")
+        # Visible-session replacement must restore text focus so typing
+        # continues to work without requiring a mouse click.
+        parts.append(
+            "searchInput.focus();"
+            "searchInput.setSelectionRange(searchInput.value.length, searchInput.value.length)"
+        )
         self._pending_placeholder = None
 
         # Return the measured collapsed height so the completion handler
@@ -393,6 +412,25 @@ class ChooserPanel:
         self._webview.evaluateJavaScript_completionHandler_(
             js, _on_reset_done
         )
+
+    @classmethod
+    def normalize_recycle_mode(cls, mode: str | None) -> str:
+        """Return a supported idle recycle mode."""
+        if mode in cls._VALID_RECYCLE_MODES:
+            return mode
+        return cls._DEFAULT_RECYCLE_MODE
+
+    def set_recycle_mode(self, mode: str | None) -> None:
+        """Update how an idle hidden chooser manages its WebView."""
+        self._recycle_mode = self.normalize_recycle_mode(mode)
+
+        # If a hidden chooser is waiting for recycle, reschedule it under the
+        # new policy. Once recycle work has already run, the new mode only
+        # affects future close() cycles.
+        if self._recycle_timer is not None:
+            self._cancel_recycle_timer()
+            if self._panel is not None and not self._panel.isVisible():
+                self._schedule_recycle()
 
     # ------------------------------------------------------------------
     # Source management
@@ -729,7 +767,8 @@ class ChooserPanel:
             self._reconnect_panel_refs()
             self._position_on_mouse_screen()
             self._panel.setAlphaValue_(0.0)
-            self._reload_chooser_html()
+            if not self._recycle_preloading:
+                self._reload_chooser_html()
         else:
             # First show — build from scratch
             self._build_panel()
@@ -807,6 +846,7 @@ class ChooserPanel:
         self._session_placeholder = None
         self._pending_initial_query = None
         self._pending_placeholder = None
+        self._recycle_preloading = False
 
         if self._snippet_expander is not None:
             self._snippet_expander.resume()
@@ -895,6 +935,8 @@ class ChooserPanel:
     def _schedule_recycle(self) -> None:
         """Schedule a webview recycle to free WebKit decoded image cache."""
         self._cancel_recycle_timer()
+        if self._recycle_mode == self._RECYCLE_MODE_KEEP_ALIVE:
+            return
         if self._webview is None:
             return  # nothing to recycle
         from PyObjCTools import AppHelper
@@ -929,6 +971,7 @@ class ChooserPanel:
         self._panel_delegate = None
         self._page_loaded = False
         self._pending_js = []
+        self._recycle_preloading = False
 
     def _do_recycle(self) -> None:
         """Replace old webview with a fresh one to free WebKit image cache.
@@ -943,16 +986,28 @@ class ChooserPanel:
         if self._panel is not None and self._panel.isVisible():
             return  # user re-opened before timer fired
 
+        if self._recycle_mode == self._RECYCLE_MODE_KEEP_ALIVE:
+            logger.debug("ChooserPanel recycle skipped: keep_alive mode")
+            return
+
         self._teardown_webview()
+        self._last_screen = None
+
+        if self._recycle_mode == self._RECYCLE_MODE_DESTROY:
+            logger.debug("ChooserPanel recycled: old webview destroyed")
+            return
 
         # Build fresh panel + webview (new Web Content process) but skip
-        # HTML loading.  Loading HTML triggers IOSurface compositing layer
-        # allocation (~72 MB at Retina) that persists even while hidden.
-        # The next show() will hit the warm path and call
-        # _reload_chooser_html() on demand.
-        self._build_panel(load_html=False)
-        self._last_screen = None
-        logger.debug("ChooserPanel recycled: old webview destroyed, fresh one built")
+        # HTML loading unless preload_html mode is enabled.  Loading HTML
+        # triggers IOSurface compositing layer allocation that persists even
+        # while hidden, so prebuild remains the default.
+        load_html = self._recycle_mode == self._RECYCLE_MODE_PRELOAD_HTML
+        self._build_panel(load_html=load_html)
+        self._recycle_preloading = load_html
+        logger.debug(
+            "ChooserPanel recycled: old webview destroyed, fresh one built (%s)",
+            self._recycle_mode,
+        )
 
     def destroy(self) -> None:
         """Fully destroy the panel and webview, releasing all resources.
@@ -1837,6 +1892,7 @@ class ChooserPanel:
         pending = self._pending_js[:]
         self._pending_js.clear()
         self._page_loaded = True
+        self._recycle_preloading = False
         if pending and self._webview is not None:
             combined = ";".join(pending)
             self._webview.evaluateJavaScript_completionHandler_(combined, None)
@@ -1917,6 +1973,7 @@ class ChooserPanel:
 
         cache_dir = os.path.expanduser(DEFAULT_CACHE_DIR)
         html_path = os.path.join(cache_dir, "_chooser.html")
+        self._recycle_preloading = False
 
         if not os.path.isfile(html_path):
             # HTML file missing (shouldn't happen) — regenerate it in-place.
@@ -2037,6 +2094,7 @@ class ChooserPanel:
         self._page_loaded = False
         self._pending_js = []
         self._current_items = []
+        self._recycle_preloading = False
 
         if not load_html:
             return

@@ -180,6 +180,34 @@ class TestVisualToggle:
         mock_save.assert_called_once()
 
 
+class TestLauncherRecycleMode:
+    @patch("wenzi.controllers.settings_controller.save_config")
+    def test_build_launcher_state_includes_recycle_mode(self, mock_save, ctrl, mock_app):
+        mock_app._config.setdefault("scripting", {})["chooser"] = {
+            "enabled": True,
+            "recycle_mode": "preload_html",
+        }
+
+        state = ctrl._build_launcher_state()
+
+        assert state["recycle_mode"] == "preload_html"
+        mock_save.assert_not_called()
+
+    @patch("wenzi.controllers.settings_controller.save_config")
+    def test_launcher_recycle_mode_change_updates_config_and_panel(self, mock_save, ctrl, mock_app):
+        mock_app._config.setdefault("scripting", {})["chooser"] = {}
+        mock_app._settings_panel.is_visible = False
+        mock_panel = MagicMock()
+        mock_app._script_engine = MagicMock()
+        mock_app._script_engine.wz.chooser._get_panel.return_value = mock_panel
+
+        ctrl.launcher_recycle_mode_change("preload_html")
+
+        assert mock_app._config["scripting"]["chooser"]["recycle_mode"] == "preload_html"
+        mock_panel.set_recycle_mode.assert_called_once_with("preload_html")
+        mock_save.assert_called_once()
+
+
 class TestPreviewToggle:
     @patch("wenzi.controllers.settings_controller.save_config")
     def test_toggle_preview(self, mock_save, ctrl, mock_app):

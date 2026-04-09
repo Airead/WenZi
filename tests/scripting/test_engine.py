@@ -407,6 +407,33 @@ class TestScriptEngine:
 
         engine.stop()
 
+    @patch("wenzi.scripting.api.hotkey.HotkeyAPI.start")
+    @patch("wenzi.scripting.api.hotkey.HotkeyAPI.stop")
+    def test_applies_recycle_mode_to_panel(self, mock_stop, mock_start):
+        config = {
+            "chooser": {
+                "enabled": True,
+                "app_search": False,
+                "clipboard_history": False,
+                "file_search": False,
+                "snippets": False,
+                "bookmarks": False,
+                "usage_learning": False,
+                "recycle_mode": "preload_html",
+            },
+        }
+        engine = ScriptEngine(
+            script_dir="/tmp/nonexistent_vt_scripts",
+            plugins_dir="/tmp/nonexistent_vt_plugins",
+            config=config,
+        )
+        engine.start()
+
+        panel = engine.wz.chooser._get_panel()
+        assert panel._recycle_mode == "preload_html"
+
+        engine.stop()
+
     def test_wz_module_singleton(self):
         engine = ScriptEngine(script_dir="/tmp/wz_test_scripts", plugins_dir="/tmp/nonexistent_vt_plugins")
         import wenzi.scripting.api as api_mod
