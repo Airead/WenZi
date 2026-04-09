@@ -1204,15 +1204,12 @@ class TestFullCache:
 
     def test_maybe_release_idle_cache_releases_after_timeout(self, history):
         """Idle cache should be auto-released."""
-        import time
-
         history.log("a", None, "a", "off", False)
         history.get_all()  # populate full cache
         assert history._full_cache is not None
 
-        # Simulate last access was long ago
-        history._full_cache_last_access = time.monotonic() - 600
-
+        # Use zero timeout so any age triggers release
+        history._FULL_CACHE_IDLE_TIMEOUT = 0
         history.maybe_release_idle_cache()
         assert history._full_cache is None
 
@@ -1222,21 +1219,19 @@ class TestFullCache:
         history.get_all()  # populate full cache
         assert history._full_cache is not None
 
+        # Default timeout (300s) — access was just now
         history.maybe_release_idle_cache()
         assert history._full_cache is not None  # still alive
 
     def test_log_triggers_idle_cache_release(self, history):
         """log() should call maybe_release_idle_cache()."""
-        import time
-
         history.log("a", None, "a", "off", False)
         history.get_all()  # populate full cache
         assert history._full_cache is not None
 
-        # Simulate stale access
-        history._full_cache_last_access = time.monotonic() - 600
+        # Use zero timeout so log()'s idle check triggers release
+        history._FULL_CACHE_IDLE_TIMEOUT = 0
 
-        # log() should trigger idle release
         history.log("b", None, "b", "off", False)
         assert history._full_cache is None
 
