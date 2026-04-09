@@ -27,6 +27,7 @@ a = Analysis(
         (os.path.join(_spec_dir, 'src/wenzi/ui/vendor'), 'wenzi/ui/vendor'),
         (os.path.join(_spec_dir, 'src/wenzi/ui/templates'), 'wenzi/ui/templates'),
         (os.path.join(_spec_dir, 'src/wenzi/screenshot/templates'), 'wenzi/screenshot/templates'),
+        ('/etc/ssl/cert.pem', '.'),
     ],
     hiddenimports=[
         # wenzi core

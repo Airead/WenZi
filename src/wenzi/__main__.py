@@ -6,9 +6,11 @@ import sys
 # Ensure urllib/ssl can find CA certificates in PyInstaller bundles.
 # Without this, urllib.request fails with SSL: CERTIFICATE_VERIFY_FAILED
 # because the bundled Python cannot locate the system CA store.
-_cert = "/etc/ssl/cert.pem"
-if os.path.isfile(_cert):
-    os.environ.setdefault("SSL_CERT_FILE", _cert)
+_bundled_cert = os.path.join(getattr(sys, '_MEIPASS', ''), 'cert.pem')
+if os.path.isfile(_bundled_cert):
+    os.environ.setdefault("SSL_CERT_FILE", _bundled_cert)
+elif os.path.isfile("/etc/ssl/cert.pem"):
+    os.environ.setdefault("SSL_CERT_FILE", "/etc/ssl/cert.pem")
 
 
 def main():
