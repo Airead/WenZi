@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import Callable, Dict, List, Optional
+from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +52,7 @@ _MOD_VK = {
 }
 
 # Reverse lookup: virtual keycode -> key name
-_VK_TO_NAME: Dict[int, str] = {}
+_VK_TO_NAME: dict[int, str] = {}
 _VK_TO_NAME.update({vk: name for name, vk in _KEYCODE_MAP.items()})
 _VK_TO_NAME.update({vk: name for name, vk in _SPECIAL_VK.items()})
 _VK_TO_NAME.update({vk: name for name, (vk, _flag) in _MOD_VK.items()})
@@ -491,7 +491,7 @@ class HoldHotkeyListener:
         self._on_release = on_release
         self._held = False
         self._held_lock = threading.Lock()
-        self._listener: Optional[_QuartzAllKeysListener] = None
+        self._listener: _QuartzAllKeysListener | None = None
 
     def start(self) -> None:
         self._listener = _QuartzAllKeysListener(
@@ -542,17 +542,17 @@ class MultiHotkeyListener:
 
     def __init__(
         self,
-        key_names: List[str],
+        key_names: list[str],
         on_press: Callable[[str], None],
         on_release: Callable[[str], None],
-        on_restart: Optional[Callable[[], None]] = None,
+        on_restart: Callable[[], None] | None = None,
         restart_key: str = "cmd",
-        on_cancel: Optional[Callable[[], None]] = None,
+        on_cancel: Callable[[], None] | None = None,
         cancel_key: str = "space",
-        on_preview_history: Optional[Callable[[], None]] = None,
+        on_preview_history: Callable[[], None] | None = None,
         preview_history_key: str = "z",
-        on_mode_prev: Optional[Callable[[], None]] = None,
-        on_mode_next: Optional[Callable[[], None]] = None,
+        on_mode_prev: Callable[[], None] | None = None,
+        on_mode_next: Callable[[], None] | None = None,
     ) -> None:
         self._on_press = on_press
         self._on_release = on_release
@@ -565,17 +565,17 @@ class MultiHotkeyListener:
         self._preview_history_key = preview_history_key.strip().lower()
         self._on_mode_prev = on_mode_prev
         self._on_mode_next = on_mode_next
-        self._target_vks: Dict[int, str] = {}  # vk -> name
+        self._target_vks: dict[int, str] = {}  # vk -> name
         self._enabled_names: set = set()
         self._held: set = set()  # set of currently held key names
         self._held_lock = threading.Lock()
-        self._listener: Optional[_QuartzAllKeysListener] = None
+        self._listener: _QuartzAllKeysListener | None = None
         # Recording mode state
         self._record_done = threading.Event()
-        self._record_cb: Optional[Callable[[str], None]] = None
-        self._record_unrecognized_cb: Optional[Callable[[str], None]] = None
-        self._record_timeout_cb: Optional[Callable[[], None]] = None
-        self._record_timer: Optional[threading.Timer] = None
+        self._record_cb: Callable[[str], None] | None = None
+        self._record_unrecognized_cb: Callable[[str], None] | None = None
+        self._record_timeout_cb: Callable[[], None] | None = None
+        self._record_timer: threading.Timer | None = None
 
         self._has_non_modifier_trigger = False
         for name in key_names:
@@ -627,7 +627,7 @@ class MultiHotkeyListener:
         on_recorded: Callable[[str], None],
         on_timeout: Callable[[], None],
         timeout: float = 10.0,
-        on_unrecognized: Optional[Callable[[str], None]] = None,
+        on_unrecognized: Callable[[str], None] | None = None,
     ) -> None:
         """Enter recording mode: the next key press calls *on_recorded* instead of on_press."""
         self._record_done.clear()

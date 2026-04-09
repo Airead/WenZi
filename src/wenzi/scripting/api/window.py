@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -38,8 +37,8 @@ def _get_focused_window():
     """
     from AppKit import NSWorkspace
     from ApplicationServices import (
-        AXUIElementCreateApplication,
         AXUIElementCopyAttributeValue,
+        AXUIElementCreateApplication,
         kAXErrorSuccess,
     )
 
@@ -66,8 +65,8 @@ def _get_focused_window():
 def _get_windows_for_pid(pid: int):
     """Return the AXWindows array for a given PID, or None."""
     from ApplicationServices import (
-        AXUIElementCreateApplication,
         AXUIElementCopyAttributeValue,
+        AXUIElementCreateApplication,
         kAXErrorSuccess,
     )
 
@@ -91,7 +90,7 @@ def _get_window_title(win) -> str:
     return str(title)
 
 
-def _get_position(win) -> Optional[tuple]:
+def _get_position(win) -> tuple | None:
     """Return (x, y) of the window in AX (top-left origin) coords."""
     from ApplicationServices import (
         AXUIElementCopyAttributeValue,
@@ -111,19 +110,19 @@ def _get_position(win) -> Optional[tuple]:
 
 def _set_position(win, x: float, y: float):
     """Set the window position in AX coords."""
+    import Quartz
     from ApplicationServices import (
         AXUIElementSetAttributeValue,
         AXValueCreate,
         kAXValueCGPointType,
     )
-    import Quartz
 
     point = Quartz.CGPoint(x=x, y=y)
     val = AXValueCreate(kAXValueCGPointType, point)
     AXUIElementSetAttributeValue(win, "AXPosition", val)
 
 
-def _get_size(win) -> Optional[tuple]:
+def _get_size(win) -> tuple | None:
     """Return (width, height) of the window."""
     from ApplicationServices import (
         AXUIElementCopyAttributeValue,
@@ -143,12 +142,12 @@ def _get_size(win) -> Optional[tuple]:
 
 def _set_size(win, w: float, h: float):
     """Set the window size."""
+    import Quartz
     from ApplicationServices import (
         AXUIElementSetAttributeValue,
         AXValueCreate,
         kAXValueCGSizeType,
     )
-    import Quartz
 
     size = Quartz.CGSize(width=w, height=h)
     val = AXValueCreate(kAXValueCGSizeType, size)
@@ -203,7 +202,7 @@ def _screen_for_window(win):
 class WindowAPI:
     """Window management — ``wz.window``."""
 
-    def focused_frame(self) -> Optional[dict]:
+    def focused_frame(self) -> dict | None:
         """Return ``{"x", "y", "w", "h"}`` of the focused window, or None."""
         win = _get_focused_window()
         if win is None:

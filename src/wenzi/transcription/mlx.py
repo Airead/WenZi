@@ -5,7 +5,6 @@ from __future__ import annotations
 import gc
 import logging
 import time
-from typing import List, Optional
 
 from .base import BaseTranscriber, build_hotwords_prompt
 
@@ -19,11 +18,11 @@ class MLXWhisperTranscriber(BaseTranscriber):
 
     def __init__(
         self,
-        language: Optional[str] = None,
-        model: Optional[str] = None,
+        language: str | None = None,
+        model: str | None = None,
         use_punc: bool = False,
-        temperature: Optional[float] = None,
-        hotwords: Optional[List[str]] = None,
+        temperature: float | None = None,
+        hotwords: list[str] | None = None,
     ) -> None:
         self._model_name = model or DEFAULT_MODEL
         self._language = language
@@ -147,6 +146,7 @@ class MLXWhisperTranscriber(BaseTranscriber):
         """Decode WAV bytes to float32 numpy array (mono, original sample rate)."""
         import io
         import wave
+
         import numpy as np
 
         with wave.open(io.BytesIO(wav_data), "rb") as wf:
@@ -154,7 +154,7 @@ class MLXWhisperTranscriber(BaseTranscriber):
             audio = np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32768.0
         return audio
 
-    def transcribe(self, wav_data: bytes, *, hotwords: Optional[List[str]] = None) -> str:
+    def transcribe(self, wav_data: bytes, *, hotwords: list[str] | None = None) -> str:
         """Transcribe WAV audio bytes to text."""
         if not self._initialized:
             self.initialize()

@@ -2,9 +2,9 @@
 
 from .conversation_history import ConversationHistory
 from .enhancer import MODE_OFF, TextEnhancer, create_enhancer
+from .manual_vocabulary import ManualVocabEntry, ManualVocabularyStore
 from .mode_loader import ModeDefinition, get_sorted_modes, load_modes
 from .preview_history import PreviewHistoryStore, PreviewRecord
-from .manual_vocabulary import ManualVocabEntry, ManualVocabularyStore
 from .vocab_db import (
     METRIC_ASR_HIT,
     METRIC_ASR_MISS,

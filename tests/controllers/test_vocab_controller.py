@@ -8,8 +8,8 @@ from unittest.mock import MagicMock
 import pytest
 
 from wenzi.controllers.vocab_controller import VocabController, _app_display_name
-from wenzi.ui.web_utils import time_range_cutoff as _time_range_cutoff
 from wenzi.enhance.manual_vocabulary import ManualVocabularyStore
+from wenzi.ui.web_utils import time_range_cutoff as _time_range_cutoff
 
 
 @pytest.fixture

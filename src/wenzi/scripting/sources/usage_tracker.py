@@ -11,7 +11,6 @@ import json
 import logging
 import os
 import threading
-from typing import Dict, Optional
 
 from wenzi.config import DEFAULT_CHOOSER_USAGE_PATH
 
@@ -31,13 +30,13 @@ class UsageTracker:
     coalescing multiple rapid selections into a single write.
     """
 
-    def __init__(self, path: Optional[str] = None) -> None:
+    def __init__(self, path: str | None = None) -> None:
         self._path = path or _DEFAULT_PATH
-        self._data: Dict[str, Dict[str, int]] = {}
+        self._data: dict[str, dict[str, int]] = {}
         self._loaded = False
         self._lock = threading.Lock()
         self._dirty = False
-        self._flush_timer: Optional[threading.Timer] = None
+        self._flush_timer: threading.Timer | None = None
 
     def _ensure_loaded(self) -> None:
         if self._loaded:
@@ -46,7 +45,7 @@ class UsageTracker:
         if not os.path.isfile(self._path):
             return
         try:
-            with open(self._path, "r", encoding="utf-8") as f:
+            with open(self._path, encoding="utf-8") as f:
                 data = json.load(f)
             if isinstance(data, dict):
                 self._data = data

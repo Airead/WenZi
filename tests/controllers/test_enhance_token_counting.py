@@ -12,7 +12,6 @@ from unittest.mock import MagicMock
 
 from wenzi.controllers.enhance_controller import EnhanceController
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

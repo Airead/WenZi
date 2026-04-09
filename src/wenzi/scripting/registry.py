@@ -6,8 +6,9 @@ import concurrent.futures
 import logging
 import threading
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -18,9 +19,9 @@ class LeaderMapping:
 
     key: str
     desc: str = ""
-    app: Optional[str] = None
-    func: Optional[Callable] = None
-    exec_cmd: Optional[str] = None
+    app: str | None = None
+    func: Callable | None = None
+    exec_cmd: str | None = None
 
 
 @dataclass
@@ -28,7 +29,7 @@ class LeaderConfig:
     """A complete leader-key configuration."""
 
     trigger_key: str
-    mappings: List[LeaderMapping] = field(default_factory=list)
+    mappings: list[LeaderMapping] = field(default_factory=list)
     position: Any = "center"  # "center", "top", "bottom", "mouse", or (x%, y%)
 
 
@@ -61,7 +62,7 @@ class TimerEntry:
     interval: float
     callback: Callable
     repeating: bool
-    _timer: Optional[threading.Timer] = field(default=None, repr=False)
+    _timer: threading.Timer | None = field(default=None, repr=False)
 
 
 class ScriptingRegistry:
@@ -72,32 +73,32 @@ class ScriptingRegistry:
     """
 
     def __init__(self) -> None:
-        self._leaders: Dict[str, LeaderConfig] = {}
-        self._hotkeys: List[HotkeyBinding] = []
-        self._timers: Dict[str, TimerEntry] = {}
-        self._remaps: Dict[int, RemapEntry] = {}  # source_vk → RemapEntry
+        self._leaders: dict[str, LeaderConfig] = {}
+        self._hotkeys: list[HotkeyBinding] = []
+        self._timers: dict[str, TimerEntry] = {}
+        self._remaps: dict[int, RemapEntry] = {}  # source_vk → RemapEntry
         self._remap_listener: Any = None  # KeyRemapListener instance
-        self._chooser_sources: Dict[str, Any] = {}  # name → ChooserSource
-        self._event_listeners: Dict[str, List[Callable]] = {}
+        self._chooser_sources: dict[str, Any] = {}  # name → ChooserSource
+        self._event_listeners: dict[str, list[Callable]] = {}
         self._lock = threading.Lock()
         self._event_executor = concurrent.futures.ThreadPoolExecutor(
             max_workers=4, thread_name_prefix="event-dispatch",
         )
 
     @property
-    def leaders(self) -> Dict[str, LeaderConfig]:
+    def leaders(self) -> dict[str, LeaderConfig]:
         return self._leaders
 
     @property
-    def hotkeys(self) -> List[HotkeyBinding]:
+    def hotkeys(self) -> list[HotkeyBinding]:
         return self._hotkeys
 
     @property
-    def timers(self) -> Dict[str, TimerEntry]:
+    def timers(self) -> dict[str, TimerEntry]:
         return self._timers
 
     @property
-    def remaps(self) -> Dict[int, RemapEntry]:
+    def remaps(self) -> dict[int, RemapEntry]:
         return self._remaps
 
     @property
@@ -109,13 +110,13 @@ class ScriptingRegistry:
         self._remap_listener = value
 
     @property
-    def chooser_sources(self) -> Dict[str, Any]:
+    def chooser_sources(self) -> dict[str, Any]:
         return self._chooser_sources
 
     def register_leader(
         self,
         trigger_key: str,
-        mappings: List[LeaderMapping],
+        mappings: list[LeaderMapping],
         position: Any = "center",
     ) -> None:
         """Register a leader-key configuration."""
@@ -149,7 +150,7 @@ class ScriptingRegistry:
         self._remaps[entry.source_vk] = entry
         logger.info("Registered remap: %s → %s", entry.source_name, entry.target_name)
 
-    def unregister_remap(self, source_vk: int) -> Optional[RemapEntry]:
+    def unregister_remap(self, source_vk: int) -> RemapEntry | None:
         """Remove a key remap. Returns the removed entry or None."""
         entry = self._remaps.pop(source_vk, None)
         if entry:
@@ -177,12 +178,12 @@ class ScriptingRegistry:
         )
         return entry
 
-    def get_timer(self, timer_id: str) -> Optional[TimerEntry]:
+    def get_timer(self, timer_id: str) -> TimerEntry | None:
         """Thread-safe lookup of a timer entry."""
         with self._lock:
             return self._timers.get(timer_id)
 
-    def pop_timer(self, timer_id: str) -> Optional[TimerEntry]:
+    def pop_timer(self, timer_id: str) -> TimerEntry | None:
         """Atomically remove and return a timer entry without cancelling."""
         with self._lock:
             return self._timers.pop(timer_id, None)

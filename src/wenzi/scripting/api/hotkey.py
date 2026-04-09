@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import Callable, Optional
+from collections.abc import Callable
 
 from wenzi.scripting.api._async_util import wrap_async
 from wenzi.scripting.registry import LeaderConfig, LeaderMapping, RemapEntry, ScriptingRegistry
@@ -20,7 +20,7 @@ class HotkeyAPI:
         self._registry = registry
         self._leader_alert = LeaderAlertPanel()
         self._listener = None  # _QuartzAllKeysListener
-        self._active_leader: Optional[LeaderConfig] = None
+        self._active_leader: LeaderConfig | None = None
         self._leader_triggered: bool = False
         self._sticky_leader: bool = False
         self._click_monitor = None
@@ -202,7 +202,7 @@ class HotkeyAPI:
             except Exception as exc:
                 logger.error("Failed to start hotkey %s: %s", binding.hotkey_str, exc)
 
-    def _start_remap_listener(self, new_entry: "RemapEntry | None" = None) -> None:
+    def _start_remap_listener(self, new_entry: RemapEntry | None = None) -> None:
         """Start (or update) the shared KeyRemapListener for registered remaps.
 
         When *new_entry* is given only that single remap is added to the

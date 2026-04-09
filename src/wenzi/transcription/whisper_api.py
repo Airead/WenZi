@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import io
 import logging
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING
 
 from .base import BaseTranscriber, build_hotwords_prompt
 
@@ -23,9 +23,9 @@ class WhisperAPITranscriber(BaseTranscriber):
         base_url: str,
         api_key: str,
         model: str,
-        language: Optional[str] = None,
-        temperature: Optional[float] = None,
-        hotwords: Optional[List[str]] = None,
+        language: str | None = None,
+        temperature: float | None = None,
+        hotwords: list[str] | None = None,
     ) -> None:
         self._base_url = base_url
         self._api_key = api_key
@@ -33,7 +33,7 @@ class WhisperAPITranscriber(BaseTranscriber):
         self._language = language
         self._temperature = temperature if temperature is not None else 0.0
         self._hotwords = hotwords
-        self._client: Optional["OpenAI"] = None
+        self._client: OpenAI | None = None
         self._initialized = False
 
     @property
@@ -63,7 +63,7 @@ class WhisperAPITranscriber(BaseTranscriber):
         self._initialized = False
         logger.info("Whisper API transcriber cleaned up")
 
-    def transcribe(self, wav_data: bytes, *, hotwords: Optional[List[str]] = None) -> str:
+    def transcribe(self, wav_data: bytes, *, hotwords: list[str] | None = None) -> str:
         if not self._initialized:
             self.initialize()
 
@@ -91,7 +91,7 @@ class WhisperAPITranscriber(BaseTranscriber):
         return text
 
     @staticmethod
-    def verify_provider(base_url: str, api_key: str, model: str) -> Optional[str]:
+    def verify_provider(base_url: str, api_key: str, model: str) -> str | None:
         """Test an ASR provider connection with a silent WAV file.
 
         Returns None on success or an error message string on failure.

@@ -7,8 +7,9 @@ import json
 import logging
 import os
 from collections import deque
-from datetime import datetime, timezone
-from typing import Any, Callable, Dict, List, Optional
+from collections.abc import Callable
+from datetime import UTC, datetime
+from typing import Any
 
 from wenzi.config import DEFAULT_DATA_DIR
 from wenzi.enhance.text_diff import inline_diff
@@ -46,10 +47,10 @@ class ConversationHistory:
         self._archive_dir = os.path.join(self._data_dir, "conversation_history_archives")
 
         # Hot-path cache: most recent _CACHE_SIZE raw records (oldest first)
-        self._cache: Optional[List[Dict[str, Any]]] = None
+        self._cache: list[dict[str, Any]] | None = None
 
         # Full cache: all parsed records (oldest first), for get_all/search
-        self._full_cache: Optional[List[Dict[str, Any]]] = None
+        self._full_cache: list[dict[str, Any]] | None = None
         self._full_cache_mtime: float = 0.0
 
         # Monotonically increasing counter for change detection.
@@ -74,13 +75,13 @@ class ConversationHistory:
     # Cache helpers
     # ------------------------------------------------------------------
 
-    def _ensure_cache(self) -> List[Dict[str, Any]]:
+    def _ensure_cache(self) -> list[dict[str, Any]]:
         """Return the hot-path cache, loading from disk on first access."""
         if self._cache is None:
             self._cache = self._load_tail(self._CACHE_SIZE)
         return self._cache
 
-    def _load_tail(self, n: int) -> List[Dict[str, Any]]:
+    def _load_tail(self, n: int) -> list[dict[str, Any]]:
         """Load the last *n* valid records from the JSONL file.
 
         Keeps a buffer larger than *n* to account for blank/malformed lines,
@@ -89,14 +90,14 @@ class ConversationHistory:
         if not os.path.exists(self._history_path):
             return []
         try:
-            with open(self._history_path, "r", encoding="utf-8") as f:
+            with open(self._history_path, encoding="utf-8") as f:
                 # Over-read to tolerate blank/malformed lines
                 tail_lines = deque(f, maxlen=n + 50)
         except Exception as e:
             logger.warning("Failed to read conversation history: %s", e)
             return []
 
-        results: List[Dict[str, Any]] = []
+        results: list[dict[str, Any]] = []
         for line in tail_lines:
             line = line.strip()
             if not line:
@@ -107,7 +108,7 @@ class ConversationHistory:
                 continue
         return results[-n:]
 
-    def _ensure_full_cache(self) -> List[Dict[str, Any]]:
+    def _ensure_full_cache(self) -> list[dict[str, Any]]:
         """Return the full cache, reloading from disk if the file changed."""
         try:
             mtime = os.path.getmtime(self._history_path)
@@ -121,18 +122,18 @@ class ConversationHistory:
         self._full_cache_mtime = mtime
         return self._full_cache
 
-    def _load_all_records(self) -> List[Dict[str, Any]]:
+    def _load_all_records(self) -> list[dict[str, Any]]:
         """Parse every valid record from the JSONL file (oldest first)."""
         if not os.path.exists(self._history_path):
             return []
         try:
-            with open(self._history_path, "r", encoding="utf-8") as f:
+            with open(self._history_path, encoding="utf-8") as f:
                 lines = f.readlines()
         except Exception as e:
             logger.warning("Failed to read conversation history: %s", e)
             return []
 
-        records: List[Dict[str, Any]] = []
+        records: list[dict[str, Any]] = []
         for line in lines:
             line = line.strip()
             if not line:
@@ -152,7 +153,7 @@ class ConversationHistory:
         self._full_cache = None
         self._full_cache_mtime = 0.0
 
-    def _update_cache_record(self, timestamp: str, fields: Dict[str, Any]) -> None:
+    def _update_cache_record(self, timestamp: str, fields: dict[str, Any]) -> None:
         """Update matching record in both caches (if loaded)."""
         for cache in (self._cache, self._full_cache):
             if cache is None:
@@ -169,7 +170,7 @@ class ConversationHistory:
         if self._full_cache is not None:
             self._full_cache = [r for r in self._full_cache if r.get("timestamp") != timestamp]
 
-    def _append_cache_record(self, record: Dict[str, Any]) -> None:
+    def _append_cache_record(self, record: dict[str, Any]) -> None:
         """Append a new record to both caches (if loaded)."""
         if self._cache is not None:
             self._cache.append(record)
@@ -199,7 +200,7 @@ class ConversationHistory:
     def log(
         self,
         asr_text: str,
-        enhanced_text: Optional[str],
+        enhanced_text: str | None,
         final_text: str,
         enhance_mode: str,
         preview_enabled: bool,
@@ -217,7 +218,7 @@ class ConversationHistory:
         """
         os.makedirs(self._data_dir, exist_ok=True)
 
-        ts = datetime.now(timezone.utc).isoformat()
+        ts = datetime.now(UTC).isoformat()
         record = {
             "timestamp": ts,
             "asr_text": asr_text,
@@ -259,7 +260,7 @@ class ConversationHistory:
             return
 
         try:
-            with open(self._history_path, "r", encoding="utf-8") as f:
+            with open(self._history_path, encoding="utf-8") as f:
                 lines = f.readlines()
         except Exception:
             return
@@ -272,7 +273,7 @@ class ConversationHistory:
 
         # Group old lines by month and append to per-month archive files
         os.makedirs(self._archive_dir, exist_ok=True)
-        monthly_groups: Dict[str, List[str]] = {}
+        monthly_groups: dict[str, list[str]] = {}
         for line in old_lines:
             month_key = self._extract_month(line)
             monthly_groups.setdefault(month_key, []).append(line)
@@ -308,7 +309,7 @@ class ConversationHistory:
             pass
         return "unknown"
 
-    def _list_archive_files(self) -> List[str]:
+    def _list_archive_files(self) -> list[str]:
         """Return sorted list of archive file paths (oldest first)."""
         if not os.path.isdir(self._archive_dir):
             return []
@@ -317,12 +318,12 @@ class ConversationHistory:
         files.sort()  # Lexicographic sort on YYYY-MM gives chronological order
         return files
 
-    def _load_archive_records(self) -> List[Dict[str, Any]]:
+    def _load_archive_records(self) -> list[dict[str, Any]]:
         """Load all records from archive files (oldest first)."""
-        records: List[Dict[str, Any]] = []
+        records: list[dict[str, Any]] = []
         for path in self._list_archive_files():
             try:
-                with open(path, "r", encoding="utf-8") as f:
+                with open(path, encoding="utf-8") as f:
                     for line in f:
                         line = line.strip()
                         if not line:
@@ -344,13 +345,13 @@ class ConversationHistory:
         if not os.path.exists(self._history_path):
             return 0
         try:
-            with open(self._history_path, "r", encoding="utf-8") as f:
+            with open(self._history_path, encoding="utf-8") as f:
                 return sum(1 for line in f if line.strip())
         except Exception:
             return 0
 
     @staticmethod
-    def _is_corrected(record: Dict[str, Any]) -> bool:
+    def _is_corrected(record: dict[str, Any]) -> bool:
         """Determine whether a record represents a user correction.
 
         Uses the explicit ``user_corrected`` field when present; otherwise
@@ -373,10 +374,10 @@ class ConversationHistory:
 
     def get_recent(
         self,
-        n: Optional[int] = None,
+        n: int | None = None,
         max_entries: int = 10,
         enhance_mode: str = "",
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Read the most recent N preview_enabled=true records.
 
         Records whose ``final_text`` exceeds ``_MAX_TEXT_LENGTH_FOR_CONTEXT``
@@ -396,7 +397,7 @@ class ConversationHistory:
         count = n if n is not None else max_entries
         cache = self._ensure_cache()
 
-        results: List[Dict[str, Any]] = []
+        results: list[dict[str, Any]] = []
         for record in reversed(cache):
             if record.get("preview_enabled") is not True:
                 continue
@@ -418,7 +419,7 @@ class ConversationHistory:
 
     def get_all(
         self, limit: int = 0, include_archived: bool = False
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Return all records (no filtering), newest first.
 
         Uses the full in-memory cache; call ``release_full_cache()`` when
@@ -445,7 +446,7 @@ class ConversationHistory:
         if limit <= 0:
             return list(reversed(combined))
 
-        results: List[Dict[str, Any]] = []
+        results: list[dict[str, Any]] = []
         for record in reversed(combined):
             results.append(record)
             if len(results) >= limit:
@@ -454,7 +455,7 @@ class ConversationHistory:
 
     def search(
         self, query: str, limit: int = 0, include_archived: bool = False
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Search records by case-insensitive substring match on text fields.
 
         Uses the full in-memory cache; call ``release_full_cache()`` when
@@ -480,7 +481,7 @@ class ConversationHistory:
             return []
 
         query_lower = query.lower()
-        results: List[Dict[str, Any]] = []
+        results: list[dict[str, Any]] = []
         for record in reversed(combined):
             searchable = " ".join(
                 str(record.get(k, ""))
@@ -514,7 +515,7 @@ class ConversationHistory:
     def _rewrite_matching_record(
         self,
         timestamp: str,
-        transform: Callable[[Dict[str, Any]], Optional[str]],
+        transform: Callable[[dict[str, Any]], str | None],
     ) -> bool:
         """Find a record by timestamp and rewrite the file with a transform.
 
@@ -532,14 +533,14 @@ class ConversationHistory:
             return False
 
         try:
-            with open(self._history_path, "r", encoding="utf-8") as f:
+            with open(self._history_path, encoding="utf-8") as f:
                 lines = f.readlines()
         except Exception as e:
             logger.warning("Failed to read conversation history: %s", e)
             return False
 
         found = False
-        new_lines: List[str] = []
+        new_lines: list[str] = []
         for line in lines:
             stripped = line.strip()
             if not stripped:
@@ -585,9 +586,9 @@ class ConversationHistory:
         if not fields:
             return False
 
-        edit_ts = datetime.now(timezone.utc).isoformat()
+        edit_ts = datetime.now(UTC).isoformat()
 
-        def _transform(record: Dict[str, Any]) -> Optional[str]:
+        def _transform(record: dict[str, Any]) -> str | None:
             for key, value in fields.items():
                 record[key] = value
             record["edited_at"] = edit_ts
@@ -615,7 +616,7 @@ class ConversationHistory:
             True if record was found and deleted, False otherwise.
         """
 
-        def _transform(record: Dict[str, Any]) -> Optional[str]:
+        def _transform(record: dict[str, Any]) -> str | None:
             return None
 
         if not self._rewrite_matching_record(timestamp, _transform):
@@ -647,7 +648,7 @@ class ConversationHistory:
     _MAX_PROMPT_CHARS = 2000
 
     @staticmethod
-    def format_entry_line(entry: Dict[str, Any], context_level: str = "off") -> str:
+    def format_entry_line(entry: dict[str, Any], context_level: str = "off") -> str:
         """Format a single history entry as a prompt line.
 
         Uses inline diff notation: unchanged text appears as-is, and
@@ -666,7 +667,7 @@ class ConversationHistory:
         return f"- {diff}"
 
     def format_for_prompt(
-        self, entries: List[Dict[str, Any]], max_chars: int = 0
+        self, entries: list[dict[str, Any]], max_chars: int = 0
     ) -> str:
         """Format conversation history entries for injection into LLM prompt.
 
@@ -695,7 +696,7 @@ class ConversationHistory:
 
         # Select entries from newest (end) to oldest, respecting budget
         budget = max_chars - overhead
-        selected: List[str] = []
+        selected: list[str] = []
         for line in reversed(formatted):
             # +1 for the newline after the entry line
             cost = len(line) + 1

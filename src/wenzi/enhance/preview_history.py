@@ -6,7 +6,7 @@ import logging
 import os
 import tempfile
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from wenzi.input_context import InputContext
@@ -23,24 +23,24 @@ class PreviewRecord:
     back and :attr:`wav_path` to check whether audio is available.
     """
 
-    timestamp: Optional[str]  # None = from cancel (not in ConversationHistory)
+    timestamp: str | None  # None = from cancel (not in ConversationHistory)
     created_at: str  # always set — local ISO time for display
     action: str  # "confirm" | "copy" | "cancel"
     asr_text: str
-    enhanced_text: Optional[str]
+    enhanced_text: str | None
     final_text: str
     enhance_mode: str
     stt_model: str
     llm_model: str
-    wav_data: Optional[bytes]  # deprecated — use wav_path / load_wav_data()
+    wav_data: bytes | None  # deprecated — use wav_path / load_wav_data()
     audio_duration: float
     source: str  # "voice" | "clipboard"
     system_prompt: str = ""
     thinking_text: str = ""
     token_usage: dict | None = None
     hotwords_detail: list = field(default_factory=list)  # List[HotwordDetail]
-    input_context: "InputContext | None" = None
-    wav_path: Optional[str] = None
+    input_context: InputContext | None = None
+    wav_path: str | None = None
 
     def __post_init__(self) -> None:
         """If wav_data bytes were provided, spill them to a temp file."""
@@ -56,7 +56,7 @@ class PreviewRecord:
             except Exception as e:
                 logger.warning("Failed to write WAV temp file: %s", e)
 
-    def load_wav_data(self) -> Optional[bytes]:
+    def load_wav_data(self) -> bytes | None:
         """Read WAV bytes from the backing temp file, or return None."""
         if self.wav_path is None:
             return self.wav_data
@@ -104,7 +104,7 @@ class PreviewHistoryStore:
         """Return all records, newest first."""
         return list(reversed(self._records))
 
-    def get(self, index: int) -> Optional[PreviewRecord]:
+    def get(self, index: int) -> PreviewRecord | None:
         """Return record by index (0 = newest).  None if out of range."""
         items = self.get_all()
         if 0 <= index < len(items):

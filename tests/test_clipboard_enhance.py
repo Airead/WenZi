@@ -340,7 +340,7 @@ class TestClipboardEnhanceConfig:
         assert "output" not in DEFAULT_CONFIG["clipboard_enhance"]
 
     def test_config_merge_preserves_clipboard_enhance(self):
-        from wenzi.config import _merge_dict, DEFAULT_CONFIG
+        from wenzi.config import DEFAULT_CONFIG, _merge_dict
 
         overrides = {
             "clipboard_enhance": {

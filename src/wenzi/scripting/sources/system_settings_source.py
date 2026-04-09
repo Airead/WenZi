@@ -6,8 +6,9 @@ import hashlib
 import logging
 import os
 import threading
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Callable, Optional, Sequence
+from typing import TYPE_CHECKING
 
 import objc
 
@@ -26,8 +27,8 @@ _ICON_SIZE = 32
 
 def build_url(
     pane_id: str,
-    anchor: Optional[str] = None,
-    sub_id: Optional[str] = None,
+    anchor: str | None = None,
+    sub_id: str | None = None,
 ) -> str:
     """Build a System Settings URL.
 
@@ -50,8 +51,8 @@ class SettingsEntry:
 
     title: str
     pane_id: str
-    anchor: Optional[str] = None
-    sub_id: Optional[str] = None
+    anchor: str | None = None
+    sub_id: str | None = None
     parent_title: str = ""
     keywords: Sequence[str] = field(default_factory=tuple)
     appex_name: str = ""  # e.g. "SecurityPrivacyExtension" for icon lookup
@@ -275,7 +276,7 @@ def get_static_entries() -> list[SettingsEntry]:
 # ---------------------------------------------------------------------------
 
 
-def _get_icon_png(appex_path: str) -> Optional[bytes]:
+def _get_icon_png(appex_path: str) -> bytes | None:
     """Return 32x32 PNG bytes for an .appex icon via NSWorkspace, or None."""
     with objc.autorelease_pool():
         try:
@@ -340,11 +341,15 @@ class SystemSettingsSource:
         self,
         extensions_dir: str = _DEFAULT_EXTENSIONS_DIR,
         icon_cache_dir: str = _DEFAULT_ICON_CACHE_DIR,
-        on_open: Optional[Callable[[], None]] = None,
+        on_open: Callable[[], None] | None = None,
     ) -> None:
         from wenzi.scripting.sources import (
             ChooserItem as _ChooserItem,
+        )
+        from wenzi.scripting.sources import (
             ChooserSource as _ChooserSource,
+        )
+        from wenzi.scripting.sources import (
             copy_to_clipboard,
             fuzzy_match,
             fuzzy_match_fields,
@@ -381,7 +386,7 @@ class SystemSettingsSource:
             "SystemSettingsSource loaded: %d entries", len(self._entries),
         )
 
-    def set_on_open(self, callback: Optional[Callable[[], None]]) -> None:
+    def set_on_open(self, callback: Callable[[], None] | None) -> None:
         """Set the callback invoked when a system setting is opened."""
         self._on_open = callback
 
@@ -439,7 +444,7 @@ class SystemSettingsSource:
             self._icon_cache[appex_name] = file_url
         return file_url
 
-    def search(self, query: str) -> list["ChooserItem"]:
+    def search(self, query: str) -> list[ChooserItem]:
         """Search all entries. Empty query returns top-level panels."""
         q = query.strip()
         if not q:
@@ -488,13 +493,13 @@ class SystemSettingsSource:
             ),
         ]
 
-    def _search_mixed(self, query: str) -> list["ChooserItem"]:
+    def _search_mixed(self, query: str) -> list[ChooserItem]:
         """Search for unprefixed mode: no results on empty, limited count."""
         if not query.strip():
             return []
         return self.search(query)[:5]
 
-    def _to_item(self, entry: SettingsEntry) -> "ChooserItem":
+    def _to_item(self, entry: SettingsEntry) -> ChooserItem:
         """Convert a SettingsEntry to a ChooserItem."""
         url = entry.url
         icon = self._get_icon(entry.appex_name)

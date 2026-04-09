@@ -18,6 +18,7 @@ class TestGetFrontmostApp:
         with patch.dict("sys.modules", {"AppKit": MagicMock(NSWorkspace=mock_ws)}):
             # Need to re-import since the function does `from AppKit import NSWorkspace`
             import importlib
+
             import wenzi.ui_helpers as mod
 
             importlib.reload(mod)
@@ -30,6 +31,7 @@ class TestGetFrontmostApp:
         mock_appkit.NSWorkspace.sharedWorkspace.side_effect = Exception("fail")
         with patch.dict("sys.modules", {"AppKit": mock_appkit}):
             import importlib
+
             import wenzi.ui_helpers as mod
 
             importlib.reload(mod)

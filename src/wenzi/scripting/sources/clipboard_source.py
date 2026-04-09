@@ -10,15 +10,19 @@ import logging
 import os
 import time
 from collections import OrderedDict
-from typing import Dict, List, Optional
 
 from wenzi.scripting.clipboard_monitor import (
     ClipboardMonitor,
     _icon_cache_path,
 )
 from wenzi.scripting.sources import (
-    ChooserItem, ChooserSource, ModifierAction,
-    copy_to_clipboard, fuzzy_match, fuzzy_match_fields, paste_text,
+    ChooserItem,
+    ChooserSource,
+    ModifierAction,
+    copy_to_clipboard,
+    fuzzy_match,
+    fuzzy_match_fields,
+    paste_text,
 )
 
 logger = logging.getLogger(__name__)
@@ -124,11 +128,11 @@ class ClipboardSource:
     ) -> None:
         self._monitor = monitor
         self._max_results = max_results
-        self._empty_cache: Optional[List[ChooserItem]] = None
+        self._empty_cache: list[ChooserItem] | None = None
         self._empty_cache_version: int = -1
         self._empty_cache_time: float = 0.0
         self._icon_mem_cache: OrderedDict[str, str] = OrderedDict()  # bundle_id → data URI or ""
-        self._icon_miss_until: Dict[str, float] = {}  # bundle_id → retry-after ts
+        self._icon_miss_until: dict[str, float] = {}  # bundle_id → retry-after ts
 
     _ICON_MISS_TTL = 30.0  # seconds before rechecking disk for a missed icon
 
@@ -175,7 +179,7 @@ class ClipboardSource:
             }
         return ""
 
-    def search(self, query: str) -> List[ChooserItem]:
+    def search(self, query: str) -> list[ChooserItem]:
         """Search clipboard history entries."""
         q = query.strip().lower()
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Callable, Optional
+from collections.abc import Callable
 
 from wenzi.i18n import t
 
@@ -38,7 +38,7 @@ class VocabBuildProgressPanel:
         self._token_label = None
         self._stream_text_view = None
         self._stream_font = None
-        self._on_cancel: Optional[Callable[[], None]] = None
+        self._on_cancel: Callable[[], None] | None = None
         self._confirmed_tokens: int = 0
         self._stream_chars: int = 0
 
@@ -165,10 +165,10 @@ class VocabBuildProgressPanel:
             NSBezelBorder,
             NSClosableWindowMask,
             NSColor,
-            NSStatusWindowLevel,
             NSFont,
             NSPanel,
             NSScrollView,
+            NSStatusWindowLevel,
             NSTextField,
             NSTextView,
             NSTitledWindowMask,

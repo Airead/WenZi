@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any, Dict, List
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ class PasteboardAPI:
         set_clipboard_text(text)
         logger.debug("Pasteboard set: %s", text[:50] if text else "")
 
-    def history(self, limit: int = 50) -> List[Dict[str, Any]]:
+    def history(self, limit: int = 50) -> list[dict[str, Any]]:
         """Return recent clipboard history entries as plain dicts.
 
         Each entry has keys: ``text``, ``timestamp``, ``source_app``,
@@ -43,9 +43,9 @@ class PasteboardAPI:
         if self._clipboard_monitor is None:
             return []
         entries = self._clipboard_monitor.entries  # already newest-first
-        result: List[Dict[str, Any]] = []
+        result: list[dict[str, Any]] = []
         for entry in entries[:limit]:
-            d: Dict[str, Any] = {
+            d: dict[str, Any] = {
                 "text": entry.text,
                 "timestamp": time.strftime(
                     "%Y-%m-%dT%H:%M:%S", time.localtime(entry.timestamp),

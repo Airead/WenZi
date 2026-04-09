@@ -10,7 +10,8 @@ import asyncio
 import json
 import logging
 import os
-from typing import Callable, Dict, List, NamedTuple, Optional
+from collections.abc import Callable
+from typing import NamedTuple
 
 from wenzi.i18n import t
 from wenzi.scripting.sources import ChooserItem, ChooserSource, fuzzy_match
@@ -30,9 +31,8 @@ def _get_message_handler_class():
         return _MessageHandler
 
     import objc
-    from Foundation import NSObject
-
     import WebKit  # noqa: F401
+    from Foundation import NSObject
 
     WKScriptMessageHandler = objc.protocolNamed("WKScriptMessageHandler")
 
@@ -69,9 +69,8 @@ def _get_navigation_delegate_class():
         return _NavigationDelegate
 
     import objc
-    from Foundation import NSObject
-
     import WebKit  # noqa: F401
+    from Foundation import NSObject
 
     WKNavigationDelegate = objc.protocolNamed("WKNavigationDelegate")
 
@@ -207,8 +206,8 @@ class ChooserPanel:
         self._page_loaded: bool = False
         self._pending_js: list[str] = []
 
-        self._sources: Dict[str, ChooserSource] = {}
-        self._current_items: List[ChooserItem] = []
+        self._sources: dict[str, ChooserSource] = {}
+        self._current_items: list[ChooserItem] = []
         self._items_version: int = 0  # incremented on every setResults push
         self._closing: bool = False
         self._last_query: str = ""  # Track query for usage recording
@@ -216,10 +215,10 @@ class ChooserPanel:
         self._usage_tracker = usage_tracker
         self._query_history = None
         self._history_index: int = -1
-        self._on_close: Optional[Callable] = None
-        self._pending_initial_query: Optional[str] = None
-        self._pending_placeholder: Optional[str] = None
-        self._event_callback: Optional[Callable] = None  # (event, *args)
+        self._on_close: Callable | None = None
+        self._pending_initial_query: str | None = None
+        self._pending_placeholder: str | None = None
+        self._event_callback: Callable | None = None  # (event, *args)
         self._snippet_expander = None  # SnippetExpander to suppress on show
         self._previous_app = None  # NSRunningApplication saved on show()
         self._ql_panel = None  # Quick Look preview panel
@@ -229,14 +228,14 @@ class ChooserPanel:
         self._show_preview: bool = False
         self._compact_results: bool = False
         self._switch_english: bool = True
-        self._saved_input_source: Optional[str] = None
-        self._active_source: Optional[ChooserSource] = None  # currently prefix-activated source
-        self._context_text: Optional[str] = None  # Universal Action context
-        self._exclusive_source: Optional[str] = None  # Source name to search exclusively (UA mode)
+        self._saved_input_source: str | None = None
+        self._active_source: ChooserSource | None = None  # currently prefix-activated source
+        self._context_text: str | None = None  # Universal Action context
+        self._exclusive_source: str | None = None  # Source name to search exclusively (UA mode)
         self._search_generation: int = 0
         self._pending_async_count: int = 0
         self._loading_visible: bool = False
-        self._debounce_state: Dict[str, _DebounceEntry] = {}  # source_name -> pending debounce
+        self._debounce_state: dict[str, _DebounceEntry] = {}  # source_name -> pending debounce
         self._recycle_timer = None  # deferred webview recycle timer
         self._last_screen = None  # last screen the panel was positioned on
 
@@ -337,8 +336,8 @@ class ChooserPanel:
 
     def _reset_panel_ui(
         self,
-        initial_query: Optional[str] = None,
-        placeholder: Optional[str] = None,
+        initial_query: str | None = None,
+        placeholder: str | None = None,
     ) -> None:
         """Reset the webview UI state for a reused panel.
 
@@ -497,8 +496,9 @@ class ChooserPanel:
         """Create a CGEventTap on a background thread that swallows ESC."""
         if self._esc_runner is not None:
             return
-        from wenzi import _cgeventtap as cg
         from PyObjCTools import AppHelper
+
+        from wenzi import _cgeventtap as cg
 
         self._esc_runner = cg.CGEventTapRunner()
         mask = cg.CGEventMaskBit(cg.kCGEventKeyDown)
@@ -551,9 +551,9 @@ class ChooserPanel:
 
     def show(
         self,
-        on_close: Optional[Callable] = None,
-        initial_query: Optional[str] = None,
-        placeholder: Optional[str] = None,
+        on_close: Callable | None = None,
+        initial_query: str | None = None,
+        placeholder: str | None = None,
     ) -> None:
         """Show the chooser panel. Must run on main thread.
 
@@ -634,10 +634,10 @@ class ChooserPanel:
     def show_universal_action(
         self,
         context_text: str,
-        exclusive_source: Optional[str] = None,
-        on_close: Optional[Callable] = None,
-        initial_query: Optional[str] = None,
-        placeholder: Optional[str] = None,
+        exclusive_source: str | None = None,
+        on_close: Callable | None = None,
+        initial_query: str | None = None,
+        placeholder: str | None = None,
     ) -> None:
         """Show the chooser in Universal Action mode with a context block.
 
@@ -838,7 +838,7 @@ class ChooserPanel:
         self._teardown_webview()
         self._last_screen = None
 
-    def toggle(self, on_close: Optional[Callable] = None) -> None:
+    def toggle(self, on_close: Callable | None = None) -> None:
         """Toggle the chooser panel visibility."""
         if self.is_visible:
             self.close()
@@ -987,7 +987,7 @@ class ChooserPanel:
         else:
             self._set_loading(False)
 
-    def _match_prefix_sources(self, query: str) -> List[ChooserItem]:
+    def _match_prefix_sources(self, query: str) -> list[ChooserItem]:
         """Return ChooserItems for registered prefixed sources matching *query*.
 
         Each item's ``complete_text`` is set to ``"<prefix> "`` so that
@@ -1068,7 +1068,7 @@ class ChooserPanel:
 
     def _push_items_to_js(
         self,
-        selected_index: Optional[int] = None,
+        selected_index: int | None = None,
         source=None,
         preserve_selection: bool = False,
     ) -> None:
@@ -1185,7 +1185,7 @@ class ChooserPanel:
                     source.search(query),
                     timeout=timeout,
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning(
                     "Async source %s timed out after %.1fs",
                     source.name,
@@ -1503,7 +1503,7 @@ class ChooserPanel:
         self,
         index: int,
         version: int = 0,
-        modifier: Optional[str] = None,
+        modifier: str | None = None,
     ) -> None:
         """Execute item action. Uses modifier action if available."""
         if version and version != self._items_version:
@@ -1790,7 +1790,7 @@ class ChooserPanel:
             NSBackingStoreBuffered,
             NSStatusWindowLevel,
         )
-        from Foundation import NSMakeRect, NSURL
+        from Foundation import NSURL, NSMakeRect
         from WebKit import WKUserContentController, WKWebView
 
         PanelClass = _get_keyable_panel_class()
@@ -1894,8 +1894,8 @@ class ChooserPanel:
         # of these two XDG paths is ~/, so we must grant home-wide read
         # access.  This is safe because the web view only loads our own
         # local HTML — no user-controlled URLs are loaded.
-        from wenzi.ui.templates import load_template
         from wenzi.config import DEFAULT_CACHE_DIR
+        from wenzi.ui.templates import load_template
 
         cache_dir = os.path.expanduser(DEFAULT_CACHE_DIR)
         os.makedirs(cache_dir, exist_ok=True)

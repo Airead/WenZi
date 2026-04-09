@@ -10,7 +10,7 @@ import sys
 import threading
 import urllib.request
 import webbrowser
-from typing import TYPE_CHECKING, Any, Optional, Tuple
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from wenzi.app import WenZiApp
@@ -42,7 +42,7 @@ def _is_frozen() -> bool:
     ) == "1"
 
 
-def _parse_version(version_str: str) -> Optional[Tuple[int, ...]]:
+def _parse_version(version_str: str) -> tuple[int, ...] | None:
     """Parse 'v0.1.2' or '0.1.2' into (0, 1, 2). Returns None on failure."""
     cleaned = version_str.strip().lstrip("v")
     if not cleaned:
@@ -62,7 +62,7 @@ def _is_newer(latest: str, current: str) -> bool:
     return l_ver > c_ver
 
 
-def _fetch_latest_release() -> Optional[dict[str, Any]]:
+def _fetch_latest_release() -> dict[str, Any] | None:
     """Fetch the latest release info from GitHub API.
 
     Returns the parsed JSON dict, or None on any failure.
@@ -84,7 +84,7 @@ def _fetch_latest_release() -> Optional[dict[str, Any]]:
         return None
 
 
-def _find_dmg_url(release_data: dict) -> Optional[str]:
+def _find_dmg_url(release_data: dict) -> str | None:
     """Find the .dmg asset download URL matching the current build type.
 
     Lite builds match DMG names containing 'Lite';
@@ -110,19 +110,19 @@ class UpdateController:
 
     _DEFAULT_INTERVAL_HOURS = 6
 
-    def __init__(self, app: "WenZiApp") -> None:
+    def __init__(self, app: WenZiApp) -> None:
         self._app = app
         cfg = app._config.get("update_check", {})
         self._enabled = cfg.get("enabled", True)
         interval_hours = cfg.get("interval_hours", self._DEFAULT_INTERVAL_HOURS)
         self._interval = max(interval_hours, 1) * 3600
-        self._timer: Optional[threading.Timer] = None
+        self._timer: threading.Timer | None = None
         self._lock = threading.Lock()
-        self._update_menu_item: Optional[StatusMenuItem] = None
-        self._latest_version: Optional[str] = None
-        self._release_url: Optional[str] = None
-        self._release_data: Optional[dict] = None
-        self._updater: Optional["AppUpdater"] = None
+        self._update_menu_item: StatusMenuItem | None = None
+        self._latest_version: str | None = None
+        self._release_url: str | None = None
+        self._release_data: dict | None = None
+        self._updater: AppUpdater | None = None
 
     @property
     def enabled(self) -> bool:

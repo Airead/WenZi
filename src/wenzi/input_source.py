@@ -8,14 +8,13 @@ Linux or in a test environment), they return None/False silently.
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Lazy-loaded HIToolbox functions
 # ---------------------------------------------------------------------------
-_tis_loaded: Optional[bool] = None
+_tis_loaded: bool | None = None
 _TISCopyCurrentKeyboardInputSource = None
 _TISCreateInputSourceList = None
 _TISSelectInputSource = None
@@ -106,7 +105,7 @@ _ENGLISH_SOURCE_IDS = [
 ]
 
 
-def get_current_input_source() -> Optional[str]:
+def get_current_input_source() -> str | None:
     """Return the current keyboard input source ID, or None on failure.
 
     Example return value: ``"com.apple.inputmethod.SCIM.ITABC"``
@@ -161,7 +160,7 @@ def select_input_source(source_id: str) -> bool:
         return False
 
 
-def is_english_input_source(source_id: Optional[str] = None) -> bool:
+def is_english_input_source(source_id: str | None = None) -> bool:
     """Check if the given (or current) input source is an English layout."""
     if source_id is None:
         source_id = get_current_input_source()
@@ -175,7 +174,7 @@ def is_english_input_source(source_id: Optional[str] = None) -> bool:
     )
 
 
-_cached_english_sid: Optional[str] = None
+_cached_english_sid: str | None = None
 
 
 def select_english_input_source() -> bool:

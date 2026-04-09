@@ -1,6 +1,6 @@
 """Tests for the cc-sessions launcher source search logic."""
 
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 
 
 def _make_sessions():
@@ -125,28 +125,28 @@ class TestTimeAgo:
     def test_just_now(self):
         from cc_sessions.init_plugin import _time_ago
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         ts = (now - timedelta(seconds=30)).isoformat()
         assert _time_ago(ts) == "just now"
 
     def test_minutes_ago(self):
         from cc_sessions.init_plugin import _time_ago
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         ts = (now - timedelta(minutes=5)).isoformat()
         assert _time_ago(ts) == "5 min ago"
 
     def test_hours_ago(self):
         from cc_sessions.init_plugin import _time_ago
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         ts = (now - timedelta(hours=3)).isoformat()
         assert "3 hour" in _time_ago(ts)
 
     def test_days_ago(self):
         from cc_sessions.init_plugin import _time_ago
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         ts = (now - timedelta(days=5)).isoformat()
         assert "5 day" in _time_ago(ts)
 

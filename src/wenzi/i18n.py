@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import os
-from typing import Any, Dict, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -13,8 +13,8 @@ _LOCALES_DIR = os.path.join(os.path.dirname(__file__), "locales")
 
 # Module-level state
 _current_locale: str = "en"
-_strings: Dict[str, str] = {}
-_fallback_strings: Dict[str, str] = {}
+_strings: dict[str, str] = {}
+_fallback_strings: dict[str, str] = {}
 _active_locales_dir: str = _LOCALES_DIR
 
 # Lazy import - may not be available in test environments
@@ -37,7 +37,7 @@ def _load_nslocale() -> Any:
     return NSLocale
 
 
-def _load_json(path: str) -> Dict[str, str]:
+def _load_json(path: str) -> dict[str, str]:
     try:
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
@@ -59,8 +59,8 @@ def _detect_system_locale() -> str:
 
 
 def init_i18n(
-    locale: Optional[str] = None,
-    locales_dir: Optional[str] = None,
+    locale: str | None = None,
+    locales_dir: str | None = None,
 ) -> None:
     """Initialize i18n. Call once at app startup.
 
@@ -151,13 +151,13 @@ def inject_i18n_into_webview(
         webview.evaluateJavaScript_completionHandler_(script, None)
 
 
-def get_translations_for_prefix(prefix: str) -> Dict[str, str]:
+def get_translations_for_prefix(prefix: str) -> dict[str, str]:
     """Return translations matching prefix, with prefix stripped from keys.
 
     Used for injecting translations into WKWebView JS context.
     Falls back to English for missing keys.
     """
-    result: Dict[str, str] = {}
+    result: dict[str, str] = {}
     all_keys = set(_strings.keys()) | set(_fallback_strings.keys())
     for key in all_keys:
         if key.startswith(prefix):

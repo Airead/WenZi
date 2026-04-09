@@ -5,8 +5,8 @@ from __future__ import annotations
 import logging
 import re
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, List, Tuple
 
 from wenzi.i18n import t
 
@@ -29,7 +29,7 @@ _DEFAULT_LEVELS = frozenset({"INFO", "WARNING", "ERROR"})
 _LOG_LEVEL_OPTIONS = ("DEBUG", "INFO", "WARNING", "ERROR")
 
 
-def parse_log_lines(raw_lines: List[str]) -> List[Tuple[str, str, str]]:
+def parse_log_lines(raw_lines: list[str]) -> list[tuple[str, str, str]]:
     """Parse raw log lines into structured entries.
 
     Each entry is (level, raw_text, searchable_text_lower).
@@ -41,9 +41,9 @@ def parse_log_lines(raw_lines: List[str]) -> List[Tuple[str, str, str]]:
     Returns:
         List of (level, full_text, lower_text) tuples.
     """
-    entries: List[Tuple[str, str, str]] = []
+    entries: list[tuple[str, str, str]] = []
     current_level = "INFO"
-    current_lines: List[str] = []
+    current_lines: list[str] = []
 
     def _flush():
         if current_lines:
@@ -65,10 +65,10 @@ def parse_log_lines(raw_lines: List[str]) -> List[Tuple[str, str, str]]:
 
 
 def filter_entries(
-    entries: List[Tuple[str, str, str]],
+    entries: list[tuple[str, str, str]],
     enabled_levels: frozenset,
     search_text: str,
-) -> List[Tuple[str, str, str]]:
+) -> list[tuple[str, str, str]]:
     """Filter parsed log entries by level and search text.
 
     Args:
@@ -152,7 +152,7 @@ class LogViewerPanel:
         # State for incremental reading
         self._last_size: int = 0
         self._last_pos: int = 0
-        self._all_entries: List[Tuple[str, str, str]] = []
+        self._all_entries: list[tuple[str, str, str]] = []
         self._enabled_levels: frozenset = _DEFAULT_LEVELS
         self._search_text: str = ""
 
@@ -220,14 +220,14 @@ class LogViewerPanel:
             NSSegmentedControl,
             NSSegmentStyleTexturedSquare,
             NSStatusWindowLevel,
+            NSSwitchButton,
             NSTextField,
             NSTextView,
             NSTitledWindowMask,
-            NSSwitchButton,
-            NSViewWidthSizable,
             NSViewHeightSizable,
             NSViewMinXMargin,
             NSViewMinYMargin,
+            NSViewWidthSizable,
         )
         from Foundation import NSMakeRect, NSMakeSize
 
@@ -462,7 +462,7 @@ class LogViewerPanel:
                 return
             if size == self._last_pos:
                 return  # No new data
-            with open(self._log_file, "r", encoding="utf-8", errors="replace") as f:
+            with open(self._log_file, encoding="utf-8", errors="replace") as f:
                 f.seek(self._last_pos)
                 new_data = f.read()
             self._last_pos = size
@@ -489,7 +489,7 @@ class LogViewerPanel:
         )
         self._render_entries(filtered)
 
-    def _render_entries(self, entries: List[Tuple[str, str, str]]) -> None:
+    def _render_entries(self, entries: list[tuple[str, str, str]]) -> None:
         """Render filtered entries into the text view with colored text."""
         tv = self._text_view
         if tv is None:
@@ -542,7 +542,7 @@ class LogViewerPanel:
     def _start_timer(self) -> None:
         """Start polling timer (1 second interval)."""
         self._stop_timer()
-        from Foundation import NSTimer, NSRunLoop, NSDefaultRunLoopMode
+        from Foundation import NSDefaultRunLoopMode, NSRunLoop, NSTimer
 
         self._timer = NSTimer.timerWithTimeInterval_target_selector_userInfo_repeats_(
             1.0, self, b"pollLogFile:", None, True

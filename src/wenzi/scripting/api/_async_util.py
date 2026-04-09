@@ -11,7 +11,8 @@ import asyncio
 import functools
 import logging
 import threading
-from typing import Any, Callable, Set
+from collections.abc import Callable
+from typing import Any
 
 import wenzi.async_loop as _aloop
 
@@ -28,7 +29,7 @@ class ScriptTaskTracker:
     """
 
     def __init__(self) -> None:
-        self._tasks: Set[asyncio.Task] = set()
+        self._tasks: set[asyncio.Task] = set()
         self._lock = threading.Lock()
 
     def track(self, task: asyncio.Task) -> None:

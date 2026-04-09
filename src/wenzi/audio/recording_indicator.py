@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 import math
 import time
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -45,12 +44,12 @@ class RecordingIndicatorView:
 
     _view: object = None
 
-    def __init__(self, device_name: Optional[str] = None) -> None:
+    def __init__(self, device_name: str | None = None) -> None:
         self._level: float = 0.0
         self._start_time: float = 0.0
         self._view = None
-        self._device_name: Optional[str] = device_name
-        self._label_attrs: Optional[dict] = None  # cached for draw loop
+        self._device_name: str | None = device_name
+        self._label_attrs: dict | None = None  # cached for draw loop
         # Whether the recorder is actually capturing audio
         self._recording_active: bool = False
         # Cached dynamic colors (created once, adapt to light/dark automatically)
@@ -60,10 +59,10 @@ class RecordingIndicatorView:
         self._bar_color = None
         self._bar_color_inactive = None
         # Mode display fields
-        self._mode_name: Optional[str] = None
+        self._mode_name: str | None = None
         self._mode_nav: tuple = (False, False)  # (can_prev, can_next)
-        self._mode_attrs: Optional[dict] = None  # cached for draw loop
-        self._arrow_attrs: Optional[dict] = None  # cached for draw loop
+        self._mode_attrs: dict | None = None  # cached for draw loop
+        self._arrow_attrs: dict | None = None  # cached for draw loop
         self._mode_ns_str = None  # cached NSString for mode name
         self._left_arrow_ns_str = None  # cached NSString for ◁
         self._right_arrow_ns_str = None  # cached NSString for ▷
@@ -105,8 +104,8 @@ class RecordingIndicatorView:
             NSFont,
             NSFontAttributeName,
             NSForegroundColorAttributeName,
-            NSParagraphStyleAttributeName,
             NSMutableParagraphStyle,
+            NSParagraphStyleAttributeName,
         )
         from Foundation import NSMakeRect, NSString
 
@@ -279,8 +278,8 @@ class RecordingIndicatorView:
 
 # PyObjC subclass for custom drawing
 try:
-    from AppKit import NSView
     import objc
+    from AppKit import NSView
 
     class _IndicatorNSView(NSView):
         _indicator = objc.ivar()
@@ -306,7 +305,7 @@ class RecordingIndicatorPanel:
     def __init__(self) -> None:
         self._panel: object = None
         self._timer: object = None
-        self._indicator_view: Optional[RecordingIndicatorView] = None
+        self._indicator_view: RecordingIndicatorView | None = None
         self._smoothed_level: float = 0.0
         self._enabled: bool = True
         self._show_device_name: bool = False
@@ -329,7 +328,7 @@ class RecordingIndicatorPanel:
     def show_device_name(self, value: bool) -> None:
         self._show_device_name = value
 
-    def show(self, device_name: Optional[str] = None) -> None:
+    def show(self, device_name: str | None = None) -> None:
         """Create and show the floating indicator panel."""
         if not self._enabled:
             return

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import OrderedDict
-from typing import Optional, TypeVar
+from typing import TypeVar
 
 K = TypeVar("K")
 V = TypeVar("V")
@@ -32,7 +32,7 @@ class LRUCache(OrderedDict):
         self.move_to_end(key)
         return value
 
-    def get(self, key: K, default: Optional[V] = None) -> Optional[V]:  # type: ignore[override]
+    def get(self, key: K, default: V | None = None) -> V | None:  # type: ignore[override]
         if key in self:
             return self[key]
         return default

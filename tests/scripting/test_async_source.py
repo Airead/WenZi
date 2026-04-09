@@ -6,8 +6,8 @@ import asyncio
 import time
 from unittest.mock import patch
 
-from wenzi.scripting.sources import ChooserItem, ChooserSource
 from wenzi.scripting.api.chooser import ChooserAPI
+from wenzi.scripting.sources import ChooserItem, ChooserSource
 
 
 def _wait_for(predicate, timeout=5.0, interval=0.05):

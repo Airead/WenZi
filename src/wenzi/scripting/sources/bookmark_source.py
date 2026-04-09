@@ -10,7 +10,6 @@ import json
 import logging
 import os
 import subprocess
-from typing import Dict, List, Optional
 
 from wenzi.config import DEFAULT_ICON_CACHE_DIR as _CFG_ICON_CACHE_DIR
 from wenzi.scripting.sources import ChooserItem, ChooserSource, fuzzy_match_fields
@@ -37,14 +36,14 @@ class Bookmark:
         url: str,
         folder_path: str = "",
         browser: str = "",
-        profile: Optional[str] = None,
+        profile: str | None = None,
     ) -> None:
         self.name = name
         self.url = url
         self.folder_path = folder_path
         self.browser = browser
         self.profile = profile
-        self._domain: Optional[str] = None
+        self._domain: str | None = None
 
     def domain(self) -> str:
         """Extract the domain from the URL (cached)."""
@@ -63,7 +62,7 @@ class Bookmark:
 # Chromium-based browsers (Chrome, Arc, Edge, Brave)
 # ---------------------------------------------------------------------------
 
-_CHROMIUM_BROWSERS: Dict[str, str] = {
+_CHROMIUM_BROWSERS: dict[str, str] = {
     "chrome": "~/Library/Application Support/Google/Chrome",
     "edge": "~/Library/Application Support/Microsoft Edge",
     "brave": "~/Library/Application Support/BraveSoftware/Brave-Browser",
@@ -73,13 +72,13 @@ _CHROMIUM_BROWSERS: Dict[str, str] = {
 
 def _read_chromium_bookmarks(
     base_dir: str, browser: str,
-) -> List[Bookmark]:
+) -> list[Bookmark]:
     """Read bookmarks from a Chromium-based browser."""
     base = os.path.expanduser(base_dir)
     if not os.path.isdir(base):
         return []
 
-    bookmarks: List[Bookmark] = []
+    bookmarks: list[Bookmark] = []
     seen: set[tuple[str, str]] = set()  # (url, profile) dedup
 
     # Discover profiles: Default, Profile 1, Profile 2, ...
@@ -103,7 +102,7 @@ def _read_chromium_bookmarks(
             if not os.path.isfile(bm_path):
                 continue
             try:
-                with open(bm_path, "r", encoding="utf-8") as f:
+                with open(bm_path, encoding="utf-8") as f:
                     data = json.load(f)
                 roots = data.get("roots", {})
                 for root_name in ("bookmark_bar", "other", "synced"):
@@ -127,7 +126,7 @@ def _collect_chromium_nodes(
     parent_path: str,
     browser: str,
     profile: str,
-    out: List[Bookmark],
+    out: list[Bookmark],
     seen: set,
 ) -> None:
     """Recursively collect bookmarks from a Chromium JSON node."""
@@ -160,7 +159,7 @@ def _collect_chromium_nodes(
 _SAFARI_BOOKMARKS_PATH = "~/Library/Safari/Bookmarks.plist"
 
 
-def _read_safari_bookmarks() -> List[Bookmark]:
+def _read_safari_bookmarks() -> list[Bookmark]:
     """Read bookmarks from Safari's binary plist file."""
     import plistlib
 
@@ -171,7 +170,7 @@ def _read_safari_bookmarks() -> List[Bookmark]:
     try:
         with open(path, "rb") as f:
             data = plistlib.load(f)
-        bookmarks: List[Bookmark] = []
+        bookmarks: list[Bookmark] = []
         _collect_safari_nodes(data, "", bookmarks)
         return bookmarks
     except PermissionError:
@@ -185,7 +184,7 @@ def _read_safari_bookmarks() -> List[Bookmark]:
 
 
 def _collect_safari_nodes(
-    node: dict, parent_path: str, out: List[Bookmark],
+    node: dict, parent_path: str, out: list[Bookmark],
 ) -> None:
     """Recursively collect bookmarks from a Safari plist node."""
     bm_type = node.get("WebBookmarkType", "")
@@ -220,13 +219,13 @@ def _collect_safari_nodes(
 _FIREFOX_BASE = "~/Library/Application Support/Firefox/Profiles"
 
 
-def _read_firefox_bookmarks() -> List[Bookmark]:
+def _read_firefox_bookmarks() -> list[Bookmark]:
     """Read bookmarks from Firefox's places.sqlite database."""
     base = os.path.expanduser(_FIREFOX_BASE)
     if not os.path.isdir(base):
         return []
 
-    bookmarks: List[Bookmark] = []
+    bookmarks: list[Bookmark] = []
 
     # Find all profile directories (*.default-release, *.default, etc.)
     for entry in os.listdir(base):
@@ -247,12 +246,11 @@ def _read_firefox_bookmarks() -> List[Bookmark]:
     return bookmarks
 
 
-def _read_firefox_places(db_path: str, out: List[Bookmark]) -> None:
+def _read_firefox_places(db_path: str, out: list[Bookmark]) -> None:
     """Read bookmarks from a single Firefox places.sqlite file."""
-    import sqlite3
-
     # Firefox locks the database; copy to a temp file to avoid locking issues
     import shutil
+    import sqlite3
     import tempfile
 
     tmp = tempfile.NamedTemporaryFile(suffix=".sqlite", delete=False)
@@ -273,7 +271,7 @@ def _read_firefox_places(db_path: str, out: List[Bookmark]) -> None:
             folder_cur = conn.execute(
                 "SELECT id, title, parent FROM moz_bookmarks WHERE type = 2"
             )
-            folders: Dict[int, tuple[str, int]] = {}
+            folders: dict[int, tuple[str, int]] = {}
             for fid, ftitle, fparent in folder_cur.fetchall():
                 folders[fid] = (ftitle or "", fparent)
 
@@ -293,7 +291,7 @@ def _read_firefox_places(db_path: str, out: List[Bookmark]) -> None:
         os.unlink(tmp.name)
 
 
-def _firefox_folder_path(parent_id: int, folders: Dict[int, tuple]) -> str:
+def _firefox_folder_path(parent_id: int, folders: dict[int, tuple]) -> str:
     """Build a folder breadcrumb path for a Firefox bookmark."""
     parts: list[str] = []
     current = parent_id
@@ -339,7 +337,7 @@ _APP_SEARCH_DIRS = [
 ]
 
 # In-memory icon cache: browser_id -> file:// URL string
-_browser_icon_cache: Dict[str, str] = {}
+_browser_icon_cache: dict[str, str] = {}
 
 
 def _find_browser_app(browser: str) -> str:
@@ -414,9 +412,9 @@ def _get_browser_icon(browser: str, icon_cache_dir: str = _DEFAULT_ICON_CACHE_DI
     return ""
 
 
-def read_all_bookmarks() -> List[Bookmark]:
+def read_all_bookmarks() -> list[Bookmark]:
     """Read bookmarks from all supported browsers."""
-    all_bookmarks: List[Bookmark] = []
+    all_bookmarks: list[Bookmark] = []
 
     for browser, base_dir in _CHROMIUM_BROWSERS.items():
         try:
@@ -475,7 +473,7 @@ class BookmarkSource:
     _REFRESH_INTERVAL = 300  # seconds between cache refreshes
 
     def __init__(self) -> None:
-        self._bookmarks: List[Bookmark] = []
+        self._bookmarks: list[Bookmark] = []
         self._last_refresh: float = 0
 
     def _ensure_loaded(self) -> None:
@@ -487,7 +485,7 @@ class BookmarkSource:
             self._last_refresh = now
             logger.info("Loaded %d bookmarks from all browsers", len(self._bookmarks))
 
-    def search(self, query: str) -> List[ChooserItem]:
+    def search(self, query: str) -> list[ChooserItem]:
         """Search bookmarks by name, URL domain, or folder path.
 
         Supports multi-term AND matching: ``"gh rust"`` matches bookmarks
@@ -516,7 +514,7 @@ class BookmarkSource:
         results.sort(key=lambda x: (-x[0], x[1].name.lower()))
         return self._to_items([bm for _, bm in results[:50]])
 
-    def _to_items(self, bookmarks: List[Bookmark]) -> List[ChooserItem]:
+    def _to_items(self, bookmarks: list[Bookmark]) -> list[ChooserItem]:
         """Convert Bookmark objects to ChooserItem list."""
         items = []
         for bm in bookmarks:

@@ -1,25 +1,25 @@
 """Tests for the hotkey module."""
 
 import threading
-
-import pytest
 from unittest.mock import MagicMock
 
+import pytest
+
 from wenzi.hotkey import (
-    _is_fn_key,
-    _name_to_vk,
-    _parse_hotkey_for_quartz,
     _ALL_KEY_NAMES,
     _KEYCODE_MAP,
     _MOD_FLAGS,
     _SPECIAL_VK,
     _VK_TO_NAME,
-    register_custom_key,
-    unregister_custom_keys,
     HoldHotkeyListener,
     KeyRemapListener,
-    TapHotkeyListener,
     MultiHotkeyListener,
+    TapHotkeyListener,
+    _is_fn_key,
+    _name_to_vk,
+    _parse_hotkey_for_quartz,
+    register_custom_key,
+    unregister_custom_keys,
 )
 
 
@@ -250,8 +250,8 @@ class TestQuartzAllKeysListener:
     def test_tap_timeout_resyncs_modifier_flags(self):
         """When CGEventTap is disabled by timeout, missed modifier releases
         should be detected by polling CGEventSourceFlagsState."""
-        from wenzi.hotkey import _QuartzAllKeysListener, _FN_FLAG
         import wenzi._cgeventtap as cg
+        from wenzi.hotkey import _FN_FLAG, _QuartzAllKeysListener
 
         on_release = MagicMock()
         listener = _QuartzAllKeysListener(
@@ -277,8 +277,8 @@ class TestQuartzAllKeysListener:
 
     def test_tap_timeout_no_false_release(self):
         """When modifier is still held during tap timeout, no release fires."""
-        from wenzi.hotkey import _QuartzAllKeysListener, _FN_FLAG
         import wenzi._cgeventtap as cg
+        from wenzi.hotkey import _FN_FLAG, _QuartzAllKeysListener
 
         on_release = MagicMock()
         listener = _QuartzAllKeysListener(

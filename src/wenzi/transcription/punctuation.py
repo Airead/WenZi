@@ -71,6 +71,7 @@ class PunctuationRestorer:
     def _get_model_dir(model_name: str, revision: str) -> str:
         """Get local model cache path, download if needed."""
         from pathlib import Path
+
         from modelscope.utils.file_utils import get_modelscope_cache_dir
 
         cache_base = Path(get_modelscope_cache_dir()) / "models" / "iic"

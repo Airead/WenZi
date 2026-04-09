@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import json
 import logging
-from pathlib import Path
 from datetime import date, timedelta
-from typing import TYPE_CHECKING, Any, Dict, List
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 from wenzi.i18n import t
 from wenzi.ui.templates import load_template
@@ -30,7 +30,7 @@ def _get_panel_close_delegate_class():
 def build_stats_payload(
     usage_stats: UsageStats,
     days: int = 30,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Collect cumulative, today, and daily stats into a single dict."""
     cumulative = usage_stats.get_stats()
     today = usage_stats.get_today_stats()
@@ -45,7 +45,7 @@ def build_stats_payload(
 def get_daily_range(
     usage_stats: UsageStats,
     days: int = 30,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Return daily stats for the last *days* days, sorted chronologically."""
     today = date.today()
     result = []
@@ -56,7 +56,7 @@ def get_daily_range(
     return result
 
 
-def _build_i18n_payload() -> Dict[str, str]:
+def _build_i18n_payload() -> dict[str, str]:
     """Build a dict of translated strings for the stats HTML template."""
     from wenzi.i18n import get_translations_for_prefix
 
@@ -79,7 +79,7 @@ def _read_chartjs() -> str:
     return _chartjs_cache
 
 
-def build_html(payload: Dict[str, Any]) -> str:
+def build_html(payload: dict[str, Any]) -> str:
     """Build the final HTML by injecting the JSON payload into the template."""
     payload_json = json.dumps(payload, ensure_ascii=False)
     i18n = _build_i18n_payload()

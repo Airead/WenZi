@@ -40,7 +40,7 @@ class TestConversationHistoryLog:
         assert isinstance(ts, str)
         # Verify it matches the record
         path = os.path.join(history_dir, "conversation_history.jsonl")
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             record = json.loads(f.readline())
         assert record["timestamp"] == ts
 
@@ -49,7 +49,7 @@ class TestConversationHistoryLog:
         history.log("b", "B", "B", "proofread", True)
 
         path = os.path.join(history_dir, "conversation_history.jsonl")
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             lines = f.readlines()
         assert len(lines) == 2
 
@@ -63,7 +63,7 @@ class TestConversationHistoryLog:
         history.log("你好世界", "你好，世界。", "你好，世界。", "proofread", True)
 
         path = os.path.join(history_dir, "conversation_history.jsonl")
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             record = json.loads(f.readline())
         assert record["asr_text"] == "你好世界"
         assert record["enhanced_text"] == "你好，世界。"
@@ -72,7 +72,7 @@ class TestConversationHistoryLog:
         history.log("hello", None, "hello", "off", False)
 
         path = os.path.join(history_dir, "conversation_history.jsonl")
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             record = json.loads(f.readline())
         assert record["enhanced_text"] is None
 
@@ -80,7 +80,7 @@ class TestConversationHistoryLog:
         history.log("raw", "enhanced", "final", "proofread", True)
 
         path = os.path.join(history_dir, "conversation_history.jsonl")
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             record = json.loads(f.readline())
         assert record["asr_text"] == "raw"
         assert record["enhanced_text"] == "enhanced"
@@ -93,7 +93,7 @@ class TestConversationHistoryLog:
         history.log("raw", None, "raw", "off", False)
 
         path = os.path.join(history_dir, "conversation_history.jsonl")
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             record = json.loads(f.readline())
         assert record["preview_enabled"] is False
 
@@ -428,7 +428,7 @@ class TestConversationHistoryUpdateRecord:
                     stt_model="funasr", llm_model="openai/gpt-4o")
 
         path = os.path.join(history_dir, "conversation_history.jsonl")
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             record = json.loads(f.readline())
         ts = record["timestamp"]
 
@@ -442,7 +442,7 @@ class TestConversationHistoryUpdateRecord:
         )
         assert result is True
 
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             updated = json.loads(f.readline())
         assert updated["final_text"] == "Updated!"
         assert updated["enhanced_text"] == "Updated enhanced"
@@ -455,13 +455,13 @@ class TestConversationHistoryUpdateRecord:
         history.log("hello", "Hello.", "Hello.", "proofread", True)
 
         path = os.path.join(history_dir, "conversation_history.jsonl")
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             record = json.loads(f.readline())
         ts = record["timestamp"]
 
         history.update_record(ts, enhance_mode="translate")
 
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             updated = json.loads(f.readline())
         assert updated["enhance_mode"] == "translate"
         assert updated["final_text"] == "Hello."  # unchanged
@@ -482,13 +482,13 @@ class TestConversationHistoryUpdateRecord:
         history.log("second", "Second", "Second", "proofread", True)
 
         path = os.path.join(history_dir, "conversation_history.jsonl")
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             lines = f.readlines()
         ts2 = json.loads(lines[1])["timestamp"]
 
         history.update_record(ts2, final_text="Modified", enhance_mode="translate")
 
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             lines = f.readlines()
         r1 = json.loads(lines[0])
         r2 = json.loads(lines[1])
@@ -504,7 +504,7 @@ class TestConversationHistoryUpdateFinalText:
 
         # Get the timestamp
         path = os.path.join(history_dir, "conversation_history.jsonl")
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             record = json.loads(f.readline())
         ts = record["timestamp"]
 
@@ -512,7 +512,7 @@ class TestConversationHistoryUpdateFinalText:
         assert result is True
 
         # Verify the update
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             updated = json.loads(f.readline())
         assert updated["final_text"] == "Hello World!"
         assert "edited_at" in updated
@@ -532,13 +532,13 @@ class TestConversationHistoryUpdateFinalText:
         history.log("second", "Second", "Second", "proofread", True)
 
         path = os.path.join(history_dir, "conversation_history.jsonl")
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             lines = f.readlines()
         ts2 = json.loads(lines[1])["timestamp"]
 
         history.update_final_text(ts2, "Modified")
 
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             lines = f.readlines()
         r1 = json.loads(lines[0])
         r2 = json.loads(lines[1])
@@ -551,7 +551,7 @@ class TestConversationHistoryDeleteRecord:
         history.log("hello", "Hello.", "Hello.", "proofread", True)
 
         path = os.path.join(history_dir, "conversation_history.jsonl")
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             record = json.loads(f.readline())
         ts = record["timestamp"]
 
@@ -559,7 +559,7 @@ class TestConversationHistoryDeleteRecord:
         assert result is True
 
         # File should be empty (no records)
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             lines = [ln for ln in f.readlines() if ln.strip()]
         assert len(lines) == 0
 
@@ -578,13 +578,13 @@ class TestConversationHistoryDeleteRecord:
         history.log("third", "Third", "Third", "proofread", True)
 
         path = os.path.join(history_dir, "conversation_history.jsonl")
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             lines = f.readlines()
         ts2 = json.loads(lines[1])["timestamp"]
 
         history.delete_record(ts2)
 
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             remaining = [json.loads(ln) for ln in f.readlines() if ln.strip()]
         assert len(remaining) == 2
         assert remaining[0]["asr_text"] == "first"
@@ -667,7 +667,7 @@ class TestUserCorrectedField:
         history.log("raw", "enhanced", "corrected", "proofread", True, user_corrected=True)
 
         path = os.path.join(history_dir, "conversation_history.jsonl")
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             record = json.loads(f.readline())
         assert record["user_corrected"] is True
 
@@ -675,7 +675,7 @@ class TestUserCorrectedField:
         history.log("raw", "enhanced", "enhanced", "proofread", True, user_corrected=False)
 
         path = os.path.join(history_dir, "conversation_history.jsonl")
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             record = json.loads(f.readline())
         assert record["user_corrected"] is False
 
@@ -683,7 +683,7 @@ class TestUserCorrectedField:
         history.log("raw", "enhanced", "enhanced", "proofread", True)
 
         path = os.path.join(history_dir, "conversation_history.jsonl")
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             record = json.loads(f.readline())
         assert record["user_corrected"] is False
 
@@ -693,7 +693,7 @@ class TestAudioDuration:
         history.log("hello", "Hello.", "Hello.", "proofread", True, audio_duration=3.7)
 
         path = os.path.join(history_dir, "conversation_history.jsonl")
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             record = json.loads(f.readline())
         assert record["audio_duration"] == 3.7
 
@@ -701,7 +701,7 @@ class TestAudioDuration:
         history.log("hello", "Hello.", "Hello.", "proofread", True)
 
         path = os.path.join(history_dir, "conversation_history.jsonl")
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             record = json.loads(f.readline())
         assert record["audio_duration"] == 0.0
 
@@ -709,7 +709,7 @@ class TestAudioDuration:
         history.log("hello", "Hello.", "Hello.", "proofread", True, audio_duration=5.678)
 
         path = os.path.join(history_dir, "conversation_history.jsonl")
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             record = json.loads(f.readline())
         assert record["audio_duration"] == 5.7
 
@@ -722,7 +722,7 @@ class TestRotation:
 
         path = os.path.join(history_dir, "conversation_history.jsonl")
         archive_dir = os.path.join(history_dir, "conversation_history_archives")
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             assert len(f.readlines()) == 10
         assert not os.path.isdir(archive_dir)
 
@@ -736,7 +736,7 @@ class TestRotation:
 
         path = os.path.join(history_dir, "conversation_history.jsonl")
 
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             kept = f.readlines()
         assert len(kept) == 5
         # Should keep the most recent 5
@@ -751,7 +751,7 @@ class TestRotation:
         # All archived records should total 3
         total_archived = 0
         for af in archive_files:
-            with open(os.path.join(archive_dir, af), "r", encoding="utf-8") as f:
+            with open(os.path.join(archive_dir, af), encoding="utf-8") as f:
                 total_archived += len(f.readlines())
         assert total_archived == 3
 
@@ -771,7 +771,7 @@ class TestRotation:
         archive_dir = os.path.join(history_dir, "conversation_history_archives")
         total_archived = 0
         for af in os.listdir(archive_dir):
-            with open(os.path.join(archive_dir, af), "r", encoding="utf-8") as f:
+            with open(os.path.join(archive_dir, af), encoding="utf-8") as f:
                 total_archived += len(f.readlines())
         # First rotation: 2 archived, second rotation: 2 more
         assert total_archived == 4
@@ -786,7 +786,7 @@ class TestRotation:
             history.log(f"text{i}", None, f"text{i}", "off", False)
 
         path = os.path.join(history_dir, "conversation_history.jsonl")
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             assert len(f.readlines()) == 5  # no rotation happened
         archive_dir = os.path.join(history_dir, "conversation_history_archives")
         assert not os.path.isdir(archive_dir)
@@ -820,10 +820,10 @@ class TestRotation:
         assert archive_files == ["2025-01.jsonl", "2025-02.jsonl"]
 
         # 2025-01 should have 2 records
-        with open(os.path.join(archive_dir, "2025-01.jsonl"), "r") as f:
+        with open(os.path.join(archive_dir, "2025-01.jsonl")) as f:
             assert len(f.readlines()) == 2
         # 2025-02 should have 1 record
-        with open(os.path.join(archive_dir, "2025-02.jsonl"), "r") as f:
+        with open(os.path.join(archive_dir, "2025-02.jsonl")) as f:
             assert len(f.readlines()) == 1
 
 

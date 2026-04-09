@@ -1,7 +1,6 @@
 """Tests for the file search data source."""
 
 import os
-
 from unittest.mock import patch
 
 from wenzi.scripting.sources.file_source import (

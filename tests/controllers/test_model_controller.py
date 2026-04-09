@@ -5,16 +5,14 @@ from __future__ import annotations
 import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
-
 from wenzi.controllers.model_controller import (
+    ModelController,
     _get_dir_size,
     migrate_asr_config,
     parse_asr_provider_text,
     parse_provider_text,
     validate_provider_name,
-    ModelController,
 )
-
 
 # ---------------------------------------------------------------------------
 # parse_asr_provider_text

@@ -7,9 +7,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from wenzi.controllers.enhance_controller import EnhanceController, EnhanceCacheEntry
+from wenzi.controllers.enhance_controller import EnhanceCacheEntry, EnhanceController
 from wenzi.lru_cache import LRUCache
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

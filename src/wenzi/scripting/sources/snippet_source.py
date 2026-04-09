@@ -49,13 +49,16 @@ import os
 import random as _random
 import re
 import time
-from typing import Dict, List, Optional, Tuple
 
-from wenzi.config import DEFAULT_SNIPPETS_DIR as _CFG_SNIPPETS_DIR
 from wenzi.config import DEFAULT_SNIPPET_LAST_CATEGORY_PATH as _CFG_LAST_CAT
+from wenzi.config import DEFAULT_SNIPPETS_DIR as _CFG_SNIPPETS_DIR
 from wenzi.scripting.sources import (
-    ChooserItem, ChooserSource, ModifierAction,
-    copy_to_clipboard, fuzzy_match_fields, paste_text,
+    ChooserItem,
+    ChooserSource,
+    ModifierAction,
+    copy_to_clipboard,
+    fuzzy_match_fields,
+    paste_text,
 )
 
 logger = logging.getLogger(__name__)
@@ -154,7 +157,7 @@ def _parse_simple_keyval(text: str) -> dict:
     return result
 
 
-def _parse_frontmatter(text: str) -> Tuple[dict, str]:
+def _parse_frontmatter(text: str) -> tuple[dict, str]:
     """Parse optional YAML frontmatter from *text*.
 
     Returns ``(metadata_dict, body)``.  If no frontmatter is present,
@@ -182,7 +185,7 @@ def _parse_frontmatter(text: str) -> Tuple[dict, str]:
     return meta, body
 
 
-def _split_random_sections(body: str) -> List[str]:
+def _split_random_sections(body: str) -> list[str]:
     """Split *body* into variant sections separated by ``===`` lines.
 
     A separator is a line whose stripped content is exactly ``===`` (three
@@ -195,8 +198,8 @@ def _split_random_sections(body: str) -> List[str]:
     stripped per section.
     """
     lines = body.split("\n")
-    sections: List[str] = []
-    current: List[str] = []
+    sections: list[str] = []
+    current: list[str] = []
 
     for line in lines:
         stripped = line.strip()
@@ -218,7 +221,7 @@ def _split_random_sections(body: str) -> List[str]:
 
 def _format_snippet_file(
     keyword: str, content: str, auto_expand: bool = True,
-    *, random: bool = False, variants: Optional[List[str]] = None,
+    *, random: bool = False, variants: list[str] | None = None,
 ) -> str:
     """Serialize a snippet back to the file format.
 
@@ -358,18 +361,18 @@ class SnippetStore:
 
     def __init__(
         self,
-        path: Optional[str] = None,
-        last_category_path: Optional[str] = None,
+        path: str | None = None,
+        last_category_path: str | None = None,
     ) -> None:
         self._dir = path or _DEFAULT_SNIPPETS_DIR
         self._last_cat_path = last_category_path or _DEFAULT_LAST_CAT_PATH
-        self._snippets: List[Dict[str, str]] = []
+        self._snippets: list[dict[str, str]] = []
         self._migrated = False
         self._cached_mtime: float = 0.0  # max mtime across directory tree
         self._last_mtime_check: float = 0.0  # monotonic time of last os.walk
 
     @property
-    def snippets(self) -> List[Dict[str, str]]:
+    def snippets(self) -> list[dict[str, str]]:
         self._ensure_loaded()
         return list(self._snippets)
 
@@ -440,7 +443,7 @@ class SnippetStore:
 
                 file_path = os.path.join(dirpath, fname)
                 try:
-                    with open(file_path, "r", encoding="utf-8") as f:
+                    with open(file_path, encoding="utf-8") as f:
                         text = f.read()
                 except Exception:
                     logger.exception("Failed to read snippet %s", file_path)
@@ -522,7 +525,7 @@ class SnippetStore:
             return
 
         try:
-            with open(json_path, "r", encoding="utf-8") as f:
+            with open(json_path, encoding="utf-8") as f:
                 data = json.load(f)
             if not isinstance(data, list):
                 return
@@ -566,7 +569,7 @@ class SnippetStore:
         auto_expand: bool = True,
         *,
         random: bool = False,
-        variants: Optional[List[str]] = None,
+        variants: list[str] | None = None,
     ) -> bool:
         """Add a new snippet. Returns False if keyword already exists."""
         self._ensure_loaded()
@@ -591,7 +594,7 @@ class SnippetStore:
             return False
 
         actual_variants = (variants or [content]) if random else None
-        snippet_dict: Dict = {
+        snippet_dict: dict = {
             "name": safe_name,
             "keyword": keyword,
             "content": "\n\n".join(actual_variants) if actual_variants else content,
@@ -624,13 +627,13 @@ class SnippetStore:
         name: str,
         category: str = "",
         *,
-        new_name: Optional[str] = None,
-        new_keyword: Optional[str] = None,
-        content: Optional[str] = None,
-        new_category: Optional[str] = None,
-        new_auto_expand: Optional[bool] = None,
-        new_random: Optional[bool] = None,
-        new_variants: Optional[List[str]] = None,
+        new_name: str | None = None,
+        new_keyword: str | None = None,
+        content: str | None = None,
+        new_category: str | None = None,
+        new_auto_expand: bool | None = None,
+        new_random: bool | None = None,
+        new_variants: list[str] | None = None,
     ) -> bool:
         """Update an existing snippet. Supports rename and category move."""
         self._ensure_loaded()
@@ -699,7 +702,7 @@ class SnippetStore:
                 return True
         return False
 
-    def find_by_keyword(self, keyword: str) -> Optional[Dict[str, str]]:
+    def find_by_keyword(self, keyword: str) -> dict[str, str] | None:
         """Find a snippet by exact keyword match."""
         self._ensure_loaded()
         for s in self._snippets:
@@ -707,7 +710,7 @@ class SnippetStore:
                 return s
         return None
 
-    def find_by_content(self, content: str) -> Optional[Dict[str, str]]:
+    def find_by_content(self, content: str) -> dict[str, str] | None:
         """Find a snippet by exact content match."""
         self._ensure_loaded()
         for s in self._snippets:
@@ -738,7 +741,7 @@ class SnippetStore:
     def last_category(self) -> str:
         """Read the last used category from disk."""
         try:
-            with open(self._last_cat_path, "r", encoding="utf-8") as f:
+            with open(self._last_cat_path, encoding="utf-8") as f:
                 return f.read().strip()
         except (OSError, ValueError):
             return ""
@@ -770,7 +773,7 @@ class SnippetSource:
         self._store = store
         self._editor_panel = None
 
-    def search(self, query: str) -> List[ChooserItem]:
+    def search(self, query: str) -> list[ChooserItem]:
         """Search snippets by name, keyword, content, or category."""
         snippets = self._store.snippets
 
@@ -778,7 +781,7 @@ class SnippetSource:
             return []
 
         q = query.strip()
-        results: list[tuple[int, Dict[str, str]]] = []
+        results: list[tuple[int, dict[str, str]]] = []
 
         for s in snippets:
             name = s.get("name", "")

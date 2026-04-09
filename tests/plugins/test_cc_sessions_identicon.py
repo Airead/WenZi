@@ -5,9 +5,9 @@ import xml.etree.ElementTree as ET
 
 from cc_sessions.identicon import (
     COLORS,
-    generate,
     _djb2,
     _get_initials,
+    generate,
 )
 
 

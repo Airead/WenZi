@@ -2,7 +2,6 @@
 
 import json
 import os
-
 from unittest.mock import MagicMock, patch
 
 from wenzi.scripting.clipboard_monitor import (

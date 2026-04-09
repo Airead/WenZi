@@ -14,7 +14,6 @@ from wenzi.scripting.sources.snippet_source import (
     _split_random_sections,
 )
 
-
 # ---------------------------------------------------------------------------
 # Utility function tests
 # ---------------------------------------------------------------------------
@@ -343,7 +342,7 @@ class TestSnippetStore:
         assert store.update("email", content="new@x.com") is True
         assert store.snippets[0]["content"] == "new@x.com"
         # Verify file on disk
-        with open(store.snippets[0]["file_path"], "r") as f:
+        with open(store.snippets[0]["file_path"]) as f:
             text = f.read()
         assert "new@x.com" in text
 
@@ -385,7 +384,7 @@ class TestSnippetStore:
         s = store.snippets[0]
         assert s["auto_expand"] is False
         # Verify file on disk contains auto_expand: false
-        with open(s["file_path"], "r") as f:
+        with open(s["file_path"]) as f:
             text = f.read()
         assert "auto_expand: false" in text
 
@@ -419,7 +418,7 @@ class TestSnippetStore:
         assert store.update("email", new_auto_expand=False) is True
         assert store.snippets[0]["auto_expand"] is False
         # Verify file on disk
-        with open(store.snippets[0]["file_path"], "r") as f:
+        with open(store.snippets[0]["file_path"]) as f:
             text = f.read()
         assert "auto_expand: false" in text
 
@@ -1239,7 +1238,7 @@ class TestSnippetStoreRandom:
         # content must be synced with variants, not the raw content arg
         assert s["content"] == "Thanks!\n\nThank you!"
         # Verify file on disk has random: true
-        with open(s["file_path"], "r") as f:
+        with open(s["file_path"]) as f:
             text = f.read()
         assert "random: true" in text
 
@@ -1271,7 +1270,7 @@ class TestSnippetStoreRandom:
         assert s["random"] is True
         assert s["variants"] == ["Thanks!", "Thank you!"]
         # Verify file on disk still has random: true
-        with open(s["file_path"], "r") as f:
+        with open(s["file_path"]) as f:
             text = f.read()
         assert "random: true" in text
 
@@ -1339,7 +1338,7 @@ class TestSnippetStoreRandom:
         assert "random" not in s
         assert "variants" not in s
         # Verify file on disk no longer has random: true
-        with open(s["file_path"], "r") as f:
+        with open(s["file_path"]) as f:
             text = f.read()
         assert "random" not in text
 

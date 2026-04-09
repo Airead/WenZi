@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +92,7 @@ class AppAPI:
             return False
 
     @staticmethod
-    def _find_running_app(name: str) -> Optional[object]:
+    def _find_running_app(name: str) -> object | None:
         """Find a running application by localized name."""
         try:
             from AppKit import NSWorkspace

@@ -10,8 +10,7 @@ from __future__ import annotations
 import logging
 import sqlite3
 import threading
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +27,7 @@ CTX_APP = "app"
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def build_context_keys(
@@ -178,7 +177,7 @@ class VocabDB:
                 count += cur.rowcount
         return count
 
-    def get(self, variant: str, term: str) -> Optional[dict]:
+    def get(self, variant: str, term: str) -> dict | None:
         """Return a single entry as dict, or None.  Lookup is case-insensitive."""
         with self._lock:
             row = self._conn.execute(
@@ -225,7 +224,7 @@ class VocabDB:
 
     def rename_entry(
         self, entry_id: int, new_variant: str, new_term: str,
-    ) -> Optional[dict]:
+    ) -> dict | None:
         """Rename an entry's variant/term in place, preserving stats and frequency.
 
         Returns None if the target (variant, term) already exists (UNIQUE conflict).

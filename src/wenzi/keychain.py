@@ -12,7 +12,6 @@ the module can be imported in headless test environments.
 from __future__ import annotations
 
 import logging
-from typing import List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +27,7 @@ _ERR_SEC_ITEM_NOT_FOUND = -25300
 # ---------------------------------------------------------------------------
 
 
-def _sec_item_copy_matching(service: str, account: str) -> Optional[str]:
+def _sec_item_copy_matching(service: str, account: str) -> str | None:
     """Return the password string for *account* in *service*, or None if absent.
 
     Raises on unexpected Security.framework errors.
@@ -36,13 +35,13 @@ def _sec_item_copy_matching(service: str, account: str) -> Optional[str]:
     from Foundation import NSString  # noqa: PLC0415
     from Security import (  # noqa: PLC0415
         SecItemCopyMatching,
+        kSecAttrAccount,
+        kSecAttrService,
         kSecClass,
         kSecClassGenericPassword,
-        kSecAttrService,
-        kSecAttrAccount,
-        kSecReturnData,
         kSecMatchLimit,
         kSecMatchLimitOne,
+        kSecReturnData,
     )
 
     query = {
@@ -68,10 +67,10 @@ def _sec_item_add(service: str, account: str, value: str) -> bool:
     from Foundation import NSString  # noqa: PLC0415
     from Security import (  # noqa: PLC0415
         SecItemAdd,
+        kSecAttrAccount,
+        kSecAttrService,
         kSecClass,
         kSecClassGenericPassword,
-        kSecAttrService,
-        kSecAttrAccount,
         kSecValueData,
     )
 
@@ -94,10 +93,10 @@ def _sec_item_update(service: str, account: str, value: str) -> bool:
     from Foundation import NSString  # noqa: PLC0415
     from Security import (  # noqa: PLC0415
         SecItemUpdate,
+        kSecAttrAccount,
+        kSecAttrService,
         kSecClass,
         kSecClassGenericPassword,
-        kSecAttrService,
-        kSecAttrAccount,
         kSecValueData,
     )
 
@@ -122,10 +121,10 @@ def _sec_item_delete(service: str, account: str) -> None:
     """
     from Security import (  # noqa: PLC0415
         SecItemDelete,
+        kSecAttrAccount,
+        kSecAttrService,
         kSecClass,
         kSecClassGenericPassword,
-        kSecAttrService,
-        kSecAttrAccount,
     )
 
     query = {
@@ -138,20 +137,20 @@ def _sec_item_delete(service: str, account: str) -> None:
         raise OSError(f"SecItemDelete returned status {status}")
 
 
-def _sec_item_list(service: str) -> List[str]:
+def _sec_item_list(service: str) -> list[str]:
     """Return all account names stored under *service*.
 
     Returns an empty list when no items exist.
     """
     from Security import (  # noqa: PLC0415
         SecItemCopyMatching,
+        kSecAttrAccount,
+        kSecAttrService,
         kSecClass,
         kSecClassGenericPassword,
-        kSecAttrService,
-        kSecReturnAttributes,
         kSecMatchLimit,
         kSecMatchLimitAll,
-        kSecAttrAccount,
+        kSecReturnAttributes,
     )
 
     query = {
@@ -175,7 +174,7 @@ def _sec_item_list(service: str) -> List[str]:
 # ---------------------------------------------------------------------------
 
 
-def _keychain_get(account: str) -> Optional[str]:
+def _keychain_get(account: str) -> str | None:
     """Return the secret string for *account*, or None if absent or on error."""
     try:
         return _sec_item_copy_matching(SERVICE, account)
@@ -213,7 +212,7 @@ def _keychain_delete(account: str) -> None:
         logger.warning("keychain_delete failed for account=%r", account, exc_info=True)
 
 
-def _keychain_list(prefix: str = "") -> List[str]:
+def _keychain_list(prefix: str = "") -> list[str]:
     """Return all account names under SERVICE that start with *prefix*.
 
     Returns an empty list on error.

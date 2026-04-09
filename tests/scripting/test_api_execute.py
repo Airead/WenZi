@@ -1,9 +1,9 @@
 """Tests for vt.execute API."""
 
 import threading
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-from wenzi.scripting.api.execute import execute, _run
+from wenzi.scripting.api.execute import _run, execute
 
 
 class TestRun:

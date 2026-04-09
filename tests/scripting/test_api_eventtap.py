@@ -12,6 +12,7 @@ class TestKeystroke:
 
         with patch.dict(sys.modules, {"Quartz": mock_quartz}):
             import importlib
+
             import wenzi.scripting.api.eventtap as eventtap_mod
 
             importlib.reload(eventtap_mod)
@@ -26,6 +27,7 @@ class TestKeystroke:
 
         with patch.dict(sys.modules, {"Quartz": mock_quartz}):
             import importlib
+
             import wenzi.scripting.api.eventtap as eventtap_mod
 
             importlib.reload(eventtap_mod)

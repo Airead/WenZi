@@ -7,7 +7,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Config tests
 # ---------------------------------------------------------------------------
@@ -37,6 +36,7 @@ class _FakeApp:
 
 def _attach_methods(obj):
     import types
+
     from wenzi import app as app_module
 
     for name in ("_on_screenshot", "_show_annotation_ui",

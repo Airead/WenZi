@@ -3,10 +3,10 @@
 from wenzi.scripting.sources import (
     ChooserItem,
     ChooserSource,
+    _chars_in_order,
+    _word_initials,
     fuzzy_match,
     fuzzy_match_fields,
-    _word_initials,
-    _chars_in_order,
 )
 
 

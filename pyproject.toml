@@ -69,7 +69,7 @@ target-version = "py313"
 line-length = 140
 
 [tool.ruff.lint]
-select = ["E", "F", "W"]
+select = ["E", "F", "W", "I", "UP"]
 
 [tool.ruff.lint.per-file-ignores]
 "scripts/build_docs.py" = ["E501"]

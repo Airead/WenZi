@@ -5,7 +5,6 @@ from __future__ import annotations
 import http.server
 import os
 import threading
-
 import tomllib
 
 import pytest
@@ -16,7 +15,6 @@ from wenzi.scripting.plugin_installer import (
     resolve_ref,
 )
 from wenzi.scripting.plugin_meta import INSTALL_TOML, load_plugin_meta
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

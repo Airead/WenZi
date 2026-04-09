@@ -11,15 +11,14 @@ from wenzi.enhance.conversation_history import ConversationHistory
 from wenzi.enhance.enhancer import (
     TextEnhancer,
     ThinkTagParser,
-    build_thinking_body,
-    strip_think_tags,
     _is_deepseek_reasoning_model,
     _is_deepseek_thinking_model,
     _is_openai_reasoning_model,
+    build_thinking_body,
     create_enhancer,
+    strip_think_tags,
 )
 from wenzi.enhance.mode_loader import ModeDefinition
-
 
 # --- TextEnhancer tests ---
 
@@ -431,7 +430,7 @@ class TestTextEnhancerVerifyProvider:
 
         mock_client = MagicMock()
         mock_client.chat.completions.create = AsyncMock(
-            side_effect=asyncio.TimeoutError()
+            side_effect=TimeoutError()
         )
         mock_client.close = AsyncMock()
         mock_openai = MagicMock(return_value=mock_client)
@@ -689,7 +688,7 @@ class TestTextEnhancerEnhance:
 
     @patch(
         "wenzi.enhance.enhancer.asyncio.wait_for",
-        side_effect=asyncio.TimeoutError(),
+        side_effect=TimeoutError(),
     )
     def test_fallback_on_timeout(self, mock_wait_for):
         with patch("wenzi.enhance.enhancer.TextEnhancer._init_providers"):
@@ -1825,7 +1824,7 @@ class TestConnectionTimeoutRetry:
             nonlocal call_count
             call_count += 1
             if call_count <= 2:
-                raise asyncio.TimeoutError()
+                raise TimeoutError()
             return mock_stream_iter.chat.completions.create.return_value
 
         mock_client = MagicMock()
@@ -1866,7 +1865,7 @@ class TestConnectionTimeoutRetry:
         """All 3 attempts timeout — verify error yield, no content."""
         mock_client = MagicMock()
         mock_client.chat.completions.create = AsyncMock(
-            side_effect=asyncio.TimeoutError(),
+            side_effect=TimeoutError(),
         )
 
         with patch("wenzi.enhance.enhancer.TextEnhancer._init_providers"):

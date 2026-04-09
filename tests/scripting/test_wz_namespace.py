@@ -2,8 +2,8 @@
 
 from unittest.mock import patch
 
-from wenzi.scripting.registry import ScriptingRegistry
 from wenzi.scripting.api import _WZNamespace
+from wenzi.scripting.registry import ScriptingRegistry
 
 
 class TestWZNamespace:

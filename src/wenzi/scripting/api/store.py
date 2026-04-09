@@ -6,7 +6,7 @@ import json
 import logging
 import os
 import threading
-from typing import Any, List, Optional
+from typing import Any
 
 from wenzi.config import DEFAULT_SCRIPT_DATA_PATH
 
@@ -22,13 +22,13 @@ class StoreAPI:
     Thread-safe with deferred disk writes (coalesced via a timer).
     """
 
-    def __init__(self, path: Optional[str] = None) -> None:
+    def __init__(self, path: str | None = None) -> None:
         self._path = path or _DEFAULT_PATH
         self._data: dict[str, Any] = {}
         self._loaded = False
         self._lock = threading.Lock()
         self._dirty = False
-        self._flush_timer: Optional[threading.Timer] = None
+        self._flush_timer: threading.Timer | None = None
 
     def _ensure_loaded(self) -> None:
         if self._loaded:
@@ -37,7 +37,7 @@ class StoreAPI:
         if not os.path.isfile(self._path):
             return
         try:
-            with open(self._path, "r", encoding="utf-8") as f:
+            with open(self._path, encoding="utf-8") as f:
                 data = json.load(f)
             if isinstance(data, dict):
                 self._data = data
@@ -71,7 +71,7 @@ class StoreAPI:
         if removed:
             self._schedule_flush()
 
-    def keys(self) -> List[str]:
+    def keys(self) -> list[str]:
         """Return all keys in the store."""
         with self._lock:
             self._ensure_loaded()

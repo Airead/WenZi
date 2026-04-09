@@ -118,7 +118,7 @@ class TestFilterEntries:
         assert len(result) == 2
 
     def test_filter_all_levels(self):
-        from wenzi.ui.log_viewer_window import filter_entries, _ALL_LEVELS
+        from wenzi.ui.log_viewer_window import _ALL_LEVELS, filter_entries
 
         entries = self._make_entries()
         result = filter_entries(entries, _ALL_LEVELS, "")
@@ -132,7 +132,7 @@ class TestFilterEntries:
         assert len(result) == 0
 
     def test_search_filter_case_insensitive(self):
-        from wenzi.ui.log_viewer_window import filter_entries, _ALL_LEVELS
+        from wenzi.ui.log_viewer_window import _ALL_LEVELS, filter_entries
 
         entries = self._make_entries()
         result = filter_entries(entries, _ALL_LEVELS, "WARNING")
@@ -140,7 +140,7 @@ class TestFilterEntries:
         assert result[0][0] == "WARNING"
 
     def test_search_filter_partial_match(self):
-        from wenzi.ui.log_viewer_window import filter_entries, _ALL_LEVELS
+        from wenzi.ui.log_viewer_window import _ALL_LEVELS, filter_entries
 
         entries = self._make_entries()
         result = filter_entries(entries, _ALL_LEVELS, "msg")
@@ -155,7 +155,7 @@ class TestFilterEntries:
         assert result[0][0] == "ERROR"
 
     def test_search_no_match(self):
-        from wenzi.ui.log_viewer_window import filter_entries, _ALL_LEVELS
+        from wenzi.ui.log_viewer_window import _ALL_LEVELS, filter_entries
 
         entries = self._make_entries()
         result = filter_entries(entries, _ALL_LEVELS, "nonexistent")

@@ -15,7 +15,7 @@ from __future__ import annotations
 import datetime
 import logging
 import os
-from typing import Callable, Optional
+from collections.abc import Callable
 
 from wenzi.i18n import t
 
@@ -70,7 +70,7 @@ class SnippetEditorPanel:
         self._error_label = None
         self._delegate = None
         self._event_monitor = None
-        self._on_saved: Optional[Callable] = None
+        self._on_saved: Callable | None = None
 
     # ------------------------------------------------------------------
     # Public API
@@ -79,7 +79,7 @@ class SnippetEditorPanel:
     def show(
         self,
         initial_query: str = "",
-        on_saved: Optional[Callable] = None,
+        on_saved: Callable | None = None,
     ) -> None:
         """Show the editor panel.
 

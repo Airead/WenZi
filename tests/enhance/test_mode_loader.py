@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 
-
 from wenzi.enhance.mode_loader import (
     _BUILTIN_MODES,
     ensure_default_modes,
@@ -196,7 +195,7 @@ class TestEnsureDefaultModes:
 
         ensure_default_modes(modes_dir)
         # proofread.md should keep its custom content
-        with open(proofread_file, "r", encoding="utf-8") as f:
+        with open(proofread_file, encoding="utf-8") as f:
             assert f.read() == custom_content
         # Other builtins should have been created
         md_files = sorted(f for f in os.listdir(modes_dir) if f.endswith(".md"))

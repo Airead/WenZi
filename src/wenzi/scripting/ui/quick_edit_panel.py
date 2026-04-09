@@ -12,7 +12,6 @@ Keyboard:
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 from wenzi.i18n import t
 
@@ -49,10 +48,10 @@ def _get_close_delegate_class():
 # Module-level reference to keep the active panel alive
 # ---------------------------------------------------------------------------
 
-_active_panel: Optional["QuickEditPanel"] = None
+_active_panel: QuickEditPanel | None = None
 
 
-def open_quick_edit(content: str, *, reveal_path: Optional[str] = None) -> None:
+def open_quick_edit(content: str, *, reveal_path: str | None = None) -> None:
     """Open the quick-edit panel on the main thread.
 
     Safe to call from any thread — dispatches to the main run loop.
@@ -95,7 +94,7 @@ class QuickEditPanel:
         self._text_view = None
         self._delegate = None
         self._event_monitor = None
-        self._reveal_path: Optional[str] = None
+        self._reveal_path: str | None = None
 
     # ------------------------------------------------------------------
     # Public API
@@ -105,7 +104,7 @@ class QuickEditPanel:
         self,
         content: str,
         *,
-        reveal_path: Optional[str] = None,
+        reveal_path: str | None = None,
     ) -> None:
         """Show the editor panel with *content* pre-filled."""
         self._reveal_path = reveal_path

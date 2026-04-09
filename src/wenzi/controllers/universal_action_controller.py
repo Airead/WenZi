@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING
 
 from wenzi.input import get_selected_text
 from wenzi.scripting.sources import ChooserItem, ChooserSource, fuzzy_match
@@ -55,7 +55,7 @@ class UniversalActionController:
             logger.info("Universal Action: no actions available")
             return
 
-        def _search(query: str) -> List[ChooserItem]:
+        def _search(query: str) -> list[ChooserItem]:
             if not query.strip():
                 return items
             results = []
@@ -89,9 +89,9 @@ class UniversalActionController:
             placeholder=t("chooser.ua.filter_placeholder"),
         )
 
-    def _build_action_items(self) -> List[ChooserItem]:
+    def _build_action_items(self) -> list[ChooserItem]:
         """Collect all Universal Action items."""
-        items: List[ChooserItem] = []
+        items: list[ChooserItem] = []
         selected_text = self._selected_text
 
         # 1. Enhance modes

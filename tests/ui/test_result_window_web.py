@@ -12,8 +12,8 @@ from tests.conftest import mock_panel_close_delegate
 from tests.ui._shared_result_window_tests import (
     SharedConfirmCancelTests,
     SharedEnhanceLabelTests,
-    SharedModeSwitchTests,
     SharedModelChangeTests,
+    SharedModeSwitchTests,
     SharedPropertyTests,
     SharedReplayCachedTests,
     SharedShowTests,

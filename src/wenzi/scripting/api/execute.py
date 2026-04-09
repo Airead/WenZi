@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import subprocess
 import threading
-from typing import Callable, Optional
+from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +14,7 @@ def execute(
     command: str,
     background: bool = True,
     timeout: int = 30,
-    on_done: Optional[Callable[[dict], None]] = None,
+    on_done: Callable[[dict], None] | None = None,
 ) -> dict | None:
     """Execute a shell command.
 

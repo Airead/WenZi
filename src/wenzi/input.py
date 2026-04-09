@@ -115,8 +115,8 @@ def _get_ax_selected_text() -> str | None:
     """
     try:
         from ApplicationServices import (
-            AXUIElementCreateSystemWide,
             AXUIElementCopyAttributeValue,
+            AXUIElementCreateSystemWide,
         )
 
         system = AXUIElementCreateSystemWide()
@@ -191,8 +191,8 @@ def _has_text_selection() -> bool:
     """
     try:
         from ApplicationServices import (
-            AXUIElementCreateSystemWide,
             AXUIElementCopyAttributeValue,
+            AXUIElementCreateSystemWide,
         )
 
         system = AXUIElementCreateSystemWide()

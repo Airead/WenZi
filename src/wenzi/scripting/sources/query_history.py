@@ -13,7 +13,6 @@ import json
 import logging
 import os
 import threading
-from typing import List, Optional
 
 from wenzi.config import DEFAULT_CHOOSER_HISTORY_PATH
 
@@ -30,13 +29,13 @@ class QueryHistory:
     Data format: JSON array ``["oldest", ..., "newest"]``.
     """
 
-    def __init__(self, path: Optional[str] = None) -> None:
+    def __init__(self, path: str | None = None) -> None:
         self._path = path or _DEFAULT_PATH
-        self._entries: List[str] = []  # oldest first
+        self._entries: list[str] = []  # oldest first
         self._loaded = False
         self._lock = threading.Lock()
         self._dirty = False
-        self._flush_timer: Optional[threading.Timer] = None
+        self._flush_timer: threading.Timer | None = None
 
     def _ensure_loaded(self) -> None:
         if self._loaded:
@@ -45,7 +44,7 @@ class QueryHistory:
         if not os.path.isfile(self._path):
             return
         try:
-            with open(self._path, "r", encoding="utf-8") as f:
+            with open(self._path, encoding="utf-8") as f:
                 data = json.load(f)
             if isinstance(data, list):
                 self._entries = [e for e in data if isinstance(e, str) and e.strip()]
@@ -73,7 +72,7 @@ class QueryHistory:
 
         self._schedule_flush()
 
-    def entries(self) -> List[str]:
+    def entries(self) -> list[str]:
         """Return entries in newest-first order."""
         with self._lock:
             self._ensure_loaded()

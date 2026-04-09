@@ -8,10 +8,12 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Callable, Dict, List, Optional, Set
+from collections.abc import Callable
+from typing import Any
 
 from wenzi.ui.templates import load_template
-from wenzi.ui.web_utils import cleanup_webview_handler, time_range_cutoff as _time_range_cutoff
+from wenzi.ui.web_utils import cleanup_webview_handler
+from wenzi.ui.web_utils import time_range_cutoff as _time_range_cutoff
 
 logger = logging.getLogger(__name__)
 
@@ -62,9 +64,8 @@ def _get_message_handler_class():
         import json as _json
 
         import objc
-        from Foundation import NSObject
-
         import WebKit  # noqa: F401
+        from Foundation import NSObject
 
         WKScriptMessageHandler = objc.protocolNamed("WKScriptMessageHandler")
 
@@ -112,15 +113,15 @@ class HistoryBrowserPanel:
         self._page_loaded: bool = False
         self._pending_js: list[str] = []
 
-        self._all_records: List[Dict[str, Any]] = []
-        self._filtered_records: List[Dict[str, Any]] = []
+        self._all_records: list[dict[str, Any]] = []
+        self._filtered_records: list[dict[str, Any]] = []
         self._selected_index: int = -1
         self._conversation_history = None
-        self._on_save: Optional[Callable[[str, str], None]] = None
+        self._on_save: Callable[[str, str], None] | None = None
         self._search_text: str = ""
         self._time_range: str = "7d"
         self._include_archived: bool = False
-        self._active_tags: Set[str] = set()
+        self._active_tags: set[str] = set()
         self._page: int = 0
         self._page_size: int = 100
 
@@ -135,7 +136,7 @@ class HistoryBrowserPanel:
     def show(
         self,
         conversation_history,
-        on_save: Optional[Callable[[str, str], None]] = None,
+        on_save: Callable[[str, str], None] | None = None,
     ) -> None:
         """Show the history browser panel."""
         from AppKit import NSApp
@@ -272,9 +273,9 @@ class HistoryBrowserPanel:
         """Send available tag options with counts to JS."""
         from wenzi.enhance.conversation_history import ConversationHistory
 
-        mode_counts: Dict[str, int] = {}
-        stt_counts: Dict[str, int] = {}
-        llm_counts: Dict[str, int] = {}
+        mode_counts: dict[str, int] = {}
+        stt_counts: dict[str, int] = {}
+        llm_counts: dict[str, int] = {}
         corrected_count = 0
         cutoff = _time_range_cutoff(self._time_range)
         for r in self._all_records:
@@ -291,7 +292,7 @@ class HistoryBrowserPanel:
             if ConversationHistory._is_corrected(r):
                 corrected_count += 1
 
-        tags: List[Dict[str, Any]] = []
+        tags: list[dict[str, Any]] = []
         # Corrected first
         if corrected_count > 0:
             tags.append({"name": "corrected", "count": corrected_count, "group": "special"})
@@ -454,7 +455,7 @@ class HistoryBrowserPanel:
             NSStatusWindowLevel,
             NSTitledWindowMask,
         )
-        from Foundation import NSMakeRect, NSMakeSize, NSURL
+        from Foundation import NSURL, NSMakeRect, NSMakeSize
         from WebKit import WKUserContentController, WKWebView
 
         from wenzi.ui.result_window_web import _ensure_edit_menu

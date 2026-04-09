@@ -7,8 +7,9 @@ import json
 import logging
 import os
 import threading
-from datetime import date, datetime, timezone
-from typing import Any, Callable, Dict, Union
+from collections.abc import Callable
+from datetime import UTC, date, datetime
+from typing import Any
 
 from .config import DEFAULT_DATA_DIR
 
@@ -17,7 +18,7 @@ logger = logging.getLogger(__name__)
 _FLUSH_INTERVAL = 30  # seconds
 
 
-def _empty_totals() -> Dict[str, Union[int, float]]:
+def _empty_totals() -> dict[str, int | float]:
     return {
         "transcriptions": 0,
         "direct_mode": 0,
@@ -42,7 +43,7 @@ def _empty_totals() -> Dict[str, Union[int, float]]:
     }
 
 
-def _empty_token_usage() -> Dict[str, int]:
+def _empty_token_usage() -> dict[str, int]:
     return {
         "prompt_tokens": 0,
         "completion_tokens": 0,
@@ -51,7 +52,7 @@ def _empty_token_usage() -> Dict[str, int]:
     }
 
 
-def _empty_cumulative() -> Dict[str, Any]:
+def _empty_cumulative() -> dict[str, Any]:
     return {
         "version": 1,
         "first_recorded": None,
@@ -62,7 +63,7 @@ def _empty_cumulative() -> Dict[str, Any]:
     }
 
 
-def _empty_daily(day: str) -> Dict[str, Any]:
+def _empty_daily(day: str) -> dict[str, Any]:
     return {
         "date": day,
         "totals": _empty_totals(),
@@ -85,8 +86,8 @@ class UsageStats:
         self._lock = threading.Lock()
 
         # In-memory state — loaded lazily on first access
-        self._cumulative: Dict[str, Any] | None = None
-        self._daily: Dict[str, Any] | None = None
+        self._cumulative: dict[str, Any] | None = None
+        self._daily: dict[str, Any] | None = None
         self._daily_date: str | None = None
         self._dirty = False
 
@@ -97,14 +98,14 @@ class UsageStats:
     def _daily_path(self, day: str) -> str:
         return os.path.join(self._daily_dir, f"{day}.json")
 
-    def _read_json(self, path: str) -> Dict[str, Any] | None:
+    def _read_json(self, path: str) -> dict[str, Any] | None:
         try:
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 return json.load(f)
         except (FileNotFoundError, json.JSONDecodeError, OSError):
             return None
 
-    def _write_json(self, path: str, data: Dict[str, Any]) -> None:
+    def _write_json(self, path: str, data: dict[str, Any]) -> None:
         os.makedirs(os.path.dirname(path), exist_ok=True)
         tmp = path + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
@@ -135,7 +136,7 @@ class UsageStats:
                 self._daily = self._backfill_daily(data, day)
 
     @staticmethod
-    def _backfill(data: Dict[str, Any]) -> Dict[str, Any]:
+    def _backfill(data: dict[str, Any]) -> dict[str, Any]:
         """Ensure all expected keys exist in cumulative data."""
         for key, factory in [("totals", _empty_totals), ("token_usage", _empty_token_usage)]:
             if key not in data or not isinstance(data[key], dict):
@@ -147,7 +148,7 @@ class UsageStats:
         return data
 
     @staticmethod
-    def _backfill_daily(data: Dict[str, Any], day: str) -> Dict[str, Any]:
+    def _backfill_daily(data: dict[str, Any], day: str) -> dict[str, Any]:
         """Ensure all expected keys exist in daily data."""
         data["date"] = day
         for key, factory in [("totals", _empty_totals), ("token_usage", _empty_token_usage)]:
@@ -160,7 +161,7 @@ class UsageStats:
         return data
 
     def _now_iso(self) -> str:
-        return datetime.now(timezone.utc).isoformat()
+        return datetime.now(UTC).isoformat()
 
     def _today(self) -> str:
         return date.today().isoformat()
@@ -211,7 +212,7 @@ class UsageStats:
 
     def _record(
         self,
-        updater: Callable[[Dict[str, Any]], None],
+        updater: Callable[[dict[str, Any]], None],
         set_first_recorded: bool = False,
     ) -> None:
         """Apply *updater* to both cumulative and daily data in memory."""
@@ -237,7 +238,7 @@ class UsageStats:
 
     def record_transcription(self, mode: str, enhance_mode: str = "") -> None:
         """Record a transcription event. mode is 'direct' or 'preview'."""
-        def _update(data: Dict[str, Any]) -> None:
+        def _update(data: dict[str, Any]) -> None:
             data["totals"]["transcriptions"] += 1
             if mode == "direct":
                 data["totals"]["direct_mode"] += 1
@@ -265,7 +266,7 @@ class UsageStats:
         if not usage:
             return
 
-        def _update(data: Dict[str, Any]) -> None:
+        def _update(data: dict[str, Any]) -> None:
             for key in ("prompt_tokens", "completion_tokens", "total_tokens", "cache_read_tokens"):
                 val = usage.get(key, 0)
                 if val:
@@ -275,7 +276,7 @@ class UsageStats:
 
     def record_clipboard_enhance(self, enhance_mode: str = "") -> None:
         """Record a clipboard enhance trigger."""
-        def _update(data: Dict[str, Any]) -> None:
+        def _update(data: dict[str, Any]) -> None:
             data["totals"]["clipboard_enhances"] += 1
             if enhance_mode and enhance_mode != "off":
                 data.setdefault("enhance_mode_usage", {})
@@ -358,21 +359,21 @@ class UsageStats:
             "correction_llm_vocab_injected", data["totals"]["correction_llm_vocab_injected"] + count
         ))
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Return cumulative statistics."""
         with self._lock:
             self._ensure_loaded()
             assert self._cumulative is not None  # noqa: S101
             return copy.deepcopy(self._cumulative)
 
-    def get_today_stats(self) -> Dict[str, Any]:
+    def get_today_stats(self) -> dict[str, Any]:
         """Return today's statistics."""
         with self._lock:
             self._ensure_loaded()
             assert self._daily is not None  # noqa: S101
             return copy.deepcopy(self._daily)
 
-    def get_daily(self, day: str) -> Dict[str, Any]:
+    def get_daily(self, day: str) -> dict[str, Any]:
         """Return statistics for a specific day (YYYY-MM-DD).
 
         For today's date, returns the in-memory data. For other dates,

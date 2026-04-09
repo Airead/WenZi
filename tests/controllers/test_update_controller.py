@@ -15,7 +15,6 @@ from wenzi.controllers.update_controller import (
     _parse_version,
 )
 
-
 # --- _is_frozen ---
 
 

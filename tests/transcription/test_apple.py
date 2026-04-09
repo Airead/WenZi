@@ -5,12 +5,12 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from wenzi.transcription.base import BaseTranscriber
 from wenzi.transcription.apple import (
-    AppleSpeechTranscriber,
     _LANG_TO_LOCALE,
+    AppleSpeechTranscriber,
     _resolve_locale,
 )
+from wenzi.transcription.base import BaseTranscriber
 
 
 class TestResolveLocale:

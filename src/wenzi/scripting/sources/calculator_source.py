@@ -11,10 +11,12 @@ import logging
 import math
 import operator
 import re
-from typing import List
 
 from wenzi.scripting.sources import (
-    ChooserItem, ChooserSource, copy_to_clipboard, paste_text,
+    ChooserItem,
+    ChooserSource,
+    copy_to_clipboard,
+    paste_text,
 )
 
 logger = logging.getLogger(__name__)
@@ -187,7 +189,7 @@ class CalculatorSource:
 
     # -- public API ----------------------------------------------------------
 
-    def search(self, query: str) -> List[ChooserItem]:
+    def search(self, query: str) -> list[ChooserItem]:
         """Return calculator results for *query*, or an empty list."""
         q = query.strip()
         if not q:

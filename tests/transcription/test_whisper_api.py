@@ -7,9 +7,7 @@ import struct
 import wave
 from unittest.mock import MagicMock, patch
 
-
 from wenzi.transcription.whisper_api import WhisperAPITranscriber
-
 
 # ---------------------------------------------------------------------------
 # Helpers

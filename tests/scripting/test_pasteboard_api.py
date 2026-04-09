@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
-from typing import List
 
 from wenzi.scripting.api.pasteboard import PasteboardAPI
 
@@ -20,7 +19,7 @@ class _FakeEntry:
 class _FakeMonitor:
     """Minimal stub that mimics ClipboardMonitor for testing."""
 
-    def __init__(self, entries: List[_FakeEntry] | None = None) -> None:
+    def __init__(self, entries: list[_FakeEntry] | None = None) -> None:
         self._entries = entries or []
         self.cleared = False
 

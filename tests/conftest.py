@@ -9,7 +9,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Global safety fixtures — prevent tests from touching real system resources
 # ---------------------------------------------------------------------------

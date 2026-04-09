@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import Callable
+from collections.abc import Callable
 
 from wenzi.scripting.api._async_util import wrap_async
 from wenzi.scripting.registry import ScriptingRegistry

@@ -164,10 +164,10 @@ class TestMigrateXdgPaths:
 
         (config / "usage_stats.json").write_text("hello")
 
-        from wenzi.config import migrate_xdg_paths
-
         # Simulate cross-device rename failure
         import os as _os
+
+        from wenzi.config import migrate_xdg_paths
         _orig_rename = _os.rename
 
         def _failing_rename(src, dst, *a, **kw):

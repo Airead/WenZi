@@ -1,8 +1,6 @@
 """Tests for model registry module."""
 
 from pathlib import Path
-
-
 from unittest.mock import patch
 
 from wenzi.transcription.model_registry import (

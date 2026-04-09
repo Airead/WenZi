@@ -14,8 +14,8 @@ import subprocess
 import tempfile
 import threading
 import urllib.request
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -43,9 +43,9 @@ class AppUpdater:
         self,
         dmg_url: str,
         version: str,
-        on_progress: Optional[Callable[[str], None]] = None,
-        on_error: Optional[Callable[[str], None]] = None,
-        on_ready: Optional[Callable[[], None]] = None,
+        on_progress: Callable[[str], None] | None = None,
+        on_error: Callable[[str], None] | None = None,
+        on_ready: Callable[[], None] | None = None,
     ):
         self.dmg_url = dmg_url
         self.version = version
@@ -90,7 +90,7 @@ class AppUpdater:
             logger.debug("Staged app cleanup failed: %s", e)
 
     @staticmethod
-    def get_staged_app_path() -> Optional[Path]:
+    def get_staged_app_path() -> Path | None:
         """Return the staged app path if it exists, else None."""
         try:
             staged = AppUpdater._staged_path()
@@ -101,7 +101,7 @@ class AppUpdater:
         return None
 
     @staticmethod
-    def get_app_version(app_path: Path) -> Optional[str]:
+    def get_app_version(app_path: Path) -> str | None:
         """Read CFBundleShortVersionString from an app's Info.plist."""
         plist_path = app_path / "Contents" / "Info.plist"
         try:

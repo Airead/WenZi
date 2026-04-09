@@ -66,7 +66,7 @@ class TestStoreAPI:
         store.set("x", "y")
         store.flush_sync()
         assert os.path.isfile(path)
-        with open(path, "r") as f:
+        with open(path) as f:
             data = json.load(f)
         assert data == {"x": "y"}
 

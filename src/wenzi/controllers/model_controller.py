@@ -8,7 +8,7 @@ import os
 import re
 import threading
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import TYPE_CHECKING, Any
 
 from wenzi import async_loop
 
@@ -17,6 +17,7 @@ if TYPE_CHECKING:
 
 from wenzi.config import is_keychain_enabled, save_config
 from wenzi.i18n import t
+from wenzi.statusbar import send_notification
 from wenzi.transcription.model_registry import (
     PRESET_BY_ID,
     ModelPreset,
@@ -27,7 +28,6 @@ from wenzi.transcription.model_registry import (
     is_model_cached,
     resolve_preset_from_config,
 )
-from wenzi.statusbar import send_notification
 from wenzi.ui_helpers import (
     activate_for_dialog,
     restore_accessory,
@@ -175,7 +175,7 @@ def parse_provider_text(text: str):
 _PROVIDER_NAME_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
 
 
-def validate_provider_name(name: str) -> Optional[str]:
+def validate_provider_name(name: str) -> str | None:
     """Validate provider name format.
 
     Returns None if valid, or an error message string if invalid.
@@ -189,7 +189,7 @@ def validate_provider_name(name: str) -> Optional[str]:
     return None
 
 
-def migrate_asr_config(asr_cfg: Dict[str, Any]) -> None:
+def migrate_asr_config(asr_cfg: dict[str, Any]) -> None:
     """Migrate old flat base_url/api_key to provider format."""
     base_url = asr_cfg.pop("base_url", None)
     api_key = asr_cfg.pop("api_key", None)
@@ -245,7 +245,7 @@ models:
     def _load_asr_provider_draft(self) -> str:
         draft_path = self._get_asr_provider_draft_path()
         try:
-            with open(draft_path, "r", encoding="utf-8") as f:
+            with open(draft_path, encoding="utf-8") as f:
                 content = f.read()
             if content.strip():
                 return content
@@ -285,7 +285,7 @@ models:
         models: list,
         mode: str,
         existing_names: list,
-        verify_fn: Callable[..., Optional[str]],
+        verify_fn: Callable[..., str | None],
         save_fn: Callable[[str, str, str, list], None],
     ) -> dict:
         """Shared verify-and-save logic for both STT and LLM providers.
@@ -433,7 +433,7 @@ models:
 
             app._config.setdefault("ai_enhance", {})
             providers_cfg = app._config["ai_enhance"].setdefault("providers", {})
-            pcfg_save: Dict[str, Any] = {
+            pcfg_save: dict[str, Any] = {
                 "base_url": base_url,
                 "api_key": actual_api_key,
                 "models": models,
@@ -648,7 +648,7 @@ models:
             app._set_status(f"DL {pct}%")
             stop_event.wait(1.0)
 
-    def _get_expected_model_size(self, preset: ModelPreset) -> Optional[int]:
+    def _get_expected_model_size(self, preset: ModelPreset) -> int | None:
         """Get expected total download size for a preset."""
         if preset.backend == "funasr":
             return _FUNASR_APPROX_SIZE
@@ -668,7 +668,7 @@ models:
 
         return None
 
-    def _try_restore_previous_model(self, old_preset_id: Optional[str]) -> None:
+    def _try_restore_previous_model(self, old_preset_id: str | None) -> None:
         """Attempt to restore the previous model after a failed switch."""
         app = self._app
         if not old_preset_id or old_preset_id not in PRESET_BY_ID:

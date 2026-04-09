@@ -18,8 +18,8 @@ import logging
 from typing import TYPE_CHECKING
 
 from wenzi import async_loop
-from wenzi.controllers import fire_scripting_event
 from wenzi.config import save_config
+from wenzi.controllers import fire_scripting_event
 from wenzi.input import type_text
 from wenzi.input_context import capture_input_context
 
@@ -269,7 +269,7 @@ class RecordingFlow:
                     ),
                     timeout=self._START_TIMEOUT,
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.error(
                     "Recorder.start() timed out after %.0fs, "
                     "aborting session",
@@ -456,7 +456,7 @@ class RecordingFlow:
                 action = await asyncio.wait_for(
                     self._actions.get(), timeout=remaining
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 return None
             if action in expected:
                 return action

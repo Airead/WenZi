@@ -10,7 +10,7 @@ import concurrent.futures
 import dataclasses
 import logging
 import re
-from typing import Any, Dict, Optional
+from typing import Any
 from urllib.parse import urlparse
 
 from wenzi.ui_helpers import get_frontmost_app
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 # Lazy singleton executor for AX timeout protection.
 # Created on first "detailed" capture, avoids thread overhead when unused.
-_ax_executor: Optional[concurrent.futures.ThreadPoolExecutor] = None
+_ax_executor: concurrent.futures.ThreadPoolExecutor | None = None
 
 
 def _get_ax_executor() -> concurrent.futures.ThreadPoolExecutor:
@@ -52,14 +52,14 @@ _DOMAIN_RE = re.compile(
 class InputContext:
     """Captured input environment at the time of voice recording."""
 
-    app_name: Optional[str] = None
-    bundle_id: Optional[str] = None
-    window_title: Optional[str] = None
-    focused_role: Optional[str] = None
-    focused_description: Optional[str] = None
-    browser_domain: Optional[str] = None
+    app_name: str | None = None
+    bundle_id: str | None = None
+    window_title: str | None = None
+    focused_role: str | None = None
+    focused_description: str | None = None
+    browser_domain: str | None = None
 
-    def format_for_prompt(self, level: str) -> Optional[str]:
+    def format_for_prompt(self, level: str) -> str | None:
         """Format context for LLM system prompt injection.
 
         Returns None if level is "off" or no useful info is available.
@@ -98,7 +98,7 @@ class InputContext:
             lines.append(f"Domain:   {self.browser_domain}")
         return "\n".join(lines) if lines else "(no context captured)"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize to dict, omitting None values."""
         return {
             k: v
@@ -107,7 +107,7 @@ class InputContext:
         }
 
     @staticmethod
-    def from_dict(d: Optional[Dict[str, Any]]) -> Optional["InputContext"]:
+    def from_dict(d: dict[str, Any] | None) -> InputContext | None:
         """Deserialize from dict. Returns None if input is None."""
         if d is None:
             return None
@@ -127,7 +127,7 @@ _BROWSER_BUNDLE_IDS = {
 }
 
 
-def capture_input_context(level: str = "basic") -> Optional[InputContext]:
+def capture_input_context(level: str = "basic") -> InputContext | None:
     """Capture current input environment.
 
     Args:
@@ -184,7 +184,7 @@ def capture_input_context(level: str = "basic") -> Optional[InputContext]:
     )
 
 
-def _collect_ax_fields(pid: int, bundle_id: Optional[str]) -> tuple:
+def _collect_ax_fields(pid: int, bundle_id: str | None) -> tuple:
     """Collect window title and AX-dependent fields. Called in a thread with timeout."""
     window_title, focused_role, focused_desc, win_ref = _get_ax_info(pid)
     browser_domain = None
@@ -193,7 +193,7 @@ def _collect_ax_fields(pid: int, bundle_id: Optional[str]) -> tuple:
     return (window_title, focused_role, focused_desc, browser_domain)
 
 
-def _get_ax_info(pid: Optional[int]) -> tuple:
+def _get_ax_info(pid: int | None) -> tuple:
     """Get window title, focused element role, description, and window ref.
 
     Returns (window_title, role, description, win_ref) tuple. Any field
@@ -203,10 +203,10 @@ def _get_ax_info(pid: Optional[int]) -> tuple:
         return (None, None, None, None)
     try:
         from ApplicationServices import (
-            AXUIElementCreateApplication,
             AXUIElementCopyAttributeValue,
+            AXUIElementCreateApplication,
+            kAXErrorSuccess,
         )
-        from ApplicationServices import kAXErrorSuccess
         app_ref = AXUIElementCreateApplication(pid)
 
         # Window title from AXFocusedWindow.AXTitle
@@ -241,8 +241,8 @@ def _get_ax_info(pid: Optional[int]) -> tuple:
 
 
 def _get_browser_domain(
-    win_ref: Any, window_title: Optional[str]
-) -> Optional[str]:
+    win_ref: Any, window_title: str | None
+) -> str | None:
     """Extract browser domain. Tries AX first, falls back to window title."""
     if win_ref is not None:
         domain = _get_browser_domain_from_win(win_ref)
@@ -252,13 +252,13 @@ def _get_browser_domain(
     return _parse_domain_from_title(window_title) if window_title else None
 
 
-def _get_browser_domain_from_win(win_ref: Any) -> Optional[str]:
+def _get_browser_domain_from_win(win_ref: Any) -> str | None:
     """Try to get URL from browser window AXDocument attribute."""
     try:
         from ApplicationServices import (
             AXUIElementCopyAttributeValue,
+            kAXErrorSuccess,
         )
-        from ApplicationServices import kAXErrorSuccess
 
         err, doc_url = AXUIElementCopyAttributeValue(win_ref, "AXDocument", None)
         if err == kAXErrorSuccess and doc_url:
@@ -272,7 +272,7 @@ def _get_browser_domain_from_win(win_ref: Any) -> Optional[str]:
         return None
 
 
-def _parse_domain_from_title(title: str) -> Optional[str]:
+def _parse_domain_from_title(title: str) -> str | None:
     """Best-effort domain extraction from browser window title.
 
     Browser titles vary:

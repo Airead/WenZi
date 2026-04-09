@@ -7,8 +7,9 @@ import logging
 import os
 import re
 from collections import OrderedDict
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, AsyncIterator, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any
 
 from wenzi import async_loop
 
@@ -16,6 +17,7 @@ if TYPE_CHECKING:
     from wenzi.enhance.manual_vocabulary import ManualVocabEntry, ManualVocabularyStore
     from wenzi.input_context import InputContext
 
+from .conversation_history import ConversationHistory
 from .mode_loader import (
     MODE_OFF,
     ModeDefinition,
@@ -23,7 +25,6 @@ from .mode_loader import (
     get_sorted_modes,
     load_modes,
 )
-from .conversation_history import ConversationHistory
 from .pool_monitor import PoolMonitor
 from .repetition import detect_repetition, truncate_repeated
 
@@ -33,7 +34,7 @@ logger = logging.getLogger(__name__)
 class _ModeHistoryCache:
     """Per-mode incremental history cache for prompt caching optimization."""
 
-    entry_lines: List[str] = field(default_factory=list)
+    entry_lines: list[str] = field(default_factory=list)
     last_ts: str = ""
     total_chars: int = 0
     last_log_count: int = 0
@@ -88,7 +89,7 @@ def _is_deepseek_thinking_model(model_lower: str) -> bool:
     return "deepseek" in lower and not _is_deepseek_reasoning_model(lower)
 
 
-def build_thinking_body(model: str, enabled: bool) -> Dict[str, Any]:
+def build_thinking_body(model: str, enabled: bool) -> dict[str, Any]:
     """Build extra_body parameters to control thinking for a given model.
 
     Returns model-specific parameters, or empty dict if the model does not
@@ -207,12 +208,12 @@ class TextEnhancer:
 
     def __init__(
         self,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         config_dir: str | None = None,
         data_dir: str | None = None,
         cache_dir: str | None = None,
-        conversation_history: Optional[ConversationHistory] = None,
-        manual_vocab_store: Optional[ManualVocabularyStore] = None,
+        conversation_history: ConversationHistory | None = None,
+        manual_vocab_store: ManualVocabularyStore | None = None,
     ) -> None:
         self._enabled = config.get("enabled", False)
         self._timeout = config.get("timeout", 30)
@@ -231,13 +232,13 @@ class TextEnhancer:
 
         # Last system prompt and LLM vocab used in enhance()
         self._last_system_prompt: str = ""
-        self._last_llm_vocab: List[ManualVocabEntry] = []
+        self._last_llm_vocab: list[ManualVocabEntry] = []
 
         # Load enhancement modes from external files
         modes_dir = os.path.join(config_dir, "enhance_modes") if config_dir else None
         self._modes_dir = modes_dir
         ensure_default_modes(modes_dir)
-        self._modes: Dict[str, ModeDefinition] = load_modes(modes_dir)
+        self._modes: dict[str, ModeDefinition] = load_modes(modes_dir)
 
         raw_mode = config.get("mode", "proofread")
         if raw_mode != MODE_OFF and raw_mode not in self._modes:
@@ -250,7 +251,7 @@ class TextEnhancer:
         self._mode: str = raw_mode
 
         # Multi-provider support: name -> (AsyncOpenAI client, models list, extra_body)
-        self._providers: Dict[str, Tuple[Any, List[str], Dict[str, Any]]] = {}
+        self._providers: dict[str, tuple[Any, list[str], dict[str, Any]]] = {}
         self._active_provider: str = config.get("default_provider", "")
         self._active_model: str = config.get("default_model", "")
 
@@ -310,7 +311,7 @@ class TextEnhancer:
         for name, pcfg in self._providers_config.items():
             self._init_single_provider(name, pcfg)
 
-    def _init_single_provider(self, name: str, pcfg: Dict[str, Any]) -> None:
+    def _init_single_provider(self, name: str, pcfg: dict[str, Any]) -> None:
         """Initialize a single provider and cache its AsyncOpenAI client."""
         try:
             from openai import AsyncOpenAI
@@ -360,11 +361,11 @@ class TextEnhancer:
         return self._enabled and self._mode != MODE_OFF
 
     @property
-    def available_modes(self) -> List[Tuple[str, str]]:
+    def available_modes(self) -> list[tuple[str, str]]:
         """Return (mode_id, label) pairs sorted by order."""
         return get_sorted_modes(self._modes)
 
-    def get_mode_definition(self, mode_id: str) -> Optional["ModeDefinition"]:
+    def get_mode_definition(self, mode_id: str) -> ModeDefinition | None:
         """Return the ModeDefinition for a given mode_id, or None."""
         return self._modes.get(mode_id)
 
@@ -432,7 +433,7 @@ class TextEnhancer:
         return self._last_system_prompt
 
     @property
-    def last_llm_vocab(self) -> List[ManualVocabEntry]:
+    def last_llm_vocab(self) -> list[ManualVocabEntry]:
         """Return the LLM vocab entries injected in the last enhance() call."""
         return self._last_llm_vocab
 
@@ -480,17 +481,17 @@ class TextEnhancer:
         logger.info("AI model changed to: %s", value)
 
     @property
-    def provider_names(self) -> List[str]:
+    def provider_names(self) -> list[str]:
         return list(self._providers.keys())
 
     @property
-    def model_names(self) -> List[str]:
+    def model_names(self) -> list[str]:
         if self._active_provider in self._providers:
             return list(self._providers[self._active_provider][1])
         return []
 
     @property
-    def providers_with_models(self) -> Dict[str, List[str]]:
+    def providers_with_models(self) -> dict[str, list[str]]:
         """Return {provider_name: [model_names]} for all providers."""
         return {
             pname: list(data[1])
@@ -503,8 +504,8 @@ class TextEnhancer:
         api_key: str,
         model: str,
         timeout: int = 10,
-        extra_body: Optional[Dict[str, Any]] = None,
-    ) -> Optional[str]:
+        extra_body: dict[str, Any] | None = None,
+    ) -> str | None:
         """Verify a provider by sending a test request.
 
         Returns None on success, or an error message string on failure.
@@ -513,7 +514,7 @@ class TextEnhancer:
 
         client = AsyncOpenAI(base_url=base_url, api_key=api_key, max_retries=0)
         try:
-            kwargs: Dict[str, Any] = {
+            kwargs: dict[str, Any] = {
                 "model": model,
                 "messages": [{"role": "user", "content": "hi"}],
                 "max_tokens": 1,
@@ -525,7 +526,7 @@ class TextEnhancer:
                 timeout=timeout,
             )
             return None
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return f"Connection timed out after {timeout}s"
         except RateLimitError:
             return "Rate limited (429) — provider is temporarily throttling requests"
@@ -539,8 +540,8 @@ class TextEnhancer:
         name: str,
         base_url: str,
         api_key: str,
-        models: List[str],
-        extra_body: Optional[Dict[str, Any]] = None,
+        models: list[str],
+        extra_body: dict[str, Any] | None = None,
     ) -> bool:
         """Add a new provider and initialize it.
 
@@ -548,7 +549,7 @@ class TextEnhancer:
         """
         if not name or not models:
             return False
-        pcfg: Dict[str, Any] = {
+        pcfg: dict[str, Any] = {
             "base_url": base_url,
             "api_key": api_key,
             "models": models,
@@ -591,12 +592,12 @@ class TextEnhancer:
         logger.info("Removed AI provider: %s", name)
         return True
 
-    def _build_extra_body(self, provider_extra_body: Dict[str, Any]) -> Dict[str, Any]:
+    def _build_extra_body(self, provider_extra_body: dict[str, Any]) -> dict[str, Any]:
         """Build the final extra_body by merging thinking control with provider config.
 
         Provider-level extra_body takes precedence over thinking toggle.
         """
-        result: Dict[str, Any] = build_thinking_body(
+        result: dict[str, Any] = build_thinking_body(
             self._active_model, self._thinking
         )
         if provider_extra_body:
@@ -604,8 +605,8 @@ class TextEnhancer:
         return result
 
     def _build_system_content(
-        self, text: str, mode_def: "ModeDefinition",
-        input_context: "InputContext | None" = None,
+        self, text: str, mode_def: ModeDefinition,
+        input_context: InputContext | None = None,
     ) -> str:
         """Build system prompt with vocabulary and history context.
 
@@ -632,7 +633,7 @@ class TextEnhancer:
         return system_content
 
     def _build_context_section(
-        self, text: str, input_context: "InputContext | None" = None,
+        self, text: str, input_context: InputContext | None = None,
     ) -> str:
         """Build the combined context section with history, vocabulary, and input context.
 
@@ -842,7 +843,7 @@ class TextEnhancer:
         return self._format_history_section()
 
     def _full_rebuild_history(
-        self, entries: List[Dict[str, Any]]
+        self, entries: list[dict[str, Any]]
     ) -> str:
         """Rebuild history cache from scratch with the most recent base entries."""
         ch = self._conversation_history
@@ -919,13 +920,13 @@ class TextEnhancer:
 
     def _build_request_kwargs(
         self, text: str, system_content: str, **extra_kwargs: Any
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Build the request kwargs dict for chat.completions.create."""
         self._last_system_prompt = system_content
 
         client, _, provider_extra_body = self._providers[self._active_provider]
         extra_body = self._build_extra_body(provider_extra_body)
-        kwargs: Dict[str, Any] = {
+        kwargs: dict[str, Any] = {
             "model": self._active_model,
             "messages": [
                 {"role": "system", "content": system_content},
@@ -950,8 +951,8 @@ class TextEnhancer:
         return kwargs
 
     async def enhance(
-        self, text: str, input_context: "InputContext | None" = None,
-    ) -> Tuple[str, Optional[Dict[str, int]]]:
+        self, text: str, input_context: InputContext | None = None,
+    ) -> tuple[str, dict[str, int] | None]:
         """Enhance text using LLM.
 
         Returns (enhanced_text, usage) where usage is a dict with
@@ -1007,7 +1008,7 @@ class TextEnhancer:
             else:
                 logger.warning("LLM returned empty text, using original")
                 return text, usage
-        except asyncio.TimeoutError:
+        except TimeoutError:
             self._pool_monitor.log_stats("enhance:timeout", self._active_provider)
             logger.error("AI enhancement timed out after %ds", self._timeout)
             return text, None
@@ -1021,8 +1022,8 @@ class TextEnhancer:
             return text, None
 
     async def enhance_stream(
-        self, text: str, input_context: "InputContext | None" = None,
-    ) -> AsyncIterator[Tuple[str, Optional[Dict[str, int]], bool]]:
+        self, text: str, input_context: InputContext | None = None,
+    ) -> AsyncIterator[tuple[str, dict[str, int] | None, bool]]:
         """Stream-enhance text using LLM.
 
         Yields (chunk, None, is_thinking) for each text delta, then a final
@@ -1089,7 +1090,7 @@ class TextEnhancer:
                         "retry",
                     )
                     return
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     last_error = (
                         f"connection timed out after {self._connection_timeout}s"
                     )
@@ -1176,7 +1177,7 @@ class TextEnhancer:
                 # Final yield with usage only
                 yield "", usage, False
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             self._pool_monitor.log_stats("stream:timeout", self._active_provider)
             logger.error("AI stream enhancement timed out after %ds", self._timeout)
             yield text, None, False
@@ -1191,13 +1192,13 @@ class TextEnhancer:
 
 
 def create_enhancer(
-    config: Dict[str, Any],
+    config: dict[str, Any],
     config_dir: str | None = None,
     data_dir: str | None = None,
     cache_dir: str | None = None,
-    conversation_history: Optional[ConversationHistory] = None,
-    manual_vocab_store: Optional[ManualVocabularyStore] = None,
-) -> Optional[TextEnhancer]:
+    conversation_history: ConversationHistory | None = None,
+    manual_vocab_store: ManualVocabularyStore | None = None,
+) -> TextEnhancer | None:
     """Factory function to create a TextEnhancer from app config.
 
     Returns None if ai_enhance is not configured.
