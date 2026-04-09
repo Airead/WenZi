@@ -281,12 +281,12 @@ class CGEventTapRunner:
             try:
                 CFRelease(self._source)
             except Exception:
-                pass
+                _runner_logger.debug("CFRelease(source) failed", exc_info=True)
             self._source = None
         if self.tap is not None:
             try:
                 CFRelease(self.tap)
             except Exception:
-                pass
+                _runner_logger.debug("CFRelease(tap) failed", exc_info=True)
             self.tap = None
         self._ctypes_cb = None

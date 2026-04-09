@@ -586,8 +586,7 @@ For ad-hoc async execution outside of callbacks, use `wz.run()`:
 ```python
 async def fetch_and_copy(url):
     import urllib.request
-    loop = asyncio.get_event_loop()
-    resp = await loop.run_in_executor(None, urllib.request.urlopen, url)
+    resp = await asyncio.to_thread(urllib.request.urlopen, url)
     wz.pasteboard.set(resp.read().decode())
     wz.notify("Copied", f"Content from {url}")
 
