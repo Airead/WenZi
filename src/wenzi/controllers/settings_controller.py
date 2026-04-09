@@ -340,6 +340,7 @@ class SettingsController:
             "sound_enabled": app._sound_manager.enabled,
             "visual_indicator": app._recording_indicator.enabled,
             "show_device_name": app._recording_indicator.show_device_name,
+            "hide_status_icon": not app.status_item_visible,
             "preview": app._preview_enabled,
             "current_preset_id": app._current_preset_id,
             "current_remote_asr": app._current_remote_asr,
@@ -400,6 +401,7 @@ class SettingsController:
             "on_sound_toggle": self.sound_toggle,
             "on_visual_toggle": self.visual_toggle,
             "on_device_name_toggle": self.show_device_name_toggle,
+            "on_hide_status_icon_toggle": self.hide_status_icon_toggle,
             "on_preview_toggle": self.preview_toggle,
             "on_stt_select": self.stt_select,
             "on_stt_remote_select": self.stt_remote_select,
@@ -780,6 +782,15 @@ class SettingsController:
 
         fb_cfg = app._config.setdefault("feedback", {})
         fb_cfg["show_device_name"] = enabled
+        self._save_and_reload()
+
+    def hide_status_icon_toggle(self, enabled: bool) -> None:
+        """Handle hide status icon toggle from Settings panel."""
+        app = self._app
+        app.set_status_item_visible(not enabled)
+
+        fb_cfg = app._config.setdefault("feedback", {})
+        fb_cfg["hide_status_icon"] = enabled
         self._save_and_reload()
 
     def preview_toggle(self, enabled: bool) -> None:

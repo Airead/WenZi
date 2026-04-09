@@ -845,6 +845,15 @@ textarea.provider-form-textarea.error {
             <div id="ctl-device-name" class="toggle" onclick="toggleClick(this, 'on_device_name_toggle')"></div>
           </div>
         </div>
+        <div class="setting-row">
+          <div class="setting-left">
+            <div class="setting-label" data-i18n="general_tab.hide_status_icon">Hide Status Icon</div>
+            <div class="setting-desc" data-i18n="general_tab.hide_status_icon_desc">Hide the microphone status icon in the menu bar</div>
+          </div>
+          <div class="setting-right">
+            <div id="ctl-hide-status-icon" class="toggle" onclick="toggleClick(this, 'on_hide_status_icon_toggle')"></div>
+          </div>
+        </div>
       </div>
 
       <div class="group-title group-title-row"><span data-i18n="general_tab.output_section">Output</span><span class="help-icon" data-doc="user-guide.html#preview-mode-vs-direct-mode">?</span></div>
@@ -2541,6 +2550,7 @@ function _initState(config) {
   setToggle('ctl-sound', config.sound_enabled);
   setToggle('ctl-visual', config.visual_indicator);
   setToggle('ctl-device-name', config.show_device_name);
+  setToggle('ctl-hide-status-icon', config.hide_status_icon);
 
   // Output
   setToggle('ctl-preview', config.preview);
@@ -2949,6 +2959,7 @@ function _updateState(state) {
   if (state.sound_enabled !== undefined) setToggle('ctl-sound', state.sound_enabled);
   if (state.visual_indicator !== undefined) setToggle('ctl-visual', state.visual_indicator);
   if (state.show_device_name !== undefined) setToggle('ctl-device-name', state.show_device_name);
+  if (state.hide_status_icon !== undefined) setToggle('ctl-hide-status-icon', state.hide_status_icon);
   if (state.preview !== undefined) setToggle('ctl-preview', state.preview);
   if (state.keychain_enabled !== undefined) {
     setToggle('ctl-keychain', state.keychain_enabled);

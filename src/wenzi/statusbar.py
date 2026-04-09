@@ -276,6 +276,7 @@ class StatusBarApp:
             quit_button = t("menu.quit")
         self._quit_button = StatusMenuItem(quit_button) if quit_button else None
         self._nsstatusitem = None
+        self._status_item_hidden = False
 
     # -- Properties ---------------------------------------------------------
 
@@ -304,18 +305,20 @@ class StatusBarApp:
     # -- Status bar ---------------------------------------------------------
 
     def _setup_status_bar(self) -> None:
+        # Append quit button (once) regardless of visibility
+        if self._quit_button is not None:
+            if self._quit_button._menuitem.action() is None:
+                self._quit_button.set_callback(lambda _: quit_application())
+            if self._quit_button.title not in self._menu:
+                self._menu.add(self._quit_button)
+
+        if self._status_item_hidden:
+            return
+
         self._nsstatusitem = NSStatusBar.systemStatusBar().statusItemWithLength_(-1)
         self._nsstatusitem.setHighlightMode_(True)
         self._update_status_bar_icon()
         self._update_status_bar_title()
-
-        # Append quit button at the end
-        if self._quit_button is not None:
-            if self._quit_button._menuitem.action() is None:
-                # No custom callback set — use default quit
-                self._quit_button.set_callback(lambda _: quit_application())
-            self._menu.add(self._quit_button)
-
         self._nsstatusitem.setMenu_(self._menu._ensure_submenu())
 
     def _update_status_bar_icon(self) -> None:
@@ -332,6 +335,33 @@ class StatusBarApp:
         si = self._nsstatusitem
         if si is not None and not si.title() and not si.image():
             si.setTitle_(self._name)
+
+    # -- Status item visibility ---------------------------------------------
+
+    def set_status_item_visible(self, visible: bool) -> None:
+        """Show or hide the status bar item (menu bar icon).
+
+        NSStatusItem has no hide/show API — we must remove the item entirely
+        and re-create it to toggle visibility.
+        """
+        self._status_item_hidden = not visible
+        if visible:
+            if self._nsstatusitem is None:
+                self._nsstatusitem = NSStatusBar.systemStatusBar().statusItemWithLength_(-1)
+                self._nsstatusitem.setHighlightMode_(True)
+                self._update_status_bar_icon()
+                self._update_status_bar_title()
+                self._nsstatusitem.setMenu_(self._menu._ensure_submenu())
+        else:
+            if self._nsstatusitem is not None:
+                NSStatusBar.systemStatusBar().removeStatusItem_(
+                    self._nsstatusitem
+                )
+                self._nsstatusitem = None
+
+    @property
+    def status_item_visible(self) -> bool:
+        return self._nsstatusitem is not None
 
     # -- Run loop -----------------------------------------------------------
 

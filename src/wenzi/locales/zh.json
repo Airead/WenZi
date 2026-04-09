@@ -330,6 +330,8 @@
   "settings.general_tab.visual_indicator_desc": "录音时显示浮动指示器",
   "settings.general_tab.show_device_name": "显示设备名称",
   "settings.general_tab.show_device_name_desc": "在录音指示器上显示输入设备名称",
+  "settings.general_tab.hide_status_icon": "隐藏状态图标",
+  "settings.general_tab.hide_status_icon_desc": "隐藏菜单栏中的麦克风状态图标",
   "settings.general_tab.output_section": "输出",
   "settings.general_tab.preview": "预览",
   "settings.general_tab.preview_desc": "插入文本前显示预览面板，允许编辑",

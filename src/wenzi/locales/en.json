@@ -330,6 +330,8 @@
   "settings.general_tab.visual_indicator_desc": "Show a floating indicator while recording",
   "settings.general_tab.show_device_name": "Show Device Name",
   "settings.general_tab.show_device_name_desc": "Show the input device name on the recording indicator",
+  "settings.general_tab.hide_status_icon": "Hide Status Icon",
+  "settings.general_tab.hide_status_icon_desc": "Hide the microphone status icon in the menu bar",
   "settings.general_tab.output_section": "Output",
   "settings.general_tab.preview": "Preview",
   "settings.general_tab.preview_desc": "Show a preview panel before inserting text, allowing edits",

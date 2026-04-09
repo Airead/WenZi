@@ -1555,6 +1555,12 @@ class WenZiApp(StatusBarApp):
         if not self._config_degraded:
             AppHelper.callAfter(self._update_controller.start)
 
+        # Hide status bar icon if configured (set flag before super().run()
+        # creates the NSStatusItem, so the icon never appears)
+        fb_cfg = self._config.get("feedback", {})
+        if fb_cfg.get("hide_status_icon", False):
+            self._status_item_hidden = True
+
         # Show config error alert after the event loop starts
         if self._config_error is not None:
             AppHelper.callAfter(self._show_config_error)
