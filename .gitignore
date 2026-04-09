@@ -53,3 +53,5 @@ logs/
 build/
 dist/
 
+# SCIP
+*.scip

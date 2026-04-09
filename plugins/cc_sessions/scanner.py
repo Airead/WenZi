@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import configparser
 import json
 import re
+import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -41,7 +41,7 @@ def _extract_plan_title(plan_content: str) -> str:
 def _clean_custom_title(raw: str) -> str:
     """Clean a custom title: extract plan title if it starts with plan prefix."""
     if raw.startswith(_PLAN_PREFIX):
-        remainder = raw[len(_PLAN_PREFIX):].strip()
+        remainder = raw[len(_PLAN_PREFIX) :].strip()
         # custom-title has plan on one line; extract heading then truncate at next ##
         title = _extract_plan_title(remainder)
         if title:
@@ -156,32 +156,15 @@ def _resolve_project_name(cwd: str, fallback: str) -> str:
 
 
 def _git_remote_name(cwd: str) -> str:
-    """Extract the repository name from git remote origin URL.
-
-    Handles both worktrees (``.git`` is a file) and normal repos
-    (``.git`` is a directory).
-    """
+    """Extract the repository name from git remote origin URL."""
     try:
-        git_path = Path(cwd) / ".git"
-        if not git_path.exists():
-            return ""
-        if git_path.is_file():
-            # Worktree: .git file contains "gitdir: /path/to/main/.git/worktrees/..."
-            content = git_path.read_text(encoding="utf-8").strip()
-            if content.startswith("gitdir:"):
-                gitdir = content.split(":", 1)[1].strip()
-                # Walk up from .git/worktrees/<name> to .git/
-                config_path = Path(gitdir).parent.parent / "config"
-            else:
-                return ""
-        else:
-            config_path = git_path / "config"
-
-        if not config_path.is_file():
-            return ""
-        cfg = configparser.ConfigParser()
-        cfg.read(str(config_path), encoding="utf-8")
-        url = cfg.get('remote "origin"', "url", fallback="")
+        result = subprocess.run(
+            ["git", "config", "--get", "remote.origin.url"],
+            capture_output=True,
+            text=True,
+            cwd=cwd,
+        )
+        url = result.stdout.strip()
         if not url:
             return ""
         # git@github.com:User/Repo.git -> Repo
@@ -190,7 +173,7 @@ def _git_remote_name(cwd: str) -> str:
         if base.endswith(".git"):
             base = base[:-4]
         return base
-    except (OSError, configparser.Error):
+    except OSError:
         return ""
 
 
@@ -219,7 +202,6 @@ def _choose_title(
     if len(raw) > 80:
         return raw[:77] + "..."
     return raw
-
 
 
 def _scan_session_jsonl(
@@ -257,10 +239,12 @@ def _scan_session_jsonl(
 
             # Count real user messages via string matching (entire file)
             if '"type":"user"' in line:
-                if ("tool_result" not in line
-                        and "toolUseResult" not in line
-                        and "<local-command-caveat>" not in line
-                        and "<command-name>" not in line):
+                if (
+                    "tool_result" not in line
+                    and "toolUseResult" not in line
+                    and "<local-command-caveat>" not in line
+                    and "<command-name>" not in line
+                ):
                     user_msg_count += 1
 
             # Detect custom-title entries (can appear anywhere in the file)
@@ -279,7 +263,7 @@ def _scan_session_jsonl(
                 if heading_idx != -1:
                     start = heading_idx + 3  # skip '"# '
                     end = len(line)
-                    for stop in ['\\n', '"']:
+                    for stop in ["\\n", '"']:
                         pos = line.find(stop, start)
                         if pos != -1 and pos < end:
                             end = pos
@@ -313,9 +297,7 @@ def _scan_session_jsonl(
                 from .reader import _extract_user_text
 
                 msg = obj.get("message", {})
-                content = _extract_user_text(
-                    msg.get("content", "") if isinstance(msg, dict) else ""
-                )
+                content = _extract_user_text(msg.get("content", "") if isinstance(msg, dict) else "")
                 if content and not is_noise_message(content):
                     first_user_message = content
 
@@ -351,8 +333,6 @@ def _scan_session_jsonl(
     )
 
 
-
-
 _UNSET = object()
 
 
@@ -371,10 +351,12 @@ class SessionScanner:
         if cache_path is _UNSET:
             # Default: use WenZi cache dir
             from wenzi.config import resolve_cache_dir
+
             cache_path = Path(resolve_cache_dir()) / "cc_sessions_cache.json"
 
         if cache_path is not None:
             from .cache import SessionCache
+
             self._cache: SessionCache | None = SessionCache(cache_path)
         else:
             self._cache = None
@@ -433,8 +415,7 @@ class SessionScanner:
                     if supplement:
                         summary = supplement.get("summary", "")
                         custom_title = supplement.get("customTitle", "")
-                        if (summary != session.get("summary", "")
-                                or custom_title != session.get("custom_title", "")):
+                        if summary != session.get("summary", "") or custom_title != session.get("custom_title", ""):
                             session = dict(session)
                             session["summary"] = summary
                             session["custom_title"] = custom_title
@@ -460,7 +441,8 @@ class SessionScanner:
         return sessions
 
     def _load_index_supplements(
-        self, proj_dir: Path,
+        self,
+        proj_dir: Path,
     ) -> dict[str, dict[str, str]]:
         """Load summary/customTitle from sessions-index.json with mtime caching."""
         index_path = proj_dir / "sessions-index.json"

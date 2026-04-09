@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 from pathlib import Path
 
 from cc_sessions.scanner import (
@@ -612,43 +613,44 @@ class TestProjectNameResolution:
 
     def test_git_remote_name_normal_repo(self, tmp_path: Path):
         """Reads remote origin URL from .git/config."""
-        git_dir = tmp_path / ".git"
-        git_dir.mkdir()
-        (git_dir / "config").write_text(
-            '[remote "origin"]\n'
-            "    url = git@github.com:Airead/WenZi.git\n"
-            "    fetch = +refs/heads/*:refs/remotes/origin/*\n"
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        subprocess.run(["git", "init"], cwd=repo, capture_output=True, check=True)
+        subprocess.run(
+            ["git", "remote", "add", "origin", "git@github.com:Airead/WenZi.git"],
+            cwd=repo, capture_output=True, check=True,
         )
-        assert _git_remote_name(str(tmp_path)) == "WenZi"
+        assert _git_remote_name(str(repo)) == "WenZi"
 
     def test_git_remote_name_https(self, tmp_path: Path):
-        git_dir = tmp_path / ".git"
-        git_dir.mkdir()
-        (git_dir / "config").write_text(
-            '[remote "origin"]\n'
-            "    url = https://github.com/Airead/WenZi.git\n"
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        subprocess.run(["git", "init"], cwd=repo, capture_output=True, check=True)
+        subprocess.run(
+            ["git", "remote", "add", "origin", "https://github.com/Airead/WenZi.git"],
+            cwd=repo, capture_output=True, check=True,
         )
-        assert _git_remote_name(str(tmp_path)) == "WenZi"
+        assert _git_remote_name(str(repo)) == "WenZi"
 
     def test_git_remote_name_worktree(self, tmp_path: Path):
         """Follows .git file to main repo config."""
-        # Set up main repo
-        main = tmp_path / "main"
-        main.mkdir()
-        git_dir = main / ".git"
-        git_dir.mkdir()
-        worktrees = git_dir / "worktrees" / "wt1"
-        worktrees.mkdir(parents=True)
-        (git_dir / "config").write_text(
-            '[remote "origin"]\n'
-            "    url = git@github.com:Airead/WenZi.git\n"
+        repo = tmp_path / "main"
+        repo.mkdir()
+        subprocess.run(["git", "init"], cwd=repo, capture_output=True, check=True)
+        subprocess.run(
+            ["git", "remote", "add", "origin", "git@github.com:Airead/WenZi.git"],
+            cwd=repo, capture_output=True, check=True,
         )
-
-        # Set up worktree
+        # Create an initial commit so worktree can be created
+        subprocess.run(
+            ["git", "commit", "--allow-empty", "-m", "init"],
+            cwd=repo, capture_output=True, check=True,
+        )
         wt = tmp_path / "wt1"
-        wt.mkdir()
-        (wt / ".git").write_text(f"gitdir: {worktrees}\n")
-
+        subprocess.run(
+            ["git", "worktree", "add", str(wt), "-b", "wt-branch"],
+            cwd=repo, capture_output=True, check=True,
+        )
         assert _git_remote_name(str(wt)) == "WenZi"
 
     def test_git_remote_name_no_git(self, tmp_path: Path):
@@ -697,14 +699,15 @@ class TestProjectNameResolution:
         """Session started from repo subdirectory resolves to repo name."""
         from cc_sessions.scanner import _project_name_cache
 
-        # Set up git repo with remote
-        git_dir = tmp_path / ".git"
-        git_dir.mkdir()
-        (git_dir / "config").write_text(
-            '[remote "origin"]\n'
-            "    url = git@github.com:Airead/WenZi.git\n"
+        # Set up real git repo with remote
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        subprocess.run(["git", "init"], cwd=repo, capture_output=True, check=True)
+        subprocess.run(
+            ["git", "remote", "add", "origin", "git@github.com:Airead/WenZi.git"],
+            cwd=repo, capture_output=True, check=True,
         )
-        sub = tmp_path / "docs"
+        sub = repo / "docs"
         sub.mkdir()
 
         cwd = str(sub)
