@@ -347,4 +347,4 @@ class TestStreamingOverlayPanel:
 
     def test_font_size_constant(self):
         from wenzi.ui.streaming_overlay import _FONT_SIZE
-        assert _FONT_SIZE == 13
+        assert _FONT_SIZE == 15.6

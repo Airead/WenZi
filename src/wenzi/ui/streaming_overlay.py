@@ -13,21 +13,21 @@ import threading
 logger = logging.getLogger(__name__)
 
 # Panel dimensions
-_PANEL_WIDTH = 420
-_MIN_HEIGHT = 80
-_MAX_HEIGHT = 360
-_CORNER_RADIUS = 10
-_PADDING_H = 14
-_PADDING_V = 10
-_SECTION_SPACING = 8
-_ASR_MAX_HEIGHT = 60  # max before ASR section scrolls
-_LABEL_HEIGHT = 14
-_HINT_GAP = 8
-_PROGRESS_HEIGHT = 3
-_PROGRESS_CORNER = 1.5
+_PANEL_WIDTH = 504
+_MIN_HEIGHT = 96
+_MAX_HEIGHT = 432
+_CORNER_RADIUS = 12
+_PADDING_H = 17
+_PADDING_V = 12
+_SECTION_SPACING = 10
+_ASR_MAX_HEIGHT = 72  # max before ASR section scrolls
+_LABEL_HEIGHT = 17
+_HINT_GAP = 10
+_PROGRESS_HEIGHT = 3.6
+_PROGRESS_CORNER = 1.8
 
 # Font
-_FONT_SIZE = 13
+_FONT_SIZE = 15.6
 
 # Key codes
 _ESC_KEY_CODE = 53
@@ -102,7 +102,7 @@ class StreamingOverlayPanel:
         from AppKit import NSColor, NSFont, NSTextField
 
         label = NSTextField.labelWithString_(text)
-        label.setFont_(NSFont.systemFontOfSize_weight_(9.5, 0.23))
+        label.setFont_(NSFont.systemFontOfSize_weight_(11.4, 0.23))
         label.setTextColor_(NSColor.tertiaryLabelColor())
         label.setSelectable_(False)
         label.setDrawsBackground_(False)

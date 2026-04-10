@@ -13,28 +13,28 @@ _EMA_ATTACK = 0.6
 _EMA_RELEASE = 0.25
 
 # Panel dimensions
-_PANEL_WIDTH = 188
-_PANEL_HEIGHT = 30
-_LABEL_HEIGHT = 14  # height added for subtitle row
+_PANEL_WIDTH = 226
+_PANEL_HEIGHT = 36
+_LABEL_HEIGHT = 17  # height added for subtitle row
 
 # Animation refresh interval in seconds (~20Hz)
 _REFRESH_INTERVAL = 0.05
 
 # Waveform visual parameters
 _WAVE_POINTS = 50       # sample points for smooth curve
-_WAVE_WIDTH = 150.0     # horizontal extent
-_WAVE_MAX_AMP = 8.0     # max amplitude from centre line
-_WAVE_LINE_W = 2.0      # primary wave stroke width
-_WAVE_LINE_W2 = 1.5     # secondary wave stroke width
+_WAVE_WIDTH = 180.0     # horizontal extent
+_WAVE_MAX_AMP = 9.6     # max amplitude from centre line
+_WAVE_LINE_W = 2.4      # primary wave stroke width
+_WAVE_LINE_W2 = 1.8     # secondary wave stroke width
 
 # Status dot parameters
-_DOT_RADIUS = 4.5
+_DOT_RADIUS = 5.4
 
 # Font
 _FONT_WEIGHT_MEDIUM = 0.23  # NSFontWeightMedium
 
 # Background
-_BG_CORNER_RADIUS = 10
+_BG_CORNER_RADIUS = 12
 
 # NSVisualEffectView constants (avoid AppKit import at module level)
 _VFX_MATERIAL_HUD = 13       # NSVisualEffectMaterialHUDWindow
@@ -118,7 +118,7 @@ class RecordingIndicatorView:
         elapsed = time.monotonic() - self._start_time
 
         # ── Status dot (left) — red when recording, grey when waiting ───
-        dot_x = 15.0
+        dot_x = 18.0
         dot_y = anim_center_y
 
         if self._recording_active:
@@ -140,7 +140,7 @@ class RecordingIndicatorView:
         NSBezierPath.bezierPathWithOvalInRect_(dot_rect).fill()
 
         # ── Audio waveform (centre-right) ───────────────────────────────
-        wave_cx = 103.0
+        wave_cx = 123.6
         half_w = _WAVE_WIDTH / 2.0
         level = self._level
 
@@ -204,13 +204,13 @@ class RecordingIndicatorView:
                 para.setAlignment_(1)  # NSTextAlignmentCenter
                 para.setLineBreakMode_(4)  # NSLineBreakByTruncatingTail
                 self._subtitle_attrs = {
-                    NSFontAttributeName: NSFont.systemFontOfSize_weight_(9, _FONT_WEIGHT_MEDIUM),
+                    NSFontAttributeName: NSFont.systemFontOfSize_weight_(10.8, _FONT_WEIGHT_MEDIUM),
                     NSForegroundColorAttributeName: NSColor.labelColor(),
                     NSParagraphStyleAttributeName: para,
                 }
             if self._subtitle_ns_str is None:
                 self._subtitle_ns_str = NSString.stringWithString_(self._subtitle)
-            label_rect = NSMakeRect(28, 5, 150, _LABEL_HEIGHT)
+            label_rect = NSMakeRect(33.6, 6, 180, _LABEL_HEIGHT)
             self._subtitle_ns_str.drawInRect_withAttributes_(
                 label_rect, self._subtitle_attrs,
             )
