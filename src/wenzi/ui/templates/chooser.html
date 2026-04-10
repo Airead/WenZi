@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
 :root {
-    --bg: #fff;
+    --bg: transparent;
     --text: #1d1d1f;
     --secondary: #86868b;
     --border: rgba(0, 0, 0, 0.08);
@@ -19,7 +19,7 @@
 }
 @media (prefers-color-scheme: dark) {
     :root {
-        --bg: #323237;
+        --bg: transparent;
         --text: #e5e5e7;
         --secondary: #98989d;
         --border: rgba(255, 255, 255, 0.10);
@@ -46,14 +46,6 @@ body {
     background: transparent;
     border-radius: 18px;
     overflow: hidden;
-}
-body::before {
-    content: '';
-    position: fixed; inset: 0;
-    border-radius: 18px;
-    background: var(--bg);
-    z-index: -1;
-    pointer-events: none;
 }
 
 /* Main content: left panel + preview */

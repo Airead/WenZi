@@ -932,50 +932,42 @@ class TestQuickLookIntegration:
         panel._panel = MagicMock()
         panel.close = MagicMock()
 
-        mock_nsapp = MagicMock()
-        # Return something other than chooser panel so first check doesn't match
-        mock_nsapp.keyWindow.return_value = MagicMock()
-
         with patch("PyObjCTools.AppHelper.callLater") as mock_later:
             panel._maybe_close()
             check_fn = mock_later.call_args[0][1]
 
-        with patch("AppKit.NSApp", mock_nsapp):
-            check_fn()
+        check_fn()
         panel.close.assert_not_called()
 
-    def test_maybe_close_keeps_open_when_chooser_is_key(self):
-        """_maybe_close should not close when chooser panel is the key window."""
+    def test_maybe_close_closes_even_when_chooser_regained_key(self):
+        """_maybe_close should close even if the chooser panel regained key.
+
+        Floating panels at NSStatusWindowLevel can recapture key-window
+        status after another app activates (e.g. via a system shortcut).
+        The panel must still close to avoid stealing focus back.
+        """
         panel = _make_panel()
         panel._panel = MagicMock()
         panel.close = MagicMock()
 
-        mock_nsapp = MagicMock()
-        mock_nsapp.keyWindow.return_value = panel._panel
-
         with patch("PyObjCTools.AppHelper.callLater") as mock_later:
             panel._maybe_close()
             check_fn = mock_later.call_args[0][1]
 
-        with patch("AppKit.NSApp", mock_nsapp):
-            check_fn()
-        panel.close.assert_not_called()
+        check_fn()
+        panel.close.assert_called_once()
 
-    def test_maybe_close_closes_when_neither_panel_is_key(self):
-        """_maybe_close should close when neither panel is key."""
+    def test_maybe_close_closes_when_no_ql_panel(self):
+        """_maybe_close should close when no QL panel is active."""
         panel = _make_panel()
         panel._panel = MagicMock()
         panel.close = MagicMock()
 
-        mock_nsapp = MagicMock()
-        mock_nsapp.keyWindow.return_value = MagicMock()  # some other window
-
         with patch("PyObjCTools.AppHelper.callLater") as mock_later:
             panel._maybe_close()
             check_fn = mock_later.call_args[0][1]
 
-        with patch("AppKit.NSApp", mock_nsapp):
-            check_fn()
+        check_fn()
         panel.close.assert_called_once()
 
 
@@ -1775,6 +1767,18 @@ class TestDeferredRecycle:
         )
         assert panel._recycle_timer is not None
 
+    def test_close_releases_hidden_panel_surfaces(self):
+        panel = _make_panel()
+        panel._panel = MagicMock()
+        panel._webview = MagicMock()
+        with patch.object(panel, "_deactivate_vfx") as mock_release, \
+             patch("PyObjCTools.AppHelper.callLater"), \
+             patch("PyObjCTools.AppHelper.callAfter", side_effect=lambda fn, *a, **kw: fn(*a, **kw)), \
+             patch("wenzi.scripting.ui.chooser_panel.reactivate_app"):
+            panel.close()
+        mock_release.assert_called_once_with()
+        panel._panel.orderOut_.assert_called_once_with(None)
+
     def test_close_without_webview_skips_recycle(self):
         panel = _make_panel()
         panel._webview = None
@@ -1828,6 +1832,18 @@ class TestDeferredRecycle:
         timer.cancel.assert_called_once()
         assert panel._recycle_timer is None
 
+    def test_destroy_deactivates_vfx_during_close(self):
+        panel = _make_panel()
+        panel._panel = MagicMock()
+        panel._webview = MagicMock()
+        with patch.object(panel, "_deactivate_vfx") as mock_deactivate, \
+             patch("wenzi.ui.web_utils.cleanup_webview"), \
+             patch("PyObjCTools.AppHelper.callAfter", side_effect=lambda fn, *a, **kw: fn(*a, **kw)), \
+             patch("wenzi.scripting.ui.chooser_panel.reactivate_app"):
+            panel.destroy()
+        # close() deactivates; _teardown_webview() does inline setState_(0)
+        mock_deactivate.assert_called_once()
+
     def test_do_recycle_rebuilds_panel(self):
         panel = _make_panel()
         panel._webview = MagicMock()
@@ -1853,6 +1869,17 @@ class TestDeferredRecycle:
             panel._do_recycle()
         mock_build.assert_not_called()
         assert panel._webview is None
+
+    def test_do_recycle_prebuild_mode_builds_blank_panel(self):
+        panel = _make_panel()
+        panel._webview = MagicMock()
+        panel._panel = MagicMock()
+        panel._panel.isVisible.return_value = False
+        panel.set_recycle_mode("prebuild")
+        with patch.object(panel, "_build_panel") as mock_build:
+            panel._do_recycle()
+        mock_build.assert_called_once_with(load_html=False)
+        assert panel._recycle_preloading is False
 
     def test_do_recycle_preload_html_mode_builds_loaded_panel(self):
         panel = _make_panel()
@@ -1904,3 +1931,17 @@ class TestDeferredRecycle:
         panel._reload_chooser_html.assert_not_called()
         panel._panel.makeKeyAndOrderFront_.assert_called_once_with(None)
         mock_nsapp.activateIgnoringOtherApps_.assert_called_once_with(True)
+
+    def test_on_page_loaded_preload_releases_hidden_panel_surfaces(self):
+        panel = _make_panel()
+        panel._panel = MagicMock()
+        panel._panel.isVisible.return_value = False
+        panel._webview = MagicMock()
+        panel._page_loaded = False
+        panel._recycle_preloading = True
+        panel._pending_js = []
+        with patch.object(panel, "_inject_i18n"), \
+             patch.object(panel, "_eval_js"), \
+             patch.object(panel, "_deactivate_vfx") as mock_release:
+            panel._on_page_loaded()
+        mock_release.assert_called_once_with()
