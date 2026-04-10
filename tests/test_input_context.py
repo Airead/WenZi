@@ -209,3 +209,5 @@ class TestParseDomainFromTitle:
     def test_domain_after_chrome_strip(self):
         from wenzi.input_context import _parse_domain_from_title
         assert _parse_domain_from_title("github.com - Google Chrome") == "github.com"
+
+

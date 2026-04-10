@@ -222,6 +222,38 @@ class TestSoundDelay:
         mock_app._recorder.start.assert_called()
 
 
+class TestPressContextCapture:
+    @patch("wenzi.controllers.recording_flow.capture_input_context")
+    @patch("wenzi.controllers.recording_flow.get_frontmost_app")
+    def test_frontmost_app_captured_before_input_context(
+        self, mock_get_frontmost_app, mock_capture_input_context, flow
+    ):
+        """The original target app must be saved before slow AX context lookup."""
+        call_order: list[str] = []
+        target_app = object()
+
+        mock_get_frontmost_app.side_effect = (
+            lambda: call_order.append("frontmost") or target_app
+        )
+        mock_capture_input_context.side_effect = (
+            lambda _level: call_order.append("context") or None
+        )
+
+        async def _noop_session(_key_name: str) -> None:
+            return None
+
+        flow._recording_session = _noop_session
+
+        async def _test():
+            await flow._handle_press("fn")
+            await flow._current_task
+
+        run(_test())
+
+        assert call_order == ["frontmost", "context"]
+        assert flow._target_app is target_app
+
+
 class TestRecordAndRelease:
     @patch("wenzi.controllers.recording_flow.capture_input_context", return_value=None)
     @patch("PyObjCTools.AppHelper")
@@ -504,6 +536,84 @@ class TestStartTimeout:
         mock_app._recording_indicator.hide.assert_called()
         assert not flow.is_busy
 
+
+class TestStreamingTimeoutFallback:
+    def test_single_stream_timeout_replaces_partial_output(
+        self, flow, mock_app
+    ):
+        """Timeout fallback must replace partial streamed output."""
+
+        async def _gen():
+            yield "partial", None, False
+            yield "original text", None, "timeout"
+
+        mock_app._enhancer.enhance_stream.return_value = _gen()
+        flow._show_error_alert = MagicMock()
+
+        result = run(
+            flow._run_direct_single_stream("original text", asyncio.Event())
+        )
+
+        assert result == "original text"
+        mock_app._streaming_overlay.clear_text.assert_called_once()
+        assert mock_app._streaming_overlay.append_text.call_args_list[-1].args == (
+            "original text",
+        )
+        assert (
+            mock_app._streaming_overlay.append_text.call_args_list[-1].kwargs
+            == {"completion_tokens": len("original text")}
+        )
+        mock_app._streaming_overlay.set_status.assert_called_with(
+            "\u26a0\ufe0f AI timed out, using original text"
+        )
+        flow._show_error_alert.assert_called_once_with("AI enhancement timed out")
+
+    def test_chain_stream_timeout_passes_original_text_to_next_step(
+        self, flow, mock_app
+    ):
+        """A timed-out step must not poison the next chain step input."""
+        step1_def = MagicMock()
+        step1_def.label = "Proofread"
+        step2_def = MagicMock()
+        step2_def.label = "Translate"
+        mock_app._enhancer.get_mode_definition.side_effect = (
+            lambda mode_id: {
+                "proofread": step1_def,
+                "translate": step2_def,
+            }.get(mode_id)
+        )
+
+        inputs: list[str] = []
+
+        def _make_stream(text: str, input_context=None):
+            inputs.append(text)
+
+            async def _gen():
+                if len(inputs) == 1:
+                    yield "partial", None, False
+                    yield "original text", None, "timeout"
+                else:
+                    yield "translated text", None, False
+
+            return _gen()
+
+        mock_app._enhancer.enhance_stream.side_effect = _make_stream
+        flow._show_error_alert = MagicMock()
+
+        result = run(
+            flow._run_direct_chain_stream(
+                "original text",
+                ["proofread", "translate"],
+                asyncio.Event(),
+            )
+        )
+
+        assert result == "translated text"
+        assert inputs == ["original text", "original text"]
+        flow._show_error_alert.assert_called_once_with("AI enhancement timed out")
+
+
+class TestOrphanedRecording:
     @patch("wenzi.controllers.recording_flow.capture_input_context", return_value=None)
     @patch("PyObjCTools.AppHelper")
     def test_orphaned_recording_cleaned_up(

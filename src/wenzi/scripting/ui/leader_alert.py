@@ -247,7 +247,10 @@ class LeaderAlertPanel:
 
         from AppKit import NSAnimationContext
 
+        from wenzi.ui_helpers import release_panel_surfaces
+
         def _on_fade_done():
+            release_panel_surfaces(panel)
             try:
                 panel.orderOut_(None)
             except Exception:

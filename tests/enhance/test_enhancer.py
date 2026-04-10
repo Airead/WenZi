@@ -1734,10 +1734,11 @@ class TestTextEnhancerEnhanceStream:
                 results.append((chunk, usage, is_thinking))
 
         asyncio.run(collect())
-        # With max_retries=0, single attempt fails and yields error thinking text
-        assert len(results) == 1
-        assert results[0][2] == "retry"  # is_thinking
+        # With max_retries=0, single attempt fails and yields error + original text
+        assert len(results) == 2
+        assert results[0][2] == "retry"
         assert "all 1 attempts failed" in results[0][0]
+        assert results[1] == ("original text", None, "timeout")
 
 
 class TestEnhanceStreamYields3Tuples:
@@ -1799,7 +1800,7 @@ class TestConnectionTimeoutRetry:
         """Verify defaults when config keys are absent."""
         with patch("wenzi.enhance.enhancer.TextEnhancer._init_providers"):
             enhancer = TextEnhancer(_make_config())
-        assert enhancer._connection_timeout == 30
+        assert enhancer._connection_timeout == 10
         assert enhancer._max_retries == 2
 
     def test_enhance_stream_connection_timeout_retry_success(self):
@@ -1879,18 +1880,18 @@ class TestConnectionTimeoutRetry:
         with patch("wenzi.enhance.enhancer.asyncio.sleep", new_callable=AsyncMock):
             asyncio.run(collect())
 
-        # All yields should be retry (retry status + final error)
-        assert all(r[2] == "retry" for r in results)
-        # Should have 2 retry messages + 1 final error = 3 retry yields
-        assert len(results) == 3
+        # 2 retry messages + 1 final error + 1 timeout fallback = 4 yields
+        assert len(results) == 4
+        assert results[0][2] == "retry"
         assert "retrying in 2s" in results[0][0]
         assert "1/2" in results[0][0]
+        assert results[1][2] == "retry"
         assert "retrying in 4s" in results[1][0]
         assert "2/2" in results[1][0]
+        assert results[2][2] == "retry"
         assert "all 3 attempts failed" in results[2][0]
-        # No content yields
-        content = [r for r in results if r[2] is False]
-        assert len(content) == 0
+        # Final yield is original text as timeout fallback
+        assert results[3] == ("hello", None, "timeout")
 
 
 class TestRateLimitHandling:

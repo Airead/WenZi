@@ -168,7 +168,10 @@ class TestToggleLeader:
     def test_sticky_subkey_executes_and_closes(self, mock_helper, mock_exec):
         _, api = self._make_api()
         api.toggle_leader("cmd_d")
-        result = api._on_press("w")
+        # Mock Quartz so CGEventSourceFlagsState returns 0 (no modifiers held),
+        # avoiding flaky failures when real system modifier state leaks in.
+        with patch("Quartz.CGEventSourceFlagsState", return_value=0):
+            result = api._on_press("w")
         assert result is True
         assert api._active_leader is None
         assert api._sticky_leader is False

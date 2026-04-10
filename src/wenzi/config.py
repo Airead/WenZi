@@ -301,7 +301,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
             },
         },
         "thinking": False,
-        "timeout": 30,
+        "timeout": 10,
         "connection_timeout": 10,
         "max_retries": 2,
         "vocabulary": {

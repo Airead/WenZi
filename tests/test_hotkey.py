@@ -23,6 +23,12 @@ from wenzi.hotkey import (
 )
 
 
+def _flush():
+    """Wait for all pending hotkey executor tasks to complete."""
+    from wenzi.hotkey import _hotkey_executor
+    _hotkey_executor.submit(lambda: None).result(timeout=1.0)
+
+
 class TestNameToVk:
     def test_regular_key(self):
         assert _name_to_vk("a") == 0
@@ -611,6 +617,7 @@ class TestMultiHotkeyCancelKey:
         listener = MultiHotkeyListener(["fn"], on_press, MagicMock())
 
         listener._handle_press("fn")
+        _flush()
         result = listener._handle_press("space")
         assert on_press.call_count == 1
         assert result is False
@@ -725,6 +732,7 @@ class TestMultiHotkeyModeNav:
 
         listener._handle_press("fn")
         result = listener._handle_press("left")
+        _flush()
         on_mode_prev.assert_called_once()
         assert result is True  # swallowed
 
@@ -736,6 +744,7 @@ class TestMultiHotkeyModeNav:
 
         listener._handle_press("fn")
         result = listener._handle_press("up")
+        _flush()
         on_mode_prev.assert_called_once()
         assert result is True
 
@@ -747,6 +756,7 @@ class TestMultiHotkeyModeNav:
 
         listener._handle_press("fn")
         result = listener._handle_press("right")
+        _flush()
         on_mode_next.assert_called_once()
         assert result is True
 
@@ -758,6 +768,7 @@ class TestMultiHotkeyModeNav:
 
         listener._handle_press("fn")
         result = listener._handle_press("down")
+        _flush()
         on_mode_next.assert_called_once()
         assert result is True
 

@@ -5,55 +5,75 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
 :root {
-    --bg: rgba(255, 255, 255, 0.45);
+    --bg: rgba(255, 255, 255, 0.70);
     --text: #1d1d1f;
     --secondary: #86868b;
-    --border: rgba(0, 0, 0, 0.06);
+    --border: rgba(0, 0, 0, 0.08);
     --accent: #007aff;
-    --item-hover: rgba(0, 0, 0, 0.04);
-    --item-selected: rgba(0, 122, 255, 0.18);
+    --item-hover: rgba(0, 0, 0, 0.06);
+    --item-selected: rgba(0, 122, 255, 0.16);
     --item-selected-text: #003d99;
     --input-bg: transparent;
     --shadow: rgba(0, 0, 0, 0.06);
-    --specular: rgba(255, 255, 255, 0.7);
-    --glass-badge: rgba(0, 0, 0, 0.05);
+    --glass-badge: rgba(0, 0, 0, 0.06);
 }
 @media (prefers-color-scheme: dark) {
     :root {
-        --bg: rgba(40, 40, 42, 0.45);
+        --bg: rgba(50, 50, 55, 0.70);
         --text: #e5e5e7;
         --secondary: #98989d;
-        --border: rgba(255, 255, 255, 0.08);
+        --border: rgba(255, 255, 255, 0.10);
         --accent: #0a84ff;
-        --item-hover: rgba(255, 255, 255, 0.06);
-        --item-selected: rgba(10, 132, 255, 0.28);
+        --item-hover: rgba(255, 255, 255, 0.08);
+        --item-selected: rgba(10, 132, 255, 0.25);
         --item-selected-text: #64d2ff;
         --input-bg: transparent;
         --shadow: rgba(0, 0, 0, 0.3);
-        --specular: rgba(255, 255, 255, 0.12);
-        --glass-badge: rgba(255, 255, 255, 0.08);
+        --glass-badge: rgba(255, 255, 255, 0.10);
     }
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body {
     height: 100%; overflow: hidden;
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
-    background: var(--bg); color: var(--text);
+    color: var(--text);
     -webkit-user-select: none; user-select: none;
 }
+html { background: transparent; }
 body {
     display: flex; flex-direction: column;
-    /* Specular top-edge highlight — simulates light on glass */
-    border-top: 0.5px solid var(--specular);
-    border-radius: 16px 16px 0 0;
+    position: relative;
+    background: transparent;
+    border-radius: 18px;
+    overflow: hidden;
+}
+body::before {
+    content: '';
+    position: fixed; inset: 0;
+    border-radius: 18px;
+    background: var(--bg);
+    -webkit-backdrop-filter: blur(40px) saturate(1.8);
+    backdrop-filter: blur(40px) saturate(1.8);
+    -webkit-backface-visibility: hidden;
+    z-index: -1;
+    pointer-events: none;
+    /* Micro-animation keeps the compositing layer alive so the
+       window server doesn't reclaim the backdrop-filter texture
+       during audio playback or other system events (WebKit #275919). */
+    animation: keepCompositing 1s linear infinite;
+}
+@keyframes keepCompositing {
+    from { opacity: 0.999; }
+    to   { opacity: 1; }
 }
 
 /* Main content: left panel + preview */
 .main-content {
     display: none; flex: 1; min-height: 0;
+    opacity: 0; transition: opacity 0.18s ease;
 }
 .main-content.visible {
-    display: flex;
+    display: flex; opacity: 1;
 }
 .left-panel {
     width: 440px; flex-shrink: 0;
@@ -113,7 +133,7 @@ body {
 /* Search bar */
 .search-bar {
     display: flex; align-items: center; gap: 10px;
-    padding: 14px 18px;
+    padding: 16px 20px;
     background: var(--input-bg);
     border-bottom: 0.5px solid var(--border);
     flex-shrink: 0;
@@ -122,21 +142,22 @@ body {
 /* Subtle bottom fade instead of hard line */
 .search-bar::after {
     content: ''; position: absolute;
-    left: 18px; right: 18px; bottom: -0.5px; height: 0.5px;
+    left: 20px; right: 20px; bottom: -0.5px; height: 0.5px;
     background: linear-gradient(90deg, transparent, var(--border), transparent);
     pointer-events: none;
 }
 .search-icon {
-    font-size: 18px; color: var(--secondary); flex-shrink: 0;
-    line-height: 1;
+    width: 26px; height: 26px; flex-shrink: 0;
+    color: var(--secondary);
     cursor: grab;
 }
+.search-icon svg { display: block; width: 100%; height: 100%; }
 .search-icon:active {
     cursor: grabbing;
 }
 .search-input {
     flex: 1; border: none; outline: none;
-    font-size: 18px; font-family: inherit;
+    font-size: 22px; font-family: inherit;
     background: transparent; color: var(--text);
     caret-color: var(--accent);
 }
@@ -211,8 +232,8 @@ body {
 }
 .result-item {
     display: flex; align-items: center;
-    padding: 8px 12px; cursor: default;
-    transition: background 0.15s, box-shadow 0.15s;
+    padding: 10px 14px; cursor: default;
+    transition: background 0.2s ease;
     gap: 12px;
     box-sizing: border-box;
     overflow: hidden;
@@ -221,16 +242,16 @@ body {
 }
 .icon-wrap {
     position: relative; flex-shrink: 0;
-    width: 36px; height: 36px;
+    width: 40px; height: 40px;
 }
 .result-item .icon {
-    width: 36px; height: 36px; flex-shrink: 0;
-    border-radius: 8px;
+    width: 40px; height: 40px; flex-shrink: 0;
+    border-radius: 9px;
     image-rendering: -webkit-optimize-contrast;
 }
 .result-item .icon-placeholder {
     background-color: var(--secondary);
-    -webkit-mask-size: 22px 22px;
+    -webkit-mask-size: 24px 24px;
     -webkit-mask-repeat: no-repeat;
     -webkit-mask-position: center;
     opacity: 0.35;
@@ -245,13 +266,8 @@ body {
     line-height: 1;
 }
 #placeholder-mask-style { display: none; }
-.result-item:hover:not(.selected) {
-    background: var(--item-hover);
-}
 .result-item.selected {
     background: var(--item-selected);
-    box-shadow: inset 0 0.5px 0 0 rgba(255, 255, 255, 0.25),
-                inset 0 0 0 0.5px rgba(0, 122, 255, 0.2);
 }
 .result-item .left {
     display: flex; flex-direction: column; gap: 2px;
@@ -286,7 +302,8 @@ body {
     border: none; border-radius: 9px;
     background: transparent; color: var(--secondary);
     font-size: 13px; line-height: 18px; text-align: center;
-    cursor: pointer; opacity: 0; transition: opacity 0.15s, background 0.15s, color 0.15s;
+    cursor: pointer; opacity: 0;
+    transition: opacity 0.2s ease, background 0.2s ease, color 0.2s ease, transform 0.2s ease;
     padding: 0;
 }
 .result-item.selected .delete-btn { opacity: 0.6; }
@@ -296,6 +313,7 @@ body {
 .result-item .delete-btn.confirm {
     opacity: 1; background: #ff3b30; color: #fff;
     font-size: 10px; padding: 0 6px; font-weight: 500;
+    transform: scale(1.05);
 }
 
 /* Empty state */
@@ -303,6 +321,7 @@ body {
     display: flex; align-items: center; justify-content: center;
     flex: 1; color: var(--secondary); font-size: 13px;
     padding: 20px;
+    transition: opacity 0.2s ease;
 }
 
 /* Loading spinner for async sources */
@@ -313,8 +332,9 @@ body {
     border-top-color: var(--accent);
     border-radius: 50%;
     animation: spin 0.6s linear infinite;
+    opacity: 0; transition: opacity 0.18s ease;
 }
-.search-spinner.visible { display: block; }
+.search-spinner.visible { display: block; opacity: 1; }
 @keyframes spin { to { transform: rotate(360deg); } }
 </style>
 </head>
@@ -326,7 +346,7 @@ body {
 </div>
 
 <div class="search-bar">
-    <span class="search-icon" id="search-icon">&#128269;</span>
+    <span class="search-icon" id="search-icon"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2.0" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="7.5" r="5.2"/><line x1="11.2" y1="11.2" x2="15.5" y2="15.5"/></svg></span>
     <input class="search-input" id="search-input"
            type="text" placeholder="" autocomplete="off"
            autocorrect="off" autocapitalize="off" spellcheck="false">
@@ -377,7 +397,7 @@ var _settingHistoryValue = false;
 
 // --- Virtual scrolling ---
 var ITEM_HEIGHT = 0;  // measured from first rendered row
-var ITEM_HEIGHT_DEFAULT = 52;  // fallback before measurement
+var ITEM_HEIGHT_DEFAULT = 60;  // fallback before measurement
 var BUFFER_COUNT = 5;  // extra rows above/below viewport
 
 // --- DOM ---
@@ -591,6 +611,7 @@ function _renderVisibleRows() {
 }
 
 // --- Event delegation on resultList (replaces per-row listeners) ---
+var _mouseHoverTimer = null;
 resultList.addEventListener('mousemove', function(e) {
     if (e.clientX === _lastMouseX && e.clientY === _lastMouseY) return;
     _lastMouseX = e.clientX;
@@ -599,12 +620,16 @@ resultList.addEventListener('mousemove', function(e) {
     if (!row) return;
     var idx = parseInt(row.getAttribute('data-idx'), 10);
     if (isNaN(idx) || idx === selectedIndex) return;
-    // Swap selected class without full re-render
-    var prev = _spacer.querySelector('.result-item.selected');
-    if (prev) prev.className = 'result-item';
-    row.className = 'result-item selected';
-    selectedIndex = idx;
-    updatePreview();
+    // Debounce: wait for mouse to settle before switching selection
+    if (_mouseHoverTimer) clearTimeout(_mouseHoverTimer);
+    _mouseHoverTimer = setTimeout(function() {
+        _mouseHoverTimer = null;
+        var prev = _spacer.querySelector('.result-item.selected');
+        if (prev) prev.className = 'result-item';
+        row.className = 'result-item selected';
+        selectedIndex = idx;
+        updatePreview();
+    }, 180);
 }, false);
 
 resultList.addEventListener('click', function(e) {

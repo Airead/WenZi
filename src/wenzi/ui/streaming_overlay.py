@@ -1,78 +1,70 @@
 """Floating overlay panel for Direct mode streaming AI enhancement output.
 
-Uses WKWebView for rendering with automatic dark mode support via CSS.
+Uses native AppKit views (NSVisualEffectView + NSTextView) for instant
+rendering, dynamic height, and seamless visual transition from the
+recording indicator.
 """
 
 from __future__ import annotations
 
-import json
 import logging
 import threading
-
-from wenzi.ui.templates import load_template
 
 logger = logging.getLogger(__name__)
 
 # Panel dimensions
-_PANEL_WIDTH = 400
-_PANEL_HEIGHT = 200
+_PANEL_WIDTH = 504
+_MIN_HEIGHT = 96
+_MAX_HEIGHT = 432
+_CORNER_RADIUS = 12
+_PADDING_H = 17
+_PADDING_V = 12
+_SECTION_SPACING = 10
+_ASR_MAX_HEIGHT = 72  # max before ASR section scrolls
+_LABEL_HEIGHT = 17
+_HINT_GAP = 10
+_PROGRESS_HEIGHT = 3.6
+_PROGRESS_CORNER = 1.8
 
-# Layout constants
-_CORNER_RADIUS = 10
-_SCREEN_MARGIN = 20
+# Font
+_FONT_SIZE = 15.6
 
 # Key codes
 _ESC_KEY_CODE = 53
 _RETURN_KEY_CODE = 36
 
 # Delayed close
-_CLOSE_DELAY = 1.0
+_CLOSE_DELAY = 3.0
 _HOVER_RECHECK_INTERVAL = 0.5
 _FADE_OUT_DURATION = 0.3
 
-# ---------------------------------------------------------------------------
-# WKNavigationDelegate (lazy-created)
-# ---------------------------------------------------------------------------
-_OverlayNavDelegate = None
+# NSVisualEffectView constants
+_VFX_MATERIAL_HUD = 13
+_VFX_BLENDING_BEHIND = 0
+_VFX_STATE_ACTIVE = 1
 
-
-def _get_nav_delegate_class():
-    global _OverlayNavDelegate
-    if _OverlayNavDelegate is None:
-        import objc
-        import WebKit  # noqa: F401
-        from Foundation import NSObject
-
-        WKNavigationDelegate = objc.protocolNamed("WKNavigationDelegate")
-
-        class StreamingOverlayNavDelegate(
-            NSObject, protocols=[WKNavigationDelegate]
-        ):
-            _panel_ref = None
-
-            def webView_didFinishNavigation_(self, webview, navigation):
-                if self._panel_ref is not None:
-                    self._panel_ref._on_page_loaded()
-
-        _OverlayNavDelegate = StreamingOverlayNavDelegate
-    return _OverlayNavDelegate
-
-
-_MAX_PENDING_JS = 500  # cap queued JS calls while WKWebView page loads
+# Height recalc debounce
+_RECALC_DEBOUNCE = 0.05
 
 
 class StreamingOverlayPanel:
     """Non-interactive floating overlay that displays streaming AI enhancement.
 
     Shows ASR original text at top, streaming enhanced text below.
-    Uses WKWebView for rendering with automatic dark mode support.
-    Does not steal focus or accept mouse events.
+    Uses native AppKit views with NSVisualEffectView for frosted-glass
+    appearance matching the recording indicator.
     """
 
     def __init__(self) -> None:
         self._panel: object = None
-        self._webview: object = None
-        self._nav_delegate: object = None
+        self._vfx_view: object = None
+        self._asr_title_label: object = None
+        self._asr_text_view: object = None
+        self._asr_scroll: object = None
+        self._separator: object = None
+        self._status_label: object = None
+        self._stream_text_view: object = None
+        self._stream_scroll: object = None
         self._tap_runner: object = None
         self._cancel_event: threading.Event | None = None
         self._on_cancel: object = None
@@ -81,34 +73,18 @@ class StreamingOverlayPanel:
         self._loading_seconds: int = 0
         self._llm_info: str = ""
         self._close_timer: object = None
-        self._page_loaded: bool = False
-        self._pending_js: list[str] = []
+        self._has_thinking: bool = False
+        self._transcribing: bool = False  # animate "Transcribing..." dots
+        self._recalc_timer: object = None
+        self._hint_label: object = None
+        self._complete: bool = False
+        self._progress_view: object = None
+        # Screen centre anchor (for height growth animation)
+        self._center_x: float = 0.0
+        self._center_y: float = 0.0
 
     # ------------------------------------------------------------------
-    # JavaScript bridge
-    # ------------------------------------------------------------------
-
-    def _eval_js(self, js_code: str) -> None:
-        """Evaluate JS in the webview. Queues if page not loaded yet."""
-        if not self._page_loaded:
-            self._pending_js.append(js_code)
-            if len(self._pending_js) > _MAX_PENDING_JS:
-                self._pending_js = self._pending_js[-_MAX_PENDING_JS:]
-            return
-        if self._webview is not None:
-            self._webview.evaluateJavaScript_completionHandler_(js_code, None)
-
-    def _on_page_loaded(self) -> None:
-        """Called by navigation delegate when HTML finishes loading."""
-        pending = self._pending_js[:]
-        self._pending_js.clear()
-        self._page_loaded = True
-        if pending and self._webview is not None:
-            combined = ";".join(pending)
-            self._webview.evaluateJavaScript_completionHandler_(combined, None)
-
-    # ------------------------------------------------------------------
-    # Show / position
+    # Helpers
     # ------------------------------------------------------------------
 
     def _ai_label(self, suffix: str) -> str:
@@ -120,6 +96,65 @@ class StreamingOverlayPanel:
             return f"{base}  {suffix}"
         return base
 
+    @staticmethod
+    def _make_label(text: str):
+        """Create a small, muted section header label."""
+        from AppKit import NSColor, NSFont, NSTextField
+
+        label = NSTextField.labelWithString_(text)
+        label.setFont_(NSFont.systemFontOfSize_weight_(11.4, 0.23))
+        label.setTextColor_(NSColor.tertiaryLabelColor())
+        label.setSelectable_(False)
+        label.setDrawsBackground_(False)
+        label.setBezeled_(False)
+        label.setEditable_(False)
+        return label
+
+    @staticmethod
+    def _make_text_view(width: float, font_size: float = _FONT_SIZE):
+        """Create a scrollable NSTextView pair. Returns (scroll_view, text_view)."""
+        from AppKit import (
+            NSColor,
+            NSFont,
+            NSScrollView,
+            NSTextView,
+        )
+        from Foundation import NSMakeRect
+
+        scroll = NSScrollView.alloc().initWithFrame_(
+            NSMakeRect(0, 0, width, 20)
+        )
+        scroll.setHasVerticalScroller_(True)
+        scroll.setHasHorizontalScroller_(False)
+        scroll.setAutohidesScrollers_(True)
+        scroll.setDrawsBackground_(False)
+        scroll.setBorderType_(0)  # NSNoBorder
+
+        tv = NSTextView.alloc().initWithFrame_(
+            NSMakeRect(0, 0, width, 20)
+        )
+        tv.setEditable_(False)
+        tv.setSelectable_(True)
+        tv.setDrawsBackground_(False)
+        tv.setRichText_(True)
+        tv.setFont_(NSFont.systemFontOfSize_(font_size))
+        tv.setTextColor_(NSColor.labelColor())
+        tv.setTextContainerInset_((0, 0))
+        # Allow unlimited height, fixed width
+        tv.textContainer().setWidthTracksTextView_(True)
+        tv.textContainer().setContainerSize_((width, 1e7))
+        tv.setHorizontallyResizable_(False)
+        tv.setVerticallyResizable_(True)
+        # Hide scrollbar visually but keep scrolling
+        scroll.setScrollerStyle_(1)  # NSScrollerStyleOverlay
+
+        scroll.setDocumentView_(tv)
+        return scroll, tv
+
+    # ------------------------------------------------------------------
+    # Show / position
+    # ------------------------------------------------------------------
+
     def show(
         self,
         asr_text: str = "",
@@ -130,17 +165,16 @@ class StreamingOverlayPanel:
         on_cancel: object = None,
         on_confirm_asr: object = None,
     ) -> None:
-        """Create and show the overlay panel. Must be called on main thread.
-
-        Args:
-            on_cancel: Optional callback invoked when ESC is pressed.
-            on_confirm_asr: Optional callback invoked when Enter is pressed
-                (skip enhancement, output ASR text directly).
-        """
+        """Create and show the overlay panel. Must be called on main thread."""
         try:
-            from AppKit import NSColor, NSPanel, NSScreen, NSStatusWindowLevel
-            from Foundation import NSURL, NSMakeRect
-            from WebKit import WKWebView
+            from AppKit import (
+                NSColor,
+                NSPanel,
+                NSScreen,
+                NSStatusWindowLevel,
+                NSVisualEffectView,
+            )
+            from Foundation import NSMakeRect
 
             if self._panel is not None:
                 self._do_close()
@@ -150,113 +184,334 @@ class StreamingOverlayPanel:
             self._on_confirm_asr = on_confirm_asr
             self._loading_seconds = 0
             self._llm_info = llm_info
-            self._page_loaded = False
-            self._pending_js.clear()
+            self._has_thinking = False
 
-            # Create borderless panel
+            # -- Build labels --
+            asr_title_text = "\U0001f3a4 ASR"
+            if stt_info:
+                asr_title_text += f"  ({stt_info})"
+
+            content_w = _PANEL_WIDTH - _PADDING_H * 2
+            self._asr_title_label = self._make_label(asr_title_text)
+            self._asr_scroll, self._asr_text_view = self._make_text_view(
+                content_w,
+            )
+            if asr_text:
+                self._set_text(self._asr_text_view, asr_text)
+                self._transcribing = False
+            else:
+                self._set_text(
+                    self._asr_text_view, "Transcribing",
+                    italic=True,
+                )
+                self._transcribing = True
+
+            # Soft separator (thin semi-transparent view)
+            from AppKit import NSView as _NSView
+
+            sep = _NSView.alloc().initWithFrame_(NSMakeRect(0, 0, content_w, 1))
+            sep.setWantsLayer_(True)
+            sep.layer().setBackgroundColor_(
+                NSColor.separatorColor().CGColor()
+            )
+            sep.layer().setOpacity_(0.4)
+            self._separator = sep
+
+            self._status_label = self._make_label(self._ai_label(""))
+            self._stream_scroll, self._stream_text_view = self._make_text_view(
+                content_w,
+            )
+
+            hint_parts = ["ESC cancel"]
+            if on_confirm_asr:
+                hint_parts.append("\u23ce use original")
+            hint_parts.append("\u2318C copy")
+            self._hint_label = self._make_label("  \u00b7  ".join(hint_parts))
+
+            progress = _NSView.alloc().initWithFrame_(NSMakeRect(0, 0, 0, _PROGRESS_HEIGHT))
+            progress.setWantsLayer_(True)
+            progress.layer().setBackgroundColor_(NSColor.controlAccentColor().CGColor())
+            progress.layer().setCornerRadius_(_PROGRESS_CORNER)
+            self._progress_view = progress
+
+            # -- Panel --
+            init_h = self._compute_height()
             panel = NSPanel.alloc().initWithContentRect_styleMask_backing_defer_(
-                NSMakeRect(0, 0, _PANEL_WIDTH, _PANEL_HEIGHT),
-                0,  # NSBorderlessWindowMask
-                2,  # NSBackingStoreBuffered
-                False,
+                NSMakeRect(0, 0, _PANEL_WIDTH, init_h),
+                0, 2, False,
             )
             panel.setLevel_(NSStatusWindowLevel + 1)
             panel.setOpaque_(False)
             panel.setBackgroundColor_(NSColor.clearColor())
+            panel.setIgnoresMouseEvents_(False)
             panel.setHasShadow_(True)
             panel.setHidesOnDeactivate_(False)
-            panel.setCollectionBehavior_((1 << 0) | (1 << 4) | (1 << 8))  # canJoinAllSpaces | stationary | fullScreenAuxiliary
-
-            # WKWebView
-            from wenzi.ui.web_utils import lightweight_webview_config
-
-            config = lightweight_webview_config(shared=False)
-            webview = WKWebView.alloc().initWithFrame_configuration_(
-                NSMakeRect(0, 0, _PANEL_WIDTH, _PANEL_HEIGHT),
-                config,
+            panel.setCollectionBehavior_(
+                (1 << 0) | (1 << 4) | (1 << 8)
             )
-            webview.setAutoresizingMask_(0x12)
-            webview.setValue_forKey_(False, "drawsBackground")
-            panel.contentView().addSubview_(webview)
 
-            # Navigation delegate for page-load callback
-            nav_cls = _get_nav_delegate_class()
-            nav_delegate = nav_cls.alloc().init()
-            nav_delegate._panel_ref = self
-            webview.setNavigationDelegate_(nav_delegate)
+            # -- VFX background --
+            vfx = NSVisualEffectView.alloc().initWithFrame_(
+                NSMakeRect(0, 0, _PANEL_WIDTH, init_h)
+            )
+            vfx.setMaterial_(_VFX_MATERIAL_HUD)
+            vfx.setBlendingMode_(_VFX_BLENDING_BEHIND)
+            vfx.setState_(_VFX_STATE_ACTIVE)
+            vfx.setWantsLayer_(True)
+            vfx.layer().setCornerRadius_(_CORNER_RADIUS)
+            vfx.layer().setMasksToBounds_(True)
+            vfx.setAutoresizingMask_(0x12)  # flex W+H
+            panel.setContentView_(vfx)
+            self._vfx_view = vfx
 
             self._panel = panel
-            self._webview = webview
-            self._nav_delegate = nav_delegate
 
-            # Build config and load HTML
-            ai_base = "\u2728 AI"
-            if llm_info:
-                ai_base += f" ({llm_info})"
+            # -- Add subviews once (repositioned by _layout_subviews) --
+            vfx.addSubview_(self._asr_title_label)
+            vfx.addSubview_(self._asr_scroll)
+            vfx.addSubview_(self._separator)
+            vfx.addSubview_(self._status_label)
+            vfx.addSubview_(self._stream_scroll)
+            if self._hint_label is not None:
+                vfx.addSubview_(self._hint_label)
+            if self._progress_view is not None:
+                vfx.addSubview_(self._progress_view)
 
-            asr_title = "\U0001f3a4 ASR"
-            if stt_info:
-                asr_title += f"  ({stt_info})"
-
-            config_data = {
-                "asrTitle": asr_title,
-                "asrText": asr_text,
-                "statusText": ai_base,
-                "aiBase": ai_base,
-            }
-            html = load_template(
-                "streaming_overlay.html",
-                CONFIG=json.dumps(config_data, ensure_ascii=False),
-                RADIUS=str(_CORNER_RADIUS),
-            )
-            webview.loadHTMLString_baseURL_(
-                html, NSURL.fileURLWithPath_("/")
-            )
-
-            # Position at bottom-right
+            # -- Position at screen centre --
             screen = NSScreen.mainScreen()
-            target_x, target_y = 0, 0
             if screen:
                 sf = screen.visibleFrame()
-                target_x = sf.origin.x + sf.size.width - _PANEL_WIDTH - _SCREEN_MARGIN
-                target_y = sf.origin.y + _SCREEN_MARGIN
+                self._center_x = sf.origin.x + sf.size.width / 2.0
+                self._center_y = sf.origin.y + sf.size.height / 2.0
+
+            # Layout subviews, position, and show
+            target_frame = self._frame_for_height(init_h)
 
             if animate_from_frame is not None:
-                from AppKit import NSAnimationContext
-
+                # Start at recording indicator's position, animate to target
+                panel.setAlphaValue_(0.6)
                 panel.setFrame_display_(animate_from_frame, False)
-                panel.setAlphaValue_(0.0)
                 panel.orderFront_(None)
-
-                target_frame = NSMakeRect(
-                    target_x, target_y, _PANEL_WIDTH, _PANEL_HEIGHT
-                )
+                self._layout_subviews(init_h)  # layout for target size
+                from AppKit import NSAnimationContext
                 NSAnimationContext.beginGrouping()
                 ctx = NSAnimationContext.currentContext()
-                ctx.setDuration_(0.3)
+                ctx.setDuration_(0.25)
                 panel.animator().setFrame_display_(target_frame, True)
                 panel.animator().setAlphaValue_(1.0)
                 NSAnimationContext.endGrouping()
             else:
-                panel.setFrameOrigin_((target_x, target_y))
+                self._layout_subviews(init_h)
+                panel.setFrame_display_(target_frame, True)
                 panel.orderFront_(None)
 
-            # Register global ESC key monitor
             self._register_key_tap()
-
-            # Start loading timer
             self._start_loading_timer()
-
             logger.debug("Streaming overlay shown")
         except Exception:
             logger.error("Failed to show streaming overlay", exc_info=True)
+
+    def _frame_for_height(self, h: float):
+        """Return an NSRect centred on screen with the given height."""
+        from Foundation import NSMakeRect
+
+        x = self._center_x - _PANEL_WIDTH / 2.0
+        y = self._center_y - h / 2.0
+        return NSMakeRect(x, y, _PANEL_WIDTH, h)
+
+    def _layout_subviews(self, panel_h: float) -> None:
+        """Reposition subviews within the VFX view for a given panel height.
+
+        Subviews are added once in show(); this method only adjusts frames.
+        """
+        from Foundation import NSMakeRect
+
+        if self._vfx_view is None:
+            return
+
+        cw = _PANEL_WIDTH - _PADDING_H * 2
+        y = panel_h - _PADDING_V  # start from top
+
+        y -= _LABEL_HEIGHT
+        self._asr_title_label.setFrame_(
+            NSMakeRect(_PADDING_H, y, cw, _LABEL_HEIGHT)
+        )
+
+        y -= 2  # small gap
+        asr_h = min(self._text_content_height(self._asr_text_view), _ASR_MAX_HEIGHT)
+        asr_h = max(asr_h, 16)
+        y -= asr_h
+        self._asr_scroll.setFrame_(NSMakeRect(_PADDING_H, y, cw, asr_h))
+
+        y -= _SECTION_SPACING
+        self._separator.setFrame_(NSMakeRect(_PADDING_H, y, cw, 1))
+        y -= _SECTION_SPACING
+
+        y -= _LABEL_HEIGHT
+        self._status_label.setFrame_(NSMakeRect(_PADDING_H, y, cw, _LABEL_HEIGHT))
+
+        if self._hint_label is not None:
+            hint_y = _PADDING_V
+            self._hint_label.setFrame_(NSMakeRect(_PADDING_H, hint_y, cw, _LABEL_HEIGHT))
+            bottom_for_stream = hint_y + _LABEL_HEIGHT + _HINT_GAP
+        else:
+            bottom_for_stream = _PADDING_V
+
+        # Stream text fills remaining space
+        y -= 2
+        stream_h = max(y - bottom_for_stream, 16)
+        self._stream_scroll.setFrame_(
+            NSMakeRect(_PADDING_H, bottom_for_stream, cw, stream_h)
+        )
+
+        if self._progress_view is not None:
+            pw = self._progress_view.frame().size.width
+            self._progress_view.setFrame_(
+                NSMakeRect(0, panel_h - _PROGRESS_HEIGHT, pw, _PROGRESS_HEIGHT)
+            )
+
+    def _compute_height(self) -> float:
+        """Compute ideal panel height from content."""
+        asr_h = min(
+            self._text_content_height(self._asr_text_view), _ASR_MAX_HEIGHT,
+        )
+        asr_h = max(asr_h, 16)
+        stream_h = self._text_content_height(self._stream_text_view)
+        stream_h = max(stream_h, 16)
+
+        total = (
+            _PADDING_V
+            + _LABEL_HEIGHT + 2 + asr_h
+            + _SECTION_SPACING + 1 + _SECTION_SPACING
+            + _LABEL_HEIGHT + 2 + stream_h
+            + _LABEL_HEIGHT + _HINT_GAP
+            + _PADDING_V
+        )
+        return max(_MIN_HEIGHT, min(total, _MAX_HEIGHT))
+
+    def _recalculate_height(self) -> None:
+        """Schedule debounced height recalculation."""
+        if self._panel is None or self._recalc_timer is not None:
+            return
+        try:
+            from Foundation import NSTimer
+            self._recalc_timer = NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
+                _RECALC_DEBOUNCE, self, b"_doRecalcHeight:", None, False,
+            )
+        except Exception:
+            self._do_recalculate_height()
+
+    def _doRecalcHeight_(self, timer) -> None:
+        self._recalc_timer = None
+        try:
+            self._do_recalculate_height()
+        except Exception:
+            logger.error("Recalc height timer error", exc_info=True)
+
+    def _do_recalculate_height(self) -> None:
+        """Recompute panel height and animate the change."""
+        if self._panel is None:
+            return
+
+        new_h = self._compute_height()
+        try:
+            old_h = float(self._panel.frame().size.height)
+        except (TypeError, ValueError):
+            old_h = 0.0
+        if abs(new_h - old_h) < 2:
+            # Still relayout at current height (content may have changed)
+            self._layout_subviews(old_h)
+            return
+
+        from AppKit import NSAnimationContext
+
+        target = self._frame_for_height(new_h)
+        NSAnimationContext.beginGrouping()
+        ctx = NSAnimationContext.currentContext()
+        ctx.setDuration_(0.12)
+
+        def _after_resize():
+            try:
+                self._layout_subviews(new_h)
+                self._vfx_view.setFrame_(
+                    self._panel.contentView().bounds()
+                    if self._panel
+                    else self._vfx_view.frame()
+                )
+            except Exception:
+                logger.error("After-resize completion error", exc_info=True)
+
+        ctx.setCompletionHandler_(_after_resize)
+        self._panel.animator().setFrame_display_(target, True)
+        NSAnimationContext.endGrouping()
+
+    @staticmethod
+    def _text_content_height(text_view) -> float:
+        """Measure the used height of an NSTextView's content."""
+        if text_view is None:
+            return 0
+        try:
+            lm = text_view.layoutManager()
+            tc = text_view.textContainer()
+            lm.ensureLayoutForTextContainer_(tc)
+            h = lm.usedRectForTextContainer_(tc).size.height
+            return float(h)
+        except (TypeError, ValueError, AttributeError):
+            return 0
+        except Exception:
+            return 0
+
+    # ------------------------------------------------------------------
+    # Text manipulation helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _set_text(
+        text_view, text: str,
+        secondary: bool = False,
+        italic: bool = False,
+    ) -> None:
+        """Replace all text in an NSTextView."""
+        from AppKit import NSColor, NSFont, NSFontManager
+        from Foundation import (
+            NSAttributedString,
+            NSMutableDictionary,
+        )
+
+        attrs = NSMutableDictionary.dictionary()
+        if italic:
+            attrs["NSFont"] = NSFontManager.sharedFontManager().convertFont_toHaveTrait_(
+                    NSFont.systemFontOfSize_(_FONT_SIZE), 1,  # NSItalicFontMask
+                )
+        else:
+            attrs["NSFont"] = NSFont.systemFontOfSize_(_FONT_SIZE)
+        if secondary:
+            attrs["NSColor"] = NSColor.secondaryLabelColor()
+        else:
+            attrs["NSColor"] = NSColor.labelColor()
+
+        astr = NSAttributedString.alloc().initWithString_attributes_(
+            text, attrs,
+        )
+        text_view.textStorage().setAttributedString_(astr)
+
+    @staticmethod
+    def _append_attributed(text_view, text: str, attrs: dict) -> None:
+        """Append attributed text and auto-scroll to bottom."""
+        from Foundation import NSAttributedString, NSMakeRange
+
+        astr = NSAttributedString.alloc().initWithString_attributes_(
+            text, attrs,
+        )
+        ts = text_view.textStorage()
+        ts.appendAttributedString_(astr)
+        text_view.scrollRangeToVisible_(NSMakeRange(ts.length(), 0))
 
     # ------------------------------------------------------------------
     # Key tap (ESC / Enter) — CGEventTap swallows the keys
     # ------------------------------------------------------------------
 
     def _register_key_tap(self) -> None:
-        """Create a CGEventTap that intercepts and swallows ESC / Enter."""
         if self._tap_runner is not None:
             return
         from wenzi import _cgeventtap as cg
@@ -266,7 +521,6 @@ class StreamingOverlayPanel:
         self._tap_runner.start(mask, self._key_tap_callback)
 
     def _key_tap_callback(self, proxy, event_type, event, refcon):
-        """CGEventTap callback — runs on the tap's background thread."""
         from wenzi import _cgeventtap as cg
 
         try:
@@ -283,64 +537,84 @@ class StreamingOverlayPanel:
             )
 
             if keycode == _ESC_KEY_CODE:
-                # Disable tap to prevent auto-repeat queueing
                 if self._tap_runner is not None and self._tap_runner.tap is not None:
                     cg.CGEventTapEnable(self._tap_runner.tap, False)
                 if self._cancel_event is not None:
                     self._cancel_event.set()
                 from PyObjCTools import AppHelper
 
-                # Marshal callbacks to the main thread — this callback
-                # runs on the CGEventTap background thread.
                 on_cancel = self._on_cancel
                 if on_cancel is not None:
                     AppHelper.callAfter(on_cancel)
                 AppHelper.callAfter(self._do_close)
                 logger.info("Streaming cancelled via ESC key")
-                return None  # swallow
+                return None
+
+            flags = cg.CGEventGetFlags(event)
+
+            if keycode == 8 and (flags & cg.kCGEventFlagMaskCommand):  # Cmd+C
+                from PyObjCTools import AppHelper
+                AppHelper.callAfter(self._copy_stream_text)
+                return None
 
             if keycode == _RETURN_KEY_CODE and self._on_confirm_asr is not None:
-                # Disable tap to prevent auto-repeat queueing
                 if self._tap_runner is not None and self._tap_runner.tap is not None:
                     cg.CGEventTapEnable(self._tap_runner.tap, False)
                 from PyObjCTools import AppHelper
 
                 on_confirm = self._on_confirm_asr
                 AppHelper.callAfter(on_confirm)
+                AppHelper.callAfter(self._do_close)
                 logger.info("ASR confirmed via Enter key")
-                return None  # swallow
+                return None
+
+            if self._complete:
+                from PyObjCTools import AppHelper
+                AppHelper.callAfter(self._do_close)
+                return event  # close panel but let the key through
 
         except Exception:
             logger.warning("Key tap callback error", exc_info=True)
         return event
 
+    def _copy_stream_text(self) -> None:
+        """Copy stream text to clipboard with visual feedback."""
+        if self._stream_text_view is None:
+            return
+        text = self._stream_text_view.textStorage().string()
+        if not text.strip():
+            return
+        from wenzi.input import set_clipboard_text
+        set_clipboard_text(text)
+        if self._status_label is not None:
+            self._status_label.setStringValue_("\u2713 Copied to clipboard")
+        logger.debug("Stream text copied to clipboard")
+
     def _remove_key_tap(self) -> None:
-        """Disable and remove the CGEventTap."""
         if self._tap_runner is not None:
             self._tap_runner.stop()
             self._tap_runner = None
 
     # ------------------------------------------------------------------
-    # Loading timer (elapsed seconds while waiting for first chunk)
+    # Loading timer
     # ------------------------------------------------------------------
 
     def _start_loading_timer(self) -> None:
-        """Start a 1-second repeating timer that updates the status label."""
         self._stop_loading_timer()
         self._loading_seconds = 0
+        self._tick_count = 0
         try:
             from Foundation import NSTimer
 
             self._loading_timer = (
                 NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
-                    1.0, self, b"tickLoadingTimer:", None, True,
+                    0.5, self, b"tickLoadingTimer:", None, True,
                 )
             )
         except Exception:
             logger.error("Failed to start loading timer", exc_info=True)
 
     def _stop_loading_timer(self) -> None:
-        """Stop the loading timer if running."""
         if self._loading_timer is not None:
             try:
                 self._loading_timer.invalidate()
@@ -349,11 +623,26 @@ class StreamingOverlayPanel:
             self._loading_timer = None
 
     def tickLoadingTimer_(self, timer) -> None:
-        """NSTimer callback: update status label with elapsed seconds."""
-        self._loading_seconds += 1
-        self._eval_js(
-            f"setStatus({json.dumps(self._ai_label(f'⏳ {self._loading_seconds}s'))})"
-        )
+        try:
+            self._tick_count += 1
+
+            # Animate "Transcribing..." dots (cycles every 3 ticks)
+            if self._transcribing and self._asr_text_view is not None:
+                dots = "." * ((self._tick_count % 3) + 1)
+                self._set_text(
+                    self._asr_text_view, f"Transcribing{dots}",
+                    italic=True,
+                )
+
+            # Update AI status every second (every 2 ticks at 0.5s interval)
+            if self._tick_count % 2 == 0:
+                self._loading_seconds += 1
+                if self._status_label is not None:
+                    self._status_label.setStringValue_(
+                        self._ai_label(f"\u23f3 {self._loading_seconds}s")
+                    )
+        except Exception:
+            logger.error("Loading timer tick error", exc_info=True)
 
     # ------------------------------------------------------------------
     # Streaming text updates (all thread-safe via callAfter)
@@ -365,25 +654,62 @@ class StreamingOverlayPanel:
 
         def _append():
             self._stop_loading_timer()
-            if self._webview is None:
+            if self._stream_text_view is None:
                 return
-            self._eval_js(
-                f"appendText({json.dumps(chunk)},{completion_tokens})"
-            )
+
+            from AppKit import NSColor, NSFont
+
+            attrs = {
+                "NSFont": NSFont.systemFontOfSize_(_FONT_SIZE),
+                "NSColor": NSColor.labelColor(),
+            }
+
+            if self._has_thinking:
+                from Foundation import NSAttributedString, NSMakeRange
+                astr = NSAttributedString.alloc().initWithString_attributes_(chunk, attrs)
+                ts = self._stream_text_view.textStorage()
+                ts.replaceCharactersInRange_withAttributedString_(
+                    NSMakeRange(0, ts.length()), astr
+                )
+                self._has_thinking = False
+            else:
+                self._append_attributed(self._stream_text_view, chunk, attrs)
+
+            if completion_tokens and self._status_label:
+                self._status_label.setStringValue_(
+                    self._ai_label(f"Chars: \u2193{completion_tokens}")
+                )
+
+            self._recalculate_height()
 
         AppHelper.callAfter(_append)
 
     def append_thinking_text(self, chunk: str, thinking_tokens: int = 0) -> None:
-        """Append thinking/reasoning text in italic secondary color. Thread-safe."""
+        """Append thinking/reasoning text in italic. Thread-safe."""
         from PyObjCTools import AppHelper
 
         def _append():
             self._stop_loading_timer()
-            if self._webview is None:
+            if self._stream_text_view is None:
                 return
-            self._eval_js(
-                f"appendThinkingText({json.dumps(chunk)},{thinking_tokens})"
-            )
+
+            from AppKit import NSColor, NSFont, NSFontManager
+
+            self._has_thinking = True
+            attrs = {
+                "NSFont": NSFontManager.sharedFontManager().convertFont_toHaveTrait_(
+                    NSFont.systemFontOfSize_(_FONT_SIZE), 1,  # NSItalicFontMask
+                ),
+                "NSColor": NSColor.tertiaryLabelColor(),
+            }
+            self._append_attributed(self._stream_text_view, chunk, attrs)
+
+            if thinking_tokens and self._status_label:
+                self._status_label.setStringValue_(
+                    self._ai_label(f"\u25b6 Thinking: {thinking_tokens} chars")
+                )
+
+            self._recalculate_height()
 
         AppHelper.callAfter(_append)
 
@@ -392,20 +718,21 @@ class StreamingOverlayPanel:
         from PyObjCTools import AppHelper
 
         def _update():
-            if self._webview is None:
-                return
-            self._eval_js(f"setStatus({json.dumps(text)})")
+            if self._status_label is not None:
+                self._status_label.setStringValue_(text)
 
         AppHelper.callAfter(_update)
 
     def set_asr_text(self, text: str) -> None:
-        """Update the ASR label text after transcription completes. Thread-safe."""
+        """Update the ASR text after transcription completes. Thread-safe."""
         from PyObjCTools import AppHelper
 
         def _update():
-            if self._webview is None:
+            if self._asr_text_view is None:
                 return
-            self._eval_js(f"setAsrText({json.dumps(text)})")
+            self._transcribing = False
+            self._set_text(self._asr_text_view, text)
+            self._recalculate_height()
 
         AppHelper.callAfter(_update)
 
@@ -426,11 +753,52 @@ class StreamingOverlayPanel:
 
         def _update():
             self._stop_loading_timer()
-            if self._webview is None:
+            self._complete = True
+            if self._status_label is None:
                 return
-            self._eval_js(
-                f"setComplete({json.dumps(usage) if usage else 'null'})"
+
+            if usage and usage.get("total_tokens"):
+                prompt = usage.get("prompt_tokens", 0)
+                completion = usage.get("completion_tokens", 0)
+                total = usage["total_tokens"]
+                cached = usage.get("prompt_tokens_details", {}).get(
+                    "cached_tokens", 0
+                )
+                if cached:
+                    up = f"\u2191{cached}+{prompt - cached}"
+                else:
+                    up = f"\u2191{prompt}"
+                label = (
+                    f"{self._ai_label('')}  "
+                    f"Tokens: {total} ({up} \u2193{completion})"
+                )
+            else:
+                label = self._ai_label("")
+            self._status_label.setStringValue_(label)
+
+        AppHelper.callAfter(_update)
+
+    def set_progress(self, step: int, total: int) -> None:
+        """Update chain progress bar. Thread-safe."""
+        from PyObjCTools import AppHelper
+
+        def _update():
+            if self._progress_view is None or self._panel is None or total <= 0:
+                return
+            from Foundation import NSMakeRect
+            w = _PANEL_WIDTH * (step / total)
+            try:
+                panel_h = float(self._panel.frame().size.height)
+            except (TypeError, ValueError):
+                return
+            from AppKit import NSAnimationContext
+            NSAnimationContext.beginGrouping()
+            ctx = NSAnimationContext.currentContext()
+            ctx.setDuration_(0.2)
+            self._progress_view.animator().setFrame_(
+                NSMakeRect(0, panel_h - _PROGRESS_HEIGHT, w, _PROGRESS_HEIGHT)
             )
+            NSAnimationContext.endGrouping()
 
         AppHelper.callAfter(_update)
 
@@ -439,9 +807,15 @@ class StreamingOverlayPanel:
         from PyObjCTools import AppHelper
 
         def _clear():
-            if self._webview is None:
+            if self._stream_text_view is None:
                 return
-            self._eval_js("clearText()")
+            from Foundation import NSAttributedString
+
+            self._stream_text_view.textStorage().setAttributedString_(
+                NSAttributedString.alloc().init()
+            )
+            self._has_thinking = False
+            self._recalculate_height()
 
         AppHelper.callAfter(_clear)
 
@@ -450,11 +824,7 @@ class StreamingOverlayPanel:
     # ------------------------------------------------------------------
 
     def close_with_delay(self, delay: float = _CLOSE_DELAY) -> None:
-        """Close the overlay after *delay* seconds, with fade-out animation.
-
-        If the mouse cursor is hovering over the panel when the timer fires,
-        the close is postponed until the cursor leaves. Thread-safe.
-        """
+        """Close after *delay* seconds, postponed if mouse is hovering. Thread-safe."""
         from PyObjCTools import AppHelper
 
         def _schedule():
@@ -473,27 +843,29 @@ class StreamingOverlayPanel:
         AppHelper.callAfter(_schedule)
 
     def _delayedCloseCheck_(self, timer) -> None:
-        """NSTimer callback: fade out if mouse is not hovering, else recheck."""
-        self._close_timer = None
-        if self._panel is None:
-            return
+        try:
+            self._close_timer = None
+            if self._panel is None:
+                return
 
-        if self._is_mouse_over_panel():
-            try:
-                from Foundation import NSTimer
+            if self._is_mouse_over_panel():
+                try:
+                    from Foundation import NSTimer
 
-                self._close_timer = (
-                    NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
-                        _HOVER_RECHECK_INTERVAL, self, b"_delayedCloseCheck:", None, False,
+                    self._close_timer = (
+                        NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
+                            _HOVER_RECHECK_INTERVAL,
+                            self, b"_delayedCloseCheck:", None, False,
+                        )
                     )
-                )
-            except Exception:
-                self._do_close()
-        else:
-            self._fade_out_and_close()
+                except Exception:
+                    self._do_close()
+            else:
+                self._fade_out_and_close()
+        except Exception:
+            logger.error("Delayed close check error", exc_info=True)
 
     def _is_mouse_over_panel(self) -> bool:
-        """Return True if the mouse cursor is inside the panel frame."""
         try:
             from AppKit import NSEvent
             from Foundation import NSPointInRect
@@ -504,7 +876,6 @@ class StreamingOverlayPanel:
             return False
 
     def _fade_out_and_close(self) -> None:
-        """Animate the panel to transparent, then clean up."""
         if self._panel is None:
             return
         try:
@@ -513,14 +884,18 @@ class StreamingOverlayPanel:
             NSAnimationContext.beginGrouping()
             ctx = NSAnimationContext.currentContext()
             ctx.setDuration_(_FADE_OUT_DURATION)
-            ctx.setCompletionHandler_(self._do_close)
+            def _safe_close():
+                try:
+                    self._do_close()
+                except Exception:
+                    logger.error("Fade-out close error", exc_info=True)
+            ctx.setCompletionHandler_(_safe_close)
             self._panel.animator().setAlphaValue_(0.0)
             NSAnimationContext.endGrouping()
         except Exception:
             self._do_close()
 
     def _stop_close_timer(self) -> None:
-        """Cancel any pending delayed-close timer."""
         if self._close_timer is not None:
             try:
                 self._close_timer.invalidate()
@@ -529,35 +904,48 @@ class StreamingOverlayPanel:
             self._close_timer = None
 
     def _do_close(self) -> None:
-        """Immediate cleanup — shared by close() and fade-out completion."""
         self._stop_loading_timer()
         self._stop_close_timer()
         self._remove_key_tap()
         self._cancel_event = None
         self._on_cancel = None
         self._on_confirm_asr = None
-        self._page_loaded = False
-        self._pending_js.clear()
+        self._has_thinking = False
+        self._transcribing = False
+        self._complete = False
+
+        if self._recalc_timer:
+            try:
+                self._recalc_timer.invalidate()
+            except Exception:
+                pass
+            self._recalc_timer = None
 
         if self._panel is not None:
+            from wenzi.ui_helpers import release_panel_surfaces
+
+            release_panel_surfaces(self._panel)
             self._panel.orderOut_(None)
             self._panel = None
 
-        from wenzi.ui.web_utils import cleanup_webview
-
-        cleanup_webview(self._webview, handler_name=None)
-        if self._nav_delegate is not None:
-            self._nav_delegate._panel_ref = None
-        self._webview = None
-        self._nav_delegate = None
+        self._vfx_view = None
+        self._asr_title_label = None
+        self._asr_text_view = None
+        self._asr_scroll = None
+        self._separator = None
+        self._status_label = None
+        self._stream_text_view = None
+        self._stream_scroll = None
+        self._hint_label = None
+        self._progress_view = None
         logger.debug("Streaming overlay closed")
 
     def close_now(self) -> None:
-        """Close and clean up the overlay panel. Must be on main thread."""
+        """Close and clean up immediately. Must be on main thread."""
         self._do_close()
 
     def close(self) -> None:
-        """Close and clean up the overlay panel immediately. Thread-safe."""
+        """Close and clean up immediately. Thread-safe."""
         from PyObjCTools import AppHelper
 
         AppHelper.callAfter(self._do_close)

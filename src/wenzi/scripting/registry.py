@@ -62,7 +62,7 @@ class TimerEntry:
     interval: float
     callback: Callable
     repeating: bool
-    _timer: threading.Timer | None = field(default=None, repr=False)
+    _timer: Any = field(default=None, repr=False)  # async_loop.TimerHandle
 
 
 class ScriptingRegistry:

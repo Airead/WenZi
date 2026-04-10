@@ -7,7 +7,6 @@ import json
 import logging
 import os
 import sys
-import threading
 import urllib.request
 import webbrowser
 from typing import TYPE_CHECKING, Any
@@ -16,7 +15,7 @@ if TYPE_CHECKING:
     from wenzi.app import WenZiApp
     from wenzi.updater import AppUpdater
 
-from wenzi import get_version
+from wenzi import async_loop, get_version
 from wenzi.i18n import t
 from wenzi.statusbar import StatusMenuItem
 
@@ -116,8 +115,7 @@ class UpdateController:
         self._enabled = cfg.get("enabled", True)
         interval_hours = cfg.get("interval_hours", self._DEFAULT_INTERVAL_HOURS)
         self._interval = max(interval_hours, 1) * 3600
-        self._timer: threading.Timer | None = None
-        self._lock = threading.Lock()
+        self._timer: async_loop.TimerHandle | None = None
         self._update_menu_item: StatusMenuItem | None = None
         self._latest_version: str | None = None
         self._release_url: str | None = None
@@ -136,7 +134,7 @@ class UpdateController:
         if _is_frozen():
             if self._try_apply_staged_update():
                 return  # app is quitting to apply the update
-        threading.Thread(target=self._check_update, daemon=True).start()
+        async_loop.get_loop().run_in_executor(None, self._check_update)
 
     def _try_apply_staged_update(self) -> bool:
         """Check for a staged update and apply it if valid.
@@ -200,24 +198,30 @@ class UpdateController:
 
     def stop(self) -> None:
         """Cancel any pending timer and running updater."""
-        with self._lock:
-            if self._timer is not None:
-                self._timer.cancel()
-                self._timer = None
+        if self._timer is not None:
+            self._timer.cancel()
+            self._timer = None
         if self._updater is not None:
             self._updater.cancel()
 
     def _schedule_next_check(self) -> None:
         """Schedule the next update check after the configured interval."""
-        with self._lock:
-            if self._timer is not None:
-                self._timer.cancel()
-            self._timer = threading.Timer(self._interval, self._check_update)
-            self._timer.daemon = True
-            self._timer.start()
+        if self._timer is not None:
+            self._timer.cancel()
+        self._timer = async_loop.call_later(
+            self._interval, self._dispatch_check,
+        )
+
+    def _dispatch_check(self) -> None:
+        """Submit the blocking update check to the asyncio default executor.
+
+        Called on the asyncio event loop by ``call_later``; the actual
+        HTTP request runs in the thread-pool executor to avoid blocking.
+        """
+        async_loop.get_loop().run_in_executor(None, self._check_update)
 
     def _check_update(self) -> None:
-        """Perform the update check (runs in a background thread)."""
+        """Perform the update check (runs in the asyncio thread-pool executor)."""
         try:
             current = get_version()
             if current == "dev":

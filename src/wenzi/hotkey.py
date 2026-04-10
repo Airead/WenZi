@@ -11,10 +11,33 @@ from __future__ import annotations
 import logging
 import threading
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 
 from wenzi.async_loop import TimerHandle, call_later
 
 logger = logging.getLogger(__name__)
+
+# Shared single-thread executor for dispatching hotkey callbacks off the
+# CGEventTap thread.  Reuses one thread instead of spawning a new one per
+# keypress.  max_workers=1 is safe because the callbacks are lightweight
+# async dispatchers (submit to asyncio loop / put_nowait to queue).
+_hotkey_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="hotkey")
+
+
+def shutdown_hotkey_executor() -> None:
+    """Shut down the shared hotkey executor (call during app quit)."""
+    _hotkey_executor.shutdown(wait=False)
+
+
+def _submit_callback(fn: Callable, *args) -> None:
+    """Submit a callback to the shared hotkey executor with error logging."""
+    def _safe():
+        try:
+            fn(*args)
+        except Exception as e:
+            logger.error("Hotkey callback error (%s): %s", fn.__name__, e)
+    _hotkey_executor.submit(_safe)
+
 
 # --- Virtual keycode mappings ---
 
@@ -36,6 +59,7 @@ _SPECIAL_VK = {
     "fn": 63, "esc": 53, "space": 49,
     "return": 36, "delete": 51, "tab": 48,
     "up": 126, "down": 125, "left": 123, "right": 124,
+    "home": 115, "end": 119, "pageup": 116, "pagedown": 121,
     "printscreen": 105,  # PC keyboards map PrintScreen to F13
     # Keypad (kp = keypad, distinguishes from main keyboard keys)
     "kp0": 82, "kp1": 83, "kp2": 84, "kp3": 85,
@@ -326,12 +350,6 @@ class TapHotkeyListener:
         self._mod_flags, self._keycode = _parse_hotkey_for_quartz(hotkey_str)
         self._runner = None  # CGEventTapRunner | None
 
-    def _run_activate(self):
-        try:
-            self._on_activate()
-        except Exception as e:
-            logger.error("on_activate callback error: %s", e)
-
     def _callback(self, proxy, event_type, event, refcon):
         from wenzi import _cgeventtap as cg
 
@@ -352,9 +370,7 @@ class TapHotkeyListener:
 
             if keycode == self._keycode and flags == self._mod_flags:
                 logger.debug("TapHotkeyListener matched: %s", self._hotkey_str)
-                threading.Thread(
-                    target=self._run_activate, daemon=True,
-                ).start()
+                _submit_callback(self._on_activate)
                 return None  # Swallow the event
 
             return event
@@ -755,28 +771,23 @@ class MultiHotkeyListener:
                 elif (
                     self._on_mode_prev
                     and self._held
-                    and name in ("left", "up")
+                    and name in ("left", "up", "home", "pageup")
                 ):
                     action = "mode_prev"
                 elif (
                     self._on_mode_next
                     and self._held
-                    and name in ("right", "down")
+                    and name in ("right", "down", "end", "pagedown")
                 ):
                     action = "mode_next"
                 else:
                     return False
 
             if action == "press":
-                # Dispatch to a background thread so heavy work
-                # (e.g. Recorder.start with PortAudio re-init) cannot
-                # block the CGEventTap callback and cause a timeout.
-                def _run_press(n=name):
-                    try:
-                        self._on_press(n)
-                    except Exception as e:
-                        logger.error("on_press callback error: %s", e)
-                threading.Thread(target=_run_press, daemon=True).start()
+                # Dispatch off the CGEventTap thread to avoid a tap
+                # timeout (macOS disables the tap if the callback blocks
+                # for too long).
+                _submit_callback(self._on_press, name)
                 # Swallow non-modifier trigger keys to prevent input
                 # reaching the focused app (e.g. numpad keys).
                 if self._has_non_modifier_trigger:
@@ -784,55 +795,25 @@ class MultiHotkeyListener:
                     if not _is_modifier_like_vk(vk):
                         return True
             elif action == "restart":
-                # Dispatch to background thread (same rationale as press)
-                def _run_restart():
-                    try:
-                        self._on_restart()
-                    except Exception as e:
-                        logger.error("on_restart callback error: %s", e)
-                threading.Thread(target=_run_restart, daemon=True).start()
+                _submit_callback(self._on_restart)
                 return True  # swallow the restart key event
             elif action == "cancel":
                 self._cancel_requested = True
-                threading.Thread(
-                    target=self._run_cancel, daemon=True
-                ).start()
+                _submit_callback(self._on_cancel)
                 return True  # swallow the cancel key event
             elif action == "preview_history":
                 self._cancel_requested = True
-                threading.Thread(
-                    target=self._run_preview_history, daemon=True
-                ).start()
+                _submit_callback(self._on_preview_history)
                 return True  # swallow the key event
             elif action == "mode_prev":
-                try:
-                    self._on_mode_prev()
-                except Exception as e:
-                    logger.error("on_mode_prev callback error: %s", e)
+                _submit_callback(self._on_mode_prev)
                 return True  # swallow the arrow key event
             elif action == "mode_next":
-                try:
-                    self._on_mode_next()
-                except Exception as e:
-                    logger.error("on_mode_next callback error: %s", e)
+                _submit_callback(self._on_mode_next)
                 return True  # swallow the arrow key event
         except Exception:
             logger.warning("_handle_press exception", exc_info=True)
         return False
-
-    def _run_cancel(self) -> None:
-        """Run on_cancel callback in a background thread."""
-        try:
-            self._on_cancel()
-        except Exception as e:
-            logger.error("on_cancel callback error: %s", e)
-
-    def _run_preview_history(self) -> None:
-        """Run on_preview_history callback in a background thread."""
-        try:
-            self._on_preview_history()
-        except Exception as e:
-            logger.error("on_preview_history callback error: %s", e)
 
     def _handle_release(self, name: str) -> None:
         try:

@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 
 from wenzi.async_loop import call_later
+from wenzi.ui_helpers import release_panel_surfaces
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +73,7 @@ def _show_alert(text: str, duration: float) -> None:
 
     # Close existing alert immediately (no fade)
     if _current_panel is not None:
+        release_panel_surfaces(_current_panel)
         _current_panel.orderOut_(None)
         _current_panel = None
     if _current_close_timer is not None:
@@ -161,6 +163,7 @@ def _dismiss_alert(panel) -> None:
 
     if _current_panel is not panel:
         # A newer alert has replaced this one; just remove quietly
+        release_panel_surfaces(panel)
         try:
             panel.orderOut_(None)
         except Exception:
@@ -169,6 +172,7 @@ def _dismiss_alert(panel) -> None:
 
     def _on_fade_complete():
         global _current_panel, _current_close_timer
+        release_panel_surfaces(panel)
         try:
             panel.orderOut_(None)
         except Exception:

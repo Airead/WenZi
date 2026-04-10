@@ -22,6 +22,7 @@ from wenzi.config import save_config
 from wenzi.controllers import fire_scripting_event
 from wenzi.input import type_text
 from wenzi.input_context import capture_input_context
+from wenzi.ui_helpers import get_frontmost_app, reactivate_app
 
 if TYPE_CHECKING:
     from wenzi.app import WenZiApp
@@ -87,6 +88,7 @@ class RecordingFlow:
         self._saved_mode: tuple | None = None
         self._no_preview_override = False
         self._input_context = None
+        self._target_app = None  # NSRunningApplication to reactivate before typing
         # Sub-tasks managed within a session
         self._level_task: asyncio.Task | None = None
         self._live_overlay = None
@@ -170,14 +172,19 @@ class RecordingFlow:
             AppHelper.callAfter(self._try_enable_voice_input)
             return
 
-        # Capture input context while the user's target app is still frontmost
+        # Capture the frontmost app before any potentially slow AX context
+        # lookup so we can reactivate the original target window later.
         ic_level = (
             app._enhancer.input_context_level
             if app._enhancer
             else app._config.get("ai_enhance", {}).get("input_context", "basic")
         )
-        self._input_context = await self._loop.run_in_executor(
-            None, lambda: capture_input_context(ic_level)
+        self._target_app, self._input_context = await self._loop.run_in_executor(
+            None,
+            lambda: (
+                get_frontmost_app(),
+                capture_input_context(ic_level),
+            ),
         )
 
         # Restore previous override before applying a new one
@@ -753,6 +760,12 @@ class RecordingFlow:
             "output_text", final_text=text
         )
 
+        # Reactivate the app that was frontmost when the hotkey was pressed,
+        # in case the user switched windows during AI enhancement.
+        if self._target_app is not None:
+            AppHelper.callAfter(reactivate_app, self._target_app)
+            await asyncio.sleep(0.15)
+
         AppHelper.callAfter(
             type_text,
             text,
@@ -769,6 +782,8 @@ class RecordingFlow:
             app._usage_stats.record_output_method(copy_to_clipboard=False)
         except Exception as e:
             logger.error("Failed to record output method: %s", e)
+
+        self._target_app = None
 
         try:
             app._conversation_history.log(
@@ -801,9 +816,11 @@ class RecordingFlow:
         Must be called on the main thread (via AppHelper.callAfter).
         """
         app = self._app
+        indicator_frame = app._recording_indicator.current_frame
         app._recording_indicator.hide()
         app._streaming_overlay.show(
             asr_text=asr_text,
+            animate_from_frame=indicator_frame,
             stt_info=stt_info,
             llm_info=llm_info,
             on_cancel=lambda: self.send_action(Action.CANCEL),
@@ -811,6 +828,33 @@ class RecordingFlow:
                 lambda: self.send_action(Action.CONFIRM_ASR)
             ) if with_confirm_asr else None,
         )
+
+    @staticmethod
+    def _show_error_alert(message: str, duration: float = 3.0) -> None:
+        """Show a lightweight floating alert for errors."""
+        try:
+            from wenzi.scripting.api.alert import alert
+            alert(message, duration=duration)
+        except Exception:
+            logger.debug("Error alert failed", exc_info=True)
+
+    def _apply_timeout_fallback(
+        self, app, chunk: str, step_idx: int = 0, total_steps: int = 0,
+    ) -> tuple[list[str], int]:
+        """Update overlay with fallback text on AI timeout."""
+        completion_tokens = len(chunk)
+        app._streaming_overlay.clear_text()
+        app._streaming_overlay.append_text(chunk, completion_tokens=completion_tokens)
+        if total_steps > 0:
+            msg = (
+                f"\u26a0\ufe0f Step {step_idx}/{total_steps}: "
+                "AI timed out, using original text"
+            )
+        else:
+            msg = "\u26a0\ufe0f AI timed out, using original text"
+        app._streaming_overlay.set_status(msg)
+        self._show_error_alert("AI enhancement timed out")
+        return [chunk], completion_tokens
 
     # ------------------------------------------------------------------
     # Background STT for direct flow
@@ -911,6 +955,12 @@ class RecordingFlow:
                 app._streaming_overlay.append_thinking_text(chunk)
                 label = chunk.strip().strip("()\n")
                 app._streaming_overlay.set_status(f"\u23f3 {label}")
+            elif is_thinking == "timeout" and chunk:
+                had_thinking = False
+                collected, completion_tokens = self._apply_timeout_fallback(
+                    app, chunk,
+                )
+                break
             elif is_thinking and chunk:
                 had_thinking = True
                 thinking_tokens += len(chunk)
@@ -964,6 +1014,7 @@ class RecordingFlow:
                 app._streaming_overlay.set_status(
                     f"\u23f3 Step {step_idx}/{total_steps}: {step_label}"
                 )
+                app._streaming_overlay.set_progress(step_idx, total_steps)
 
                 if step_idx > 1:
                     app._streaming_overlay.clear_text()
@@ -987,6 +1038,11 @@ class RecordingFlow:
                         app._streaming_overlay.set_status(
                             f"\u23f3 Step {step_idx}/{total_steps}: {label}"
                         )
+                    elif is_thinking == "timeout" and chunk:
+                        collected, completion_tokens = self._apply_timeout_fallback(
+                            app, chunk, step_idx, total_steps,
+                        )
+                        break
                     elif is_thinking and chunk:
                         thinking_tokens += len(chunk)
                         app._streaming_overlay.append_thinking_text(
@@ -1132,6 +1188,7 @@ class RecordingFlow:
     def _reset_to_idle(self) -> None:
         """Common cleanup: hide overlays/indicator and restore idle status."""
         self._app._busy = False
+        self._target_app = None
         self._hide_live_overlay()
         self._cancel_level_task()
         self._app._recording_indicator.hide()
@@ -1246,11 +1303,9 @@ class RecordingFlow:
             self._switch_active_mode(new_mode)
 
         label = modes[new_idx][1]
-        can_prev = new_idx > 0
-        can_next = new_idx < len(modes) - 1
         AppHelper.callAfter(
             self._app._recording_indicator.update_mode,
-            label, can_prev, can_next,
+            label,
         )
         logger.info(
             "Mode nav %s → %s", "prev" if delta < 0 else "next", new_mode
@@ -1271,11 +1326,9 @@ class RecordingFlow:
         if idx < 0:
             return
         label = modes[idx][1]
-        can_prev = idx > 0
-        can_next = idx < len(modes) - 1
         AppHelper.callAfter(
             self._app._recording_indicator.update_mode,
-            label, can_prev, can_next,
+            label,
         )
 
     # ------------------------------------------------------------------

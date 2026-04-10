@@ -99,12 +99,12 @@ class TestPasteboardHelpers:
         assert result is False
 
     @patch("wenzi.input.time")
-    @patch("wenzi.input.threading")
+    @patch("wenzi.input.async_loop")
     @patch("wenzi.input.subprocess")
     @patch("wenzi.input._set_pasteboard_concealed", return_value=True)
     @patch("wenzi.input._get_pasteboard_string", return_value="old content")
     def test_clipboard_restore_after_paste(
-        self, mock_get, mock_set_concealed, mock_subprocess, mock_threading, mock_time
+        self, mock_get, mock_set_concealed, mock_subprocess, mock_async_loop, mock_time
     ):
         from wenzi.input import _type_via_clipboard
 
@@ -115,9 +115,10 @@ class TestPasteboardHelpers:
         assert result is True
         mock_get.assert_called_once()
         mock_set_concealed.assert_called_once_with("new text")
-        # A restore thread should be started
-        mock_threading.Thread.assert_called_once()
-        mock_threading.Thread.return_value.start.assert_called_once()
+        # Clipboard should be restored via async_loop.call_later
+        mock_async_loop.call_later.assert_called_once()
+        args = mock_async_loop.call_later.call_args[0]
+        assert args[0] == 1.0  # delay
 
 
 class TestAppleScriptSafety:

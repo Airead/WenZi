@@ -168,25 +168,25 @@ class TestUpdateControllerStart:
     def test_start_disabled_noop(self):
         app = _make_app({"enabled": False})
         ctrl = UpdateController(app)
-        with patch("threading.Thread") as mock_thread:
+        with patch("wenzi.controllers.update_controller.async_loop") as mock_loop:
             ctrl.start()
-            mock_thread.assert_not_called()
+            mock_loop.get_loop.assert_not_called()
 
-    def test_start_enabled_launches_thread(self):
+    def test_start_enabled_submits_check(self):
         app = _make_app()
         ctrl = UpdateController(app)
-        with patch("threading.Thread") as mock_thread:
-            mock_instance = MagicMock()
-            mock_thread.return_value = mock_instance
+        with patch("wenzi.controllers.update_controller.async_loop") as mock_loop:
             ctrl.start()
-            mock_thread.assert_called_once()
-            mock_instance.start.assert_called_once()
+            mock_loop.get_loop.assert_called_once()
+            mock_loop.get_loop().run_in_executor.assert_called_once_with(
+                None, ctrl._check_update,
+            )
 
 
 class TestUpdateControllerCheckUpdate:
     @patch("wenzi.controllers.update_controller._fetch_latest_release")
-    @patch("wenzi.controllers.update_controller.threading.Timer")
-    def test_skip_dev_mode(self, mock_timer_cls, mock_fetch):
+    @patch("wenzi.controllers.update_controller.async_loop")
+    def test_skip_dev_mode(self, mock_async_loop, mock_fetch):
         app = _make_app()
         ctrl = UpdateController(app)
 
@@ -196,8 +196,8 @@ class TestUpdateControllerCheckUpdate:
         mock_fetch.assert_not_called()
 
     @patch("wenzi.controllers.update_controller._fetch_latest_release")
-    @patch("wenzi.controllers.update_controller.threading.Timer")
-    def test_dev_version_env_override(self, mock_timer_cls, mock_fetch):
+    @patch("wenzi.controllers.update_controller.async_loop")
+    def test_dev_version_env_override(self, mock_async_loop, mock_fetch):
         mock_fetch.return_value = {
             "tag_name": "v99.0.0",
             "html_url": "https://example.com",
@@ -212,8 +212,8 @@ class TestUpdateControllerCheckUpdate:
             mock_helper.callAfter.assert_called_once()
 
     @patch("wenzi.controllers.update_controller._fetch_latest_release")
-    @patch("wenzi.controllers.update_controller.threading.Timer")
-    def test_new_version_triggers_menu_update(self, mock_timer_cls, mock_fetch):
+    @patch("wenzi.controllers.update_controller.async_loop")
+    def test_new_version_triggers_menu_update(self, mock_async_loop, mock_fetch):
         mock_fetch.return_value = {
             "tag_name": "v99.0.0",
             "html_url": "https://github.com/Airead/WenZi/releases/tag/v99.0.0",
@@ -229,8 +229,8 @@ class TestUpdateControllerCheckUpdate:
             assert call_args[0][0] == ctrl._apply_update_menu
 
     @patch("wenzi.controllers.update_controller._fetch_latest_release")
-    @patch("wenzi.controllers.update_controller.threading.Timer")
-    def test_same_version_no_menu_update(self, mock_timer_cls, mock_fetch):
+    @patch("wenzi.controllers.update_controller.async_loop")
+    def test_same_version_no_menu_update(self, mock_async_loop, mock_fetch):
         mock_fetch.return_value = {
             "tag_name": "v0.1.2",
             "html_url": "https://example.com",
@@ -244,8 +244,8 @@ class TestUpdateControllerCheckUpdate:
             mock_helper.callAfter.assert_not_called()
 
     @patch("wenzi.controllers.update_controller._fetch_latest_release", return_value=None)
-    @patch("wenzi.controllers.update_controller.threading.Timer")
-    def test_fetch_failure_no_crash(self, mock_timer_cls, mock_fetch):
+    @patch("wenzi.controllers.update_controller.async_loop")
+    def test_fetch_failure_no_crash(self, mock_async_loop, mock_fetch):
         app = _make_app()
         ctrl = UpdateController(app)
 
@@ -253,8 +253,8 @@ class TestUpdateControllerCheckUpdate:
             ctrl._check_update()  # should not raise
 
     @patch("wenzi.controllers.update_controller._fetch_latest_release")
-    @patch("wenzi.controllers.update_controller.threading.Timer")
-    def test_always_schedules_next(self, mock_timer_cls, mock_fetch):
+    @patch("wenzi.controllers.update_controller.async_loop")
+    def test_always_schedules_next(self, mock_async_loop, mock_fetch):
         mock_fetch.return_value = None
         app = _make_app()
         ctrl = UpdateController(app)
@@ -262,8 +262,7 @@ class TestUpdateControllerCheckUpdate:
         with patch("wenzi.__version__", "0.1.2"):
             ctrl._check_update()
 
-        mock_timer_cls.assert_called_once()
-        mock_timer_cls.return_value.start.assert_called_once()
+        mock_async_loop.call_later.assert_called_once()
 
 
 class TestUpdateControllerMenuClick:
@@ -552,7 +551,7 @@ class TestAutoUpdateIntegration:
         }
 
         with patch("wenzi.controllers.update_controller._fetch_latest_release", return_value=release_data), \
-             patch("wenzi.controllers.update_controller.threading.Timer"), \
+             patch("wenzi.controllers.update_controller.async_loop"), \
              patch("wenzi.__version__", "0.1.2"), \
              patch("PyObjCTools.AppHelper"):
             app = _make_app()

@@ -1,11 +1,17 @@
-"""vt.timer — delayed and repeating execution API."""
+"""wz.timer — delayed and repeating execution API.
+
+Scheduling uses :func:`async_loop.call_later` (single shared asyncio
+event-loop timer) instead of ``threading.Timer`` to avoid spawning a
+new thread for every timer tick.  User callbacks are offloaded to the
+asyncio default thread-pool executor so they cannot block the loop.
+"""
 
 from __future__ import annotations
 
 import logging
-import threading
 from collections.abc import Callable
 
+from wenzi import async_loop
 from wenzi.scripting.api._async_util import wrap_async
 from wenzi.scripting.registry import ScriptingRegistry
 
@@ -26,10 +32,9 @@ class TimerAPI:
         entry = self._registry.register_timer(
             seconds, wrap_async(callback), repeating=False,
         )
-        t = threading.Timer(seconds, self._fire_once, args=(entry.timer_id,))
-        t.daemon = True
-        entry._timer = t
-        t.start()
+        entry._timer = async_loop.call_later(
+            seconds, self._fire_once, entry.timer_id,
+        )
         return entry.timer_id
 
     def every(self, seconds: float, callback: Callable) -> str:
@@ -52,29 +57,38 @@ class TimerAPI:
         entry = self._registry.pop_timer(timer_id)
         if entry is None:
             return
-        try:
-            entry.callback()
-        except Exception as exc:
-            logger.error("Timer callback error: %s", exc)
+        # Offload to executor so sync user callbacks don't block the loop.
+        async_loop.get_loop().run_in_executor(
+            None, self._safe_callback, entry.callback,
+        )
 
     def _schedule_repeat(self, timer_id: str) -> None:
         """Schedule the next tick of a repeating timer."""
         entry = self._registry.get_timer(timer_id)
         if entry is None:
             return
-        t = threading.Timer(entry.interval, self._fire_repeat, args=(timer_id,))
-        t.daemon = True
-        entry._timer = t
-        t.start()
+        entry._timer = async_loop.call_later(
+            entry.interval, self._fire_repeat, timer_id,
+        )
 
     def _fire_repeat(self, timer_id: str) -> None:
         """Fire a repeating timer and reschedule."""
         entry = self._registry.get_timer(timer_id)
         if entry is None:
             return
+        cb = entry.callback
+
+        def _run() -> None:
+            self._safe_callback(cb)
+            # call_later uses call_soon_threadsafe, safe from executor.
+            self._schedule_repeat(timer_id)
+
+        async_loop.get_loop().run_in_executor(None, _run)
+
+    @staticmethod
+    def _safe_callback(callback: Callable) -> None:
+        """Execute a user callback with error handling."""
         try:
-            entry.callback()
+            callback()
         except Exception as exc:
-            logger.error("Repeating timer callback error: %s", exc)
-        # Reschedule
-        self._schedule_repeat(timer_id)
+            logger.error("Timer callback error: %s", exc)

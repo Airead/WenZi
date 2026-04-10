@@ -1,4 +1,4 @@
-"""Floating recording indicator panel with audio level visualization."""
+"""Floating recording indicator panel with audio waveform visualization."""
 
 from __future__ import annotations
 
@@ -8,35 +8,38 @@ import time
 
 logger = logging.getLogger(__name__)
 
-# EMA smoothing factor for audio level updates
-_EMA_ALPHA = 0.3
+# Asymmetric EMA smoothing: fast attack, slower release
+_EMA_ATTACK = 0.6
+_EMA_RELEASE = 0.25
 
 # Panel dimensions
-_PANEL_WIDTH = 120
-_PANEL_WIDTH_WITH_MODE = 220
-_PANEL_HEIGHT = 50
-_PANEL_HEIGHT_WITH_LABEL = 68
+_PANEL_WIDTH = 226
+_PANEL_HEIGHT = 36
+_LABEL_HEIGHT = 17  # height added for subtitle row
 
 # Animation refresh interval in seconds (~20Hz)
 _REFRESH_INTERVAL = 0.05
 
-# Number of audio level bars
-_NUM_BARS = 5
+# Waveform visual parameters
+_WAVE_POINTS = 50       # sample points for smooth curve
+_WAVE_WIDTH = 180.0     # horizontal extent
+_WAVE_MAX_AMP = 9.6     # max amplitude from centre line
+_WAVE_LINE_W = 2.4      # primary wave stroke width
+_WAVE_LINE_W2 = 1.8     # secondary wave stroke width
 
-# Bar visual parameters
-_BAR_WIDTH = 6
-_BAR_GAP = 4
-_BAR_MAX_HEIGHT = 30
-_BAR_MIN_HEIGHT = 3
-_BAR_CORNER_RADIUS = 2
+# Status dot parameters
+_DOT_RADIUS = 5.4
 
-# Pulse dot parameters
-_DOT_BASE_RADIUS = 5.0
-_DOT_PULSE_AMPLITUDE = 1.5
-_DOT_PULSE_SPEED = 3.0
+# Font
+_FONT_WEIGHT_MEDIUM = 0.23  # NSFontWeightMedium
 
 # Background
 _BG_CORNER_RADIUS = 12
+
+# NSVisualEffectView constants (avoid AppKit import at module level)
+_VFX_MATERIAL_HUD = 13       # NSVisualEffectMaterialHUDWindow
+_VFX_BLENDING_BEHIND = 0     # NSVisualEffectBlendingModeBehindWindow
+_VFX_STATE_ACTIVE = 1        # NSVisualEffectStateActive
 
 
 class RecordingIndicatorView:
@@ -44,28 +47,22 @@ class RecordingIndicatorView:
 
     _view: object = None
 
-    def __init__(self, device_name: str | None = None) -> None:
+    def __init__(self) -> None:
         self._level: float = 0.0
         self._start_time: float = 0.0
         self._view = None
-        self._device_name: str | None = device_name
-        self._label_attrs: dict | None = None  # cached for draw loop
+        self._subtitle_attrs: dict | None = None  # cached for draw loop
+        self._subtitle_ns_str = None  # cached NSString for subtitle
         # Whether the recorder is actually capturing audio
         self._recording_active: bool = False
         # Cached dynamic colors (created once, adapt to light/dark automatically)
-        self._bg_color = None
         self._dot_color = None
         self._dot_color_inactive = None
-        self._bar_color = None
-        self._bar_color_inactive = None
-        # Mode display fields
-        self._mode_name: str | None = None
-        self._mode_nav: tuple = (False, False)  # (can_prev, can_next)
-        self._mode_attrs: dict | None = None  # cached for draw loop
-        self._arrow_attrs: dict | None = None  # cached for draw loop
-        self._mode_ns_str = None  # cached NSString for mode name
-        self._left_arrow_ns_str = None  # cached NSString for ◁
-        self._right_arrow_ns_str = None  # cached NSString for ▷
+        self._wave_color = None
+        self._wave_color_inactive = None
+        self._wave_strokes: dict = {}  # (active, wave_idx) -> cached NSColor
+        # Subtitle text (combined mode + device, built by panel)
+        self._subtitle: str | None = None
 
     def create_view(self, width: int, height: int) -> object:
         """Create and return the NSView instance."""
@@ -73,11 +70,11 @@ class RecordingIndicatorView:
 
         rect = NSMakeRect(0, 0, width, height)
 
-        # Use a block-based approach with a wrapper view
         view = _IndicatorNSView.alloc().initWithFrame_(rect)
         view._indicator = self
         self._view = view
-        self._start_time = time.monotonic()
+        if self._start_time == 0.0:
+            self._start_time = time.monotonic()
         return view
 
     def set_level(self, level: float) -> None:
@@ -98,9 +95,14 @@ class RecordingIndicatorView:
         return NSColor.colorWithName_dynamicProvider_(None, _provider)
 
     def draw(self, rect: object) -> None:
-        """Draw the indicator contents."""
+        """Draw the indicator contents.
+
+        Background is provided by NSVisualEffectView — this method only draws
+        the pulsing dot, waveform, and optional subtitle label.
+        """
         from AppKit import (
             NSBezierPath,
+            NSColor,
             NSFont,
             NSFontAttributeName,
             NSForegroundColorAttributeName,
@@ -109,39 +111,19 @@ class RecordingIndicatorView:
         )
         from Foundation import NSMakeRect, NSString
 
-        width = rect.size.width
-
-        # When a device label is shown, the animation area is the top
-        # portion and the label sits at the bottom.
-        label_height = (_PANEL_HEIGHT_WITH_LABEL - _PANEL_HEIGHT) if self._device_name else 0
-        anim_center_y = label_height + _PANEL_HEIGHT / 2.0
-
-        # Semi-transparent rounded background (adapts to light/dark mode)
-        if self._bg_color is None:
-            self._bg_color = self._dynamic_color(
-                light_rgba=(0.95, 0.95, 0.95, 0.85),
-                dark_rgba=(0.15, 0.15, 0.15, 0.85),
-            )
-        self._bg_color.setFill()
-        bg_path = NSBezierPath.bezierPathWithRoundedRect_xRadius_yRadius_(
-            rect, _BG_CORNER_RADIUS, _BG_CORNER_RADIUS
-        )
-        bg_path.fill()
+        # Subtitle sits at the bottom; animation area is above it.
+        sub_height = _LABEL_HEIGHT if self._subtitle else 0
+        anim_center_y = sub_height + _PANEL_HEIGHT / 2.0
 
         elapsed = time.monotonic() - self._start_time
 
-        # Pulsing dot on the left (gray when waiting, red when recording)
+        # ── Status dot (left) — red when recording, grey when waiting ───
         dot_x = 18.0
         dot_y = anim_center_y
-        pulse = math.sin(elapsed * _DOT_PULSE_SPEED) * _DOT_PULSE_AMPLITUDE
-        dot_radius = _DOT_BASE_RADIUS + pulse
 
         if self._recording_active:
             if self._dot_color is None:
-                self._dot_color = self._dynamic_color(
-                    light_rgba=(0.85, 0.15, 0.15, 1.0),
-                    dark_rgba=(0.95, 0.25, 0.25, 1.0),
-                )
+                self._dot_color = NSColor.systemRedColor()
             self._dot_color.setFill()
         else:
             if self._dot_color_inactive is None:
@@ -150,130 +132,88 @@ class RecordingIndicatorView:
                     dark_rgba=(0.55, 0.55, 0.55, 1.0),
                 )
             self._dot_color_inactive.setFill()
+
         dot_rect = NSMakeRect(
-            dot_x - dot_radius, dot_y - dot_radius,
-            dot_radius * 2, dot_radius * 2,
+            dot_x - _DOT_RADIUS, dot_y - _DOT_RADIUS,
+            _DOT_RADIUS * 2, _DOT_RADIUS * 2,
         )
-        dot_path = NSBezierPath.bezierPathWithOvalInRect_(dot_rect)
-        dot_path.fill()
+        NSBezierPath.bezierPathWithOvalInRect_(dot_rect).fill()
 
-        # Audio level bars on the right
-        bars_start_x = 38.0
-        bar_y_base = anim_center_y - _BAR_MAX_HEIGHT / 2.0
-
-        if self._recording_active:
-            if self._bar_color is None:
-                self._bar_color = self._dynamic_color(
-                    light_rgba=(0.2, 0.65, 0.2, 0.9),
-                    dark_rgba=(0.4, 0.9, 0.4, 0.9),
-                )
-            self._bar_color.setFill()
-        else:
-            if self._bar_color_inactive is None:
-                self._bar_color_inactive = self._dynamic_color(
-                    light_rgba=(0.55, 0.55, 0.55, 0.9),
-                    dark_rgba=(0.5, 0.5, 0.5, 0.9),
-                )
-            self._bar_color_inactive.setFill()
-
+        # ── Audio waveform (centre-right) ───────────────────────────────
+        wave_cx = 123.6
+        half_w = _WAVE_WIDTH / 2.0
         level = self._level
-        for i in range(_NUM_BARS):
-            # Each bar has a slightly different phase for visual variety
-            phase = i * 0.6
-            wave = (math.sin(elapsed * 5.0 + phase) + 1.0) / 2.0
-            # Base idle animation + level-driven height
-            idle = wave * 0.15
-            bar_factor = idle + level * (0.85 + wave * 0.15)
-            bar_height = max(_BAR_MIN_HEIGHT, bar_factor * _BAR_MAX_HEIGHT)
 
-            bar_x = bars_start_x + i * (_BAR_WIDTH + _BAR_GAP)
-            bar_y = bar_y_base + (_BAR_MAX_HEIGHT - bar_height) / 2.0
+        for wave_idx in range(2):
+            freq = 2.5 + wave_idx * 1.2
+            phase = elapsed * 8.0 + wave_idx * 2.0
 
-            bar_rect = NSMakeRect(bar_x, bar_y, _BAR_WIDTH, bar_height)
-            bar_path = NSBezierPath.bezierPathWithRoundedRect_xRadius_yRadius_(
-                bar_rect, _BAR_CORNER_RADIUS, _BAR_CORNER_RADIUS
-            )
-            bar_path.fill()
+            if self._recording_active:
+                level_amp = level * _WAVE_MAX_AMP * (1.0 - wave_idx * 0.3)
+                idle_amp = 1.0 * (1.0 - wave_idx * 0.5)
+            else:
+                level_amp = 0.0
+                idle_amp = 2.0 * (1.0 - wave_idx * 0.5)
 
-        # Device name label at the bottom (single line, truncate tail)
-        if self._device_name:
-            if self._label_attrs is None:
-                label_color = self._dynamic_color(
-                    light_rgba=(0.3, 0.3, 0.3, 0.8),
-                    dark_rgba=(0.7, 0.7, 0.7, 0.8),
-                )
+            breath = 0.5 + 0.5 * math.sin(elapsed * 3.0 + wave_idx)
+            total_amp = level_amp + idle_amp * breath
+
+            path = NSBezierPath.alloc().init()
+            path.setLineWidth_(_WAVE_LINE_W if wave_idx == 0 else _WAVE_LINE_W2)
+            path.setLineCapStyle_(1)   # NSLineCapStyleRound
+            path.setLineJoinStyle_(1)  # NSLineJoinStyleRound
+
+            for i in range(_WAVE_POINTS + 1):
+                t = i / _WAVE_POINTS
+                x = wave_cx - half_w + t * _WAVE_WIDTH
+                envelope = math.sin(t * math.pi)  # taper at edges
+                y = anim_center_y + math.sin(t * freq * math.pi * 2 + phase) * total_amp * envelope
+                if i == 0:
+                    path.moveToPoint_((x, y))
+                else:
+                    path.lineToPoint_((x, y))
+
+            stroke_key = (self._recording_active, wave_idx)
+            stroke = self._wave_strokes.get(stroke_key)
+            if stroke is None:
+                if self._recording_active:
+                    if self._wave_color is None:
+                        self._wave_color = self._dynamic_color(
+                            light_rgba=(0.15, 0.55, 0.95, 1.0),
+                            dark_rgba=(0.35, 0.7, 1.0, 1.0),
+                        )
+                    w_alpha = 0.9 if wave_idx == 0 else 0.35
+                    stroke = self._wave_color.colorWithAlphaComponent_(w_alpha)
+                else:
+                    if self._wave_color_inactive is None:
+                        self._wave_color_inactive = self._dynamic_color(
+                            light_rgba=(0.55, 0.55, 0.55, 0.9),
+                            dark_rgba=(0.5, 0.5, 0.5, 0.9),
+                        )
+                    w_alpha = 0.7 if wave_idx == 0 else 0.25
+                    stroke = self._wave_color_inactive.colorWithAlphaComponent_(w_alpha)
+                self._wave_strokes[stroke_key] = stroke
+            stroke.setStroke()
+
+            path.stroke()
+
+        # ── Subtitle label (bottom) ─────────────────────────────────────
+        if self._subtitle:
+            if self._subtitle_attrs is None:
                 para = NSMutableParagraphStyle.alloc().init()
                 para.setAlignment_(1)  # NSTextAlignmentCenter
                 para.setLineBreakMode_(4)  # NSLineBreakByTruncatingTail
-                self._label_attrs = {
-                    NSFontAttributeName: NSFont.systemFontOfSize_(9),
-                    NSForegroundColorAttributeName: label_color,
+                self._subtitle_attrs = {
+                    NSFontAttributeName: NSFont.systemFontOfSize_weight_(10.8, _FONT_WEIGHT_MEDIUM),
+                    NSForegroundColorAttributeName: NSColor.labelColor(),
                     NSParagraphStyleAttributeName: para,
                 }
-                self._label_ns_str = NSString.stringWithString_(self._device_name)
-            label_rect = NSMakeRect(4, 4, width - 8, label_height)
-            self._label_ns_str.drawInRect_withAttributes_(
-                label_rect, self._label_attrs,
+            if self._subtitle_ns_str is None:
+                self._subtitle_ns_str = NSString.stringWithString_(self._subtitle)
+            label_rect = NSMakeRect(33.6, 6, 180, _LABEL_HEIGHT)
+            self._subtitle_ns_str.drawInRect_withAttributes_(
+                label_rect, self._subtitle_attrs,
             )
-
-        # Mode name with navigation arrows (right of audio bars)
-        if self._mode_name:
-            if self._mode_attrs is None:
-                mode_color = self._dynamic_color(
-                    light_rgba=(0.1, 0.1, 0.1, 0.9),
-                    dark_rgba=(0.9, 0.9, 0.9, 0.9),
-                )
-                mode_para = NSMutableParagraphStyle.alloc().init()
-                mode_para.setAlignment_(1)  # NSTextAlignmentCenter
-                mode_para.setLineBreakMode_(4)  # NSLineBreakByTruncatingTail
-                self._mode_attrs = {
-                    NSFontAttributeName: NSFont.systemFontOfSize_(12),
-                    NSForegroundColorAttributeName: mode_color,
-                    NSParagraphStyleAttributeName: mode_para,
-                }
-                arrow_color = self._dynamic_color(
-                    light_rgba=(0.4, 0.4, 0.4, 0.7),
-                    dark_rgba=(0.6, 0.6, 0.6, 0.7),
-                )
-                arrow_para = NSMutableParagraphStyle.alloc().init()
-                arrow_para.setAlignment_(1)
-                self._arrow_attrs = {
-                    NSFontAttributeName: NSFont.systemFontOfSize_(11),
-                    NSForegroundColorAttributeName: arrow_color,
-                    NSParagraphStyleAttributeName: arrow_para,
-                }
-
-            can_prev, can_next = self._mode_nav
-            mode_x = bars_start_x + _NUM_BARS * (_BAR_WIDTH + _BAR_GAP) + 4
-            mode_area_w = width - mode_x - 6
-
-            # Draw left arrow
-            if can_prev:
-                if self._left_arrow_ns_str is None:
-                    self._left_arrow_ns_str = NSString.stringWithString_("\u25C1")
-                arrow_rect = NSMakeRect(mode_x, anim_center_y - 8, 14, 16)
-                self._left_arrow_ns_str.drawInRect_withAttributes_(
-                    arrow_rect, self._arrow_attrs
-                )
-
-            # Draw mode name (centered in the remaining space)
-            name_x = mode_x + (16 if can_prev else 2)
-            name_w = mode_area_w - (16 if can_prev else 2) - (16 if can_next else 2)
-            if self._mode_ns_str is None:
-                self._mode_ns_str = NSString.stringWithString_(self._mode_name)
-            name_rect = NSMakeRect(name_x, anim_center_y - 9, name_w, 18)
-            self._mode_ns_str.drawInRect_withAttributes_(name_rect, self._mode_attrs)
-
-            # Draw right arrow
-            if can_next:
-                if self._right_arrow_ns_str is None:
-                    self._right_arrow_ns_str = NSString.stringWithString_("\u25B7")
-                arrow_rect = NSMakeRect(
-                    mode_x + mode_area_w - 14, anim_center_y - 8, 14, 16
-                )
-                self._right_arrow_ns_str.drawInRect_withAttributes_(
-                    arrow_rect, self._arrow_attrs
-                )
 
 
 # PyObjC subclass for custom drawing
@@ -299,6 +239,13 @@ except Exception:
     _IndicatorNSView = None
 
 
+def _build_subtitle(mode_name: str | None, device_name: str | None) -> str | None:
+    """Combine mode and device into a single subtitle string."""
+    if mode_name and device_name:
+        return f"{mode_name} · {device_name}"
+    return mode_name or device_name
+
+
 class RecordingIndicatorPanel:
     """Manages a floating panel that shows recording status with audio visualization."""
 
@@ -309,6 +256,9 @@ class RecordingIndicatorPanel:
         self._smoothed_level: float = 0.0
         self._enabled: bool = True
         self._show_device_name: bool = False
+        # Stored values for subtitle rebuilding
+        self._mode_name: str | None = None
+        self._device_name: str | None = None
 
     @property
     def enabled(self) -> bool:
@@ -328,6 +278,28 @@ class RecordingIndicatorPanel:
     def show_device_name(self, value: bool) -> None:
         self._show_device_name = value
 
+    @staticmethod
+    def _make_vfx_view(width: int, height: int):
+        """Create an NSVisualEffectView with frosted-glass HUD appearance."""
+        from AppKit import NSVisualEffectView
+        from Foundation import NSMakeRect
+
+        vfx = NSVisualEffectView.alloc().initWithFrame_(
+            NSMakeRect(0, 0, width, height)
+        )
+        vfx.setMaterial_(_VFX_MATERIAL_HUD)
+        vfx.setBlendingMode_(_VFX_BLENDING_BEHIND)
+        vfx.setState_(_VFX_STATE_ACTIVE)
+        vfx.setWantsLayer_(True)
+        vfx.layer().setCornerRadius_(_BG_CORNER_RADIUS)
+        vfx.layer().setMasksToBounds_(True)
+        return vfx
+
+    def _panel_height(self) -> int:
+        """Compute current panel height based on whether a subtitle is shown."""
+        has_sub = _build_subtitle(self._mode_name, self._device_name) is not None
+        return _PANEL_HEIGHT + (_LABEL_HEIGHT if has_sub else 0)
+
     def show(self, device_name: str | None = None) -> None:
         """Create and show the floating indicator panel."""
         if not self._enabled:
@@ -346,9 +318,12 @@ class RecordingIndicatorPanel:
                 self.hide()
 
             self._smoothed_level = 0.0
-            self._indicator_view = RecordingIndicatorView(device_name=device_name)
+            self._mode_name = None
+            self._device_name = device_name
+            self._indicator_view = RecordingIndicatorView()
+            self._update_subtitle()
 
-            panel_height = _PANEL_HEIGHT_WITH_LABEL if device_name else _PANEL_HEIGHT
+            panel_height = self._panel_height()
 
             # Create borderless panel
             panel = NSPanel.alloc().initWithContentRect_styleMask_backing_defer_(
@@ -365,25 +340,28 @@ class RecordingIndicatorPanel:
             panel.setHidesOnDeactivate_(False)
             panel.setCollectionBehavior_((1 << 0) | (1 << 4) | (1 << 8))  # canJoinAllSpaces | stationary | fullScreenAuxiliary
 
-            # Position at center of main screen
-            screen = NSScreen.mainScreen()
-            if screen:
-                screen_frame = screen.visibleFrame()
-                x = screen_frame.origin.x + (screen_frame.size.width - _PANEL_WIDTH) / 2
-                y = screen_frame.origin.y + (screen_frame.size.height - panel_height) / 2
-                panel.setFrameOrigin_((x, y))
-
-            # Set content view
-            content_view = self._indicator_view.create_view(_PANEL_WIDTH, panel_height)
-            panel.setContentView_(content_view)
-
-            panel.orderFront_(None)
             self._panel = panel
 
-            # Start refresh timer
+            # Position at centre of main screen
+            screen = NSScreen.mainScreen()
+            if screen:
+                sf = screen.visibleFrame()
+                x = sf.origin.x + (sf.size.width - _PANEL_WIDTH) / 2.0
+                y = sf.origin.y + (sf.size.height - panel_height) / 2.0
+                panel.setFrameOrigin_((x, y))
+
+            # Frosted-glass background + indicator drawing view
+            vfx = self._make_vfx_view(_PANEL_WIDTH, panel_height)
+            indicator = self._indicator_view.create_view(_PANEL_WIDTH, panel_height)
+            vfx.addSubview_(indicator)
+            panel.setContentView_(vfx)
+
+            panel.orderFront_(None)
+
+            # Start refresh timer targeting the indicator subview
             self._timer = NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
                 _REFRESH_INTERVAL,
-                content_view,
+                indicator,
                 b"refresh:",
                 None,
                 True,
@@ -416,6 +394,8 @@ class RecordingIndicatorPanel:
     def hide(self) -> None:
         """Hide and clean up the indicator panel."""
         try:
+            from wenzi.ui_helpers import release_panel_surfaces
+
             if self._timer is not None:
                 self._timer.invalidate()
                 self._timer = None
@@ -423,106 +403,118 @@ class RecordingIndicatorPanel:
             self._clear_view_backref()
 
             if self._panel is not None:
+                release_panel_surfaces(self._panel)
                 self._panel.orderOut_(None)
                 self._panel = None
 
             self._indicator_view = None
             self._smoothed_level = 0.0
+            self._mode_name = None
+            self._device_name = None
             logger.debug("Recording indicator hidden")
         except Exception as e:
             logger.warning("Failed to hide recording indicator: %s", e)
 
-    def _rebuild_content_view(self, new_width: int, new_height: int) -> None:
-        """Resize the panel, recreate the content view, re-center, and restart the timer.
+    def _update_subtitle(self) -> None:
+        """Rebuild subtitle text on the indicator view from mode + device."""
+        if self._indicator_view is None:
+            return
+        new_sub = _build_subtitle(self._mode_name, self._device_name)
+        if self._indicator_view._subtitle == new_sub:
+            return
+        self._indicator_view._subtitle = new_sub
+        self._indicator_view._subtitle_ns_str = None
+        self._indicator_view._subtitle_attrs = None
 
-        Shared helper for update_mode() and update_device_name().
-        """
-        from AppKit import NSScreen
+    def _rebuild_panel(self) -> None:
+        """Resize the panel, recreate content views, reposition, and restart timer."""
+        if self._panel is None or self._indicator_view is None:
+            return
+
         from Foundation import NSTimer
 
         self._clear_view_backref()
-        content_view = self._indicator_view.create_view(new_width, new_height)
-        self._panel.setContentSize_((float(new_width), float(new_height)))
-        self._panel.setContentView_(content_view)
 
-        # Re-center on screen
+        new_height = self._panel_height()
+        vfx = self._make_vfx_view(_PANEL_WIDTH, new_height)
+        indicator = self._indicator_view.create_view(_PANEL_WIDTH, new_height)
+        vfx.addSubview_(indicator)
+
+        self._panel.setContentSize_((float(_PANEL_WIDTH), float(new_height)))
+        self._panel.setContentView_(vfx)
+
+        # Re-centre on screen
+        from AppKit import NSScreen
+
         screen = NSScreen.mainScreen()
         if screen:
             sf = screen.visibleFrame()
-            x = sf.origin.x + (sf.size.width - new_width) / 2
-            y = sf.origin.y + (sf.size.height - new_height) / 2
+            x = sf.origin.x + (sf.size.width - _PANEL_WIDTH) / 2.0
+            y = sf.origin.y + (sf.size.height - new_height) / 2.0
             self._panel.setFrameOrigin_((x, y))
 
-        # Restart refresh timer with new content view
+        # Restart refresh timer with new indicator view
         if self._timer is not None:
             self._timer.invalidate()
         self._timer = NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
             _REFRESH_INTERVAL,
-            content_view,
+            indicator,
             b"refresh:",
             None,
             True,
         )
 
-    def update_mode(self, name: str, can_prev: bool, can_next: bool) -> None:
-        """Update the mode label and nav arrow state on the indicator.
-
-        Widens the panel to _PANEL_WIDTH_WITH_MODE if not already wide.
-        """
+    def update_mode(self, name: str) -> None:
+        """Update the mode label shown in the subtitle."""
         if self._indicator_view is None:
             return
+        if self._mode_name == name:
+            return
 
-        view = self._indicator_view
-        nav = (can_prev, can_next)
-        if view._mode_name == name and view._mode_nav == nav:
-            return  # nothing changed
+        self._mode_name = name
+        old_sub = self._indicator_view._subtitle
+        self._update_subtitle()
+        new_sub = self._indicator_view._subtitle
 
-        # Invalidate cached NSString when mode name changes
-        if view._mode_name != name:
-            view._mode_ns_str = None
-        view._mode_name = name
-        view._mode_nav = nav
-
-        if self._panel is not None:
+        # Resize panel if subtitle appeared/disappeared
+        if (old_sub is None) != (new_sub is None) and self._panel is not None:
             try:
-                current_width = self._panel.frame().size.width
-                if current_width < _PANEL_WIDTH_WITH_MODE:
-                    current_height = int(self._panel.frame().size.height)
-                    self._rebuild_content_view(
-                        _PANEL_WIDTH_WITH_MODE, current_height
-                    )
+                self._rebuild_panel()
             except Exception:
-                logger.debug("Failed to resize panel for mode display", exc_info=True)
+                logger.debug("Failed to resize panel for subtitle", exc_info=True)
 
     def clear_mode(self) -> None:
-        """Remove the mode label and shrink back to default width."""
+        """Remove the mode label from the subtitle."""
+        if self._mode_name is None:
+            return
+        self._mode_name = None
         if self._indicator_view is not None:
-            self._indicator_view._mode_name = None
-            self._indicator_view._mode_nav = (False, False)
-            self._indicator_view._mode_ns_str = None
+            old_sub = self._indicator_view._subtitle
+            self._update_subtitle()
+            new_sub = self._indicator_view._subtitle
+            if (old_sub is None) != (new_sub is None) and self._panel is not None:
+                try:
+                    self._rebuild_panel()
+                except Exception:
+                    logger.debug("Failed to resize panel after clear_mode", exc_info=True)
 
     def update_device_name(self, device_name: str) -> None:
-        """Update the device name label after the panel is already shown.
-
-        Resizes the panel from _PANEL_HEIGHT to _PANEL_HEIGHT_WITH_LABEL
-        and recreates the content view so the label area is included.
-        """
+        """Update the device name shown in the subtitle."""
         if self._panel is None or self._indicator_view is None:
             return
-        if self._indicator_view._device_name == device_name:
+        if self._device_name == device_name:
             return
 
-        try:
-            self._indicator_view._device_name = device_name
-            # Reset cached label attrs so they are rebuilt on next draw
-            self._indicator_view._label_attrs = None
+        self._device_name = device_name
+        old_sub = self._indicator_view._subtitle
+        self._update_subtitle()
+        new_sub = self._indicator_view._subtitle
 
-            current_width = int(self._panel.frame().size.width)
-            self._rebuild_content_view(current_width, _PANEL_HEIGHT_WITH_LABEL)
-
-            logger.debug("Recording indicator updated with device: %s", device_name)
-        except Exception:
-            logger.debug("Failed to update recording indicator device name", exc_info=True)
+        if (old_sub is None) != (new_sub is None):
+            try:
+                self._rebuild_panel()
+            except Exception:
+                logger.debug("Failed to resize panel for subtitle", exc_info=True)
 
     @property
     def current_frame(self) -> object | None:
@@ -553,11 +545,16 @@ class RecordingIndicatorPanel:
             panel = self._panel
 
             def _on_complete():
+                from wenzi.ui_helpers import release_panel_surfaces
+
+                release_panel_surfaces(panel)
                 panel.orderOut_(None)
                 self._clear_view_backref()
                 self._panel = None
                 self._indicator_view = None
                 self._smoothed_level = 0.0
+                self._mode_name = None
+                self._device_name = None
                 logger.debug("Recording indicator animated out")
                 if completion:
                     completion()
@@ -575,9 +572,14 @@ class RecordingIndicatorPanel:
                 completion()
 
     def update_level(self, level: float) -> None:
-        """Update the displayed audio level with EMA smoothing."""
+        """Update the displayed audio level with asymmetric EMA smoothing.
+
+        Uses a faster attack (rising) and slower release (falling) for snappy
+        response without jitter.
+        """
+        alpha = _EMA_ATTACK if level > self._smoothed_level else _EMA_RELEASE
         self._smoothed_level = (
-            _EMA_ALPHA * level + (1 - _EMA_ALPHA) * self._smoothed_level
+            alpha * level + (1 - alpha) * self._smoothed_level
         )
         if self._indicator_view is not None:
             self._indicator_view.set_level(self._smoothed_level)

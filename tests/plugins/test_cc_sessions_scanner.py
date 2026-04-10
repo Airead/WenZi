@@ -638,6 +638,14 @@ class TestProjectNameResolution:
         repo.mkdir()
         subprocess.run(["git", "init"], cwd=repo, capture_output=True, check=True)
         subprocess.run(
+            ["git", "config", "user.email", "test@test.com"],
+            cwd=repo, capture_output=True, check=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "Test"],
+            cwd=repo, capture_output=True, check=True,
+        )
+        subprocess.run(
             ["git", "remote", "add", "origin", "git@github.com:Airead/WenZi.git"],
             cwd=repo, capture_output=True, check=True,
         )

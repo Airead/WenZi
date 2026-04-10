@@ -358,12 +358,9 @@ class ChooserPanel:
         """Reset the webview UI state for a reused panel.
 
         Clears the previous search input, results, context block, and
-        preview/compact modes so the panel appears fresh.
-
-        The panel must be invisible (alpha=0) when this method is called.
-        After the JS reset completes, the panel is resized to the measured
-        collapsed height and revealed (alpha=1) so the user never sees
-        stale content or the wrong dimensions.
+        preview/compact modes so the panel appears fresh.  Results are
+        already cleared in close(), so the panel can be visible during
+        this call — only the collapsed height needs adjusting.
         """
         parts = [
             "setResults([])",
@@ -750,28 +747,26 @@ class ChooserPanel:
         self._previous_app = get_frontmost_app()
 
         if self._panel is not None and self._page_loaded:
-            # Reuse hidden panel — reconnect refs and reset UI.
-            # Hide the panel visually while JS resets content and layout;
-            # _reset_panel_ui reveals it (alpha=1) once the measured
-            # collapsed height is applied so no stale frame flashes.
+            # Hot path — reuse hidden panel.  Hide via alpha until
+            # _reset_panel_ui JS completes so stale results never flash.
             self._reconnect_panel_refs()
             self._position_on_mouse_screen()
             self._panel.setAlphaValue_(0.0)
             self._reset_panel_ui(initial_query, placeholder)
         elif self._panel is not None and self._webview is not None:
-            # Warm path: panel + webview alive but page was unloaded
-            # (empty HTML) to reclaim IOSurface memory.  Reload the
-            # cached HTML — _on_page_loaded will handle pending query,
-            # placeholder, and context.  Hide the panel (alpha=0) until
-            # the page finishes loading to avoid a blank flash.
+            # Warm path: panel + webview alive but HTML not yet loaded
+            # (recycled in prebuild mode).  Load HTML — _on_page_loaded
+            # will handle pending query, placeholder, and context.
             self._reconnect_panel_refs()
             self._position_on_mouse_screen()
             self._panel.setAlphaValue_(0.0)
             if not self._recycle_preloading:
                 self._reload_chooser_html()
         else:
-            # First show — build from scratch
+            # First show — build from scratch.  Hide via alpha until
+            # _on_page_loaded reveals it after backdrop-filter is ready.
             self._build_panel()
+            self._panel.setAlphaValue_(0.0)
 
         self._panel.makeKeyAndOrderFront_(None)
 
@@ -865,44 +860,18 @@ class ChooserPanel:
         if self._panel_delegate is not None:
             self._panel_delegate._panel_ref = None
 
-        # Clear visible content while the webview is still on screen so
-        # that next show() won't flash stale results (evaluateJavaScript
-        # is async but executes before the next display
-        # cycle once the panel is already hidden).
+        # Release preview image blob URLs to free memory while hidden.
+        # UI state (results, input, etc.) is reset by _reset_panel_ui
+        # on the next show().
         if self._webview is not None and self._page_loaded:
             self._webview.evaluateJavaScript_completionHandler_(
-                "_releasePreviewImages();"
-                "setResults([]);setInputValue('');"
-                "setPreviewVisible(false);setCompact(false);"
-                "setModifierHints({},null);setCreateButton(false);"
-                "setLoading(false);"
-                "clearContext()",
+                "_releasePreviewImages()",
                 None,
             )
 
         if self._panel is not None:
             self._panel.orderOut_(None)
-
-            # Shrink to 1×1 to release the CA Whippet Drawable backing
-            # store.  macOS retains the full-size RGBA half-float
-            # IOSurface (~63 MB at retina) even after orderOut_;
-            # resizing forces CoreAnimation to reallocate a trivial
-            # buffer.  show() repositions and JS resizes back.
-            from Foundation import NSMakeRect
-
-            f = self._panel.frame()
-            self._panel.setFrame_display_(
-                NSMakeRect(f.origin.x, f.origin.y, 1, 1), False,
-            )
         self._last_screen = None
-
-        # Load empty HTML to release IOSurface compositing layer buffers.
-        # The WKWebView stays alive for fast re-show; only the rendered
-        # content is discarded.  _page_loaded is set to False so the next
-        # show() will reload the HTML from the cached temp file.
-        if self._webview is not None:
-            self._webview.loadHTMLString_baseURL_("", None)
-            self._page_loaded = False
 
         self._closing = False
 
@@ -960,7 +929,6 @@ class ChooserPanel:
             self._panel.orderOut_(None)
         self._panel = None
         self._webview = None
-        self._effect_view = None
         self._message_handler = None
         self._navigation_delegate = None
         self._panel_delegate = None
@@ -1582,17 +1550,34 @@ class ChooserPanel:
                     target=self._play_audio_url, args=(url,), daemon=True
                 ).start()
 
-    def _play_audio_url(self, url: str) -> None:
-        """Download and play an audio URL via NSSound (no Now Playing icon)."""
-        try:
-            from AppKit import NSSound
-            from Foundation import NSURL
+    _audio_player = None  # prevent GC during playback
 
-            sound = NSSound.alloc().initWithContentsOfURL_byReference_(
-                NSURL.URLWithString_(url), False
+    def _play_audio_url(self, url: str) -> None:
+        """Download and play an audio URL via AVAudioPlayer.
+
+        Uses AVFoundation instead of NSSound to avoid interfering with
+        AppKit window compositing (NSSound triggers window server
+        recomposition that breaks CSS backdrop-filter in WKWebView).
+        """
+        try:
+            from AVFoundation import AVAudioPlayer
+            from Foundation import NSURL, NSData
+
+            # Download on background thread
+            data = NSData.dataWithContentsOfURL_(NSURL.URLWithString_(url))
+            if not data:
+                return
+            player, error = AVAudioPlayer.alloc().initWithData_error_(
+                data, None
             )
-            if sound:
-                sound.play()
+            if player and not error:
+                from PyObjCTools import AppHelper
+
+                def _play():
+                    ChooserPanel._audio_player = player
+                    player.play()
+
+                AppHelper.callAfter(_play)
         except Exception:
             logger.debug("Failed to play audio: %s", url, exc_info=True)
 
@@ -1871,16 +1856,6 @@ class ChooserPanel:
 
     def _on_page_loaded(self) -> None:
         """Called when WKWebView finishes loading the HTML."""
-        # Guard against the blank-page navigation fired by close().
-        # If show() is called before the blank load completes,
-        # _reconnect_panel_refs restores the delegate ref and this
-        # callback would fire for the empty page.  Ignore it.
-        if self._webview is not None:
-            url = self._webview.URL()
-            url_str = str(url.absoluteString()) if url is not None else ""
-            if not url_str or url_str == "about:blank":
-                return
-
         # Inject i18n translations before flushing pending JS
         self._inject_i18n()
 
@@ -1923,6 +1898,10 @@ class ChooserPanel:
                 self._panel.setFrame_display_(
                     NSMakeRect(f.origin.x, f.origin.y, 1, 1), False,
                 )
+                # Clear cached screen so next show() repositions correctly
+                # instead of skipping because the screen hasn't changed.
+                # The 1×1 origin is stale after the shrink.
+                self._last_screen = None
             else:
                 self._panel.setAlphaValue_(1.0)
 
@@ -2044,26 +2023,10 @@ class ChooserPanel:
         panel.setDelegate_(delegate)
         self._panel_delegate = delegate
 
-        # Round corners
+        # Round corners — frosted glass is handled by CSS backdrop-filter
         panel.contentView().setWantsLayer_(True)
-        panel.contentView().layer().setCornerRadius_(16.0)
+        panel.contentView().layer().setCornerRadius_(18.0)
         panel.contentView().layer().setMasksToBounds_(True)
-
-        # Glass blur background (NSVisualEffectView behind WKWebView)
-        from AppKit import NSVisualEffectView
-
-        effect_view = NSVisualEffectView.alloc().initWithFrame_(
-            NSMakeRect(0, 0, initial_width, initial_height)
-        )
-        effect_view.setAutoresizingMask_(0x12)  # Width + Height sizable
-        effect_view.setBlendingMode_(1)  # NSVisualEffectBlendingModeBehindWindow
-        effect_view.setMaterial_(0)  # NSVisualEffectMaterialAppearanceBased — bright glass
-        effect_view.setState_(1)  # NSVisualEffectStateActive (always active)
-        effect_view.setWantsLayer_(True)
-        effect_view.layer().setCornerRadius_(16.0)
-        effect_view.layer().setMasksToBounds_(True)
-        panel.contentView().addSubview_(effect_view)
-        self._effect_view = effect_view
 
         # Position: center-top of mouse screen (like Spotlight)
         self._panel = panel

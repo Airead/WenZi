@@ -216,8 +216,8 @@ class TextEnhancer:
         manual_vocab_store: ManualVocabularyStore | None = None,
     ) -> None:
         self._enabled = config.get("enabled", False)
-        self._timeout = config.get("timeout", 30)
-        self._connection_timeout = config.get("connection_timeout", 30)
+        self._timeout = config.get("timeout", 10)
+        self._connection_timeout = config.get("connection_timeout", 10)
         self._max_retries = config.get("max_retries", 2)
         self._max_output_tokens = config.get("max_output_tokens", 4096)
         self._thinking = config.get("thinking", False)
@@ -1021,7 +1021,7 @@ class TextEnhancer:
 
     async def enhance_stream(
         self, text: str, input_context: InputContext | None = None,
-    ) -> AsyncIterator[tuple[str, dict[str, int] | None, bool]]:
+    ) -> AsyncIterator[tuple[str, dict[str, int] | None, bool | str]]:
         """Stream-enhance text using LLM.
 
         Yields (chunk, None, is_thinking) for each text delta, then a final
@@ -1102,6 +1102,7 @@ class TextEnhancer:
                             None,
                             "retry",
                         )
+                        yield text, None, "timeout"
                         return
 
             collected = []
@@ -1181,7 +1182,7 @@ class TextEnhancer:
         except TimeoutError:
             self._pool_monitor.log_stats("stream:timeout", self._active_provider)
             logger.error("AI stream enhancement timed out after %ds", self._timeout)
-            yield text, None, False
+            yield text, None, "timeout"
         except Exception as e:
             if isinstance(e, RateLimitError):
                 self._pool_monitor.log_stats("stream:rate_limited", self._active_provider)

@@ -1198,6 +1198,12 @@ class WenZiApp(StatusBarApp):
             shutdown_vault()
         except Exception:
             logger.debug("Vault shutdown failed", exc_info=True)
+        # Shut down the hotkey dispatch executor
+        try:
+            from wenzi.hotkey import shutdown_hotkey_executor
+            shutdown_hotkey_executor()
+        except Exception:
+            logger.debug("Hotkey executor shutdown failed", exc_info=True)
         # Close AI provider clients and shut down the shared asyncio loop
         if self._enhancer:
             try:

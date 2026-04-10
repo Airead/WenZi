@@ -2,7 +2,11 @@
 
 from unittest.mock import MagicMock, patch
 
-from wenzi.audio.recording_indicator import RecordingIndicatorPanel, RecordingIndicatorView
+from wenzi.audio.recording_indicator import (
+    RecordingIndicatorPanel,
+    RecordingIndicatorView,
+    _build_subtitle,
+)
 
 
 class TestRecordingIndicatorView:
@@ -26,20 +30,30 @@ class TestRecordingIndicatorViewRecordingActive:
         assert view._recording_active is True
 
 
-class TestRecordingIndicatorViewMode:
-    def test_initial_mode_fields(self):
+class TestRecordingIndicatorViewSubtitle:
+    def test_initial_subtitle_is_none(self):
         view = RecordingIndicatorView()
-        assert view._mode_name is None
-        assert view._mode_nav == (False, False)
-        assert view._mode_attrs is None
-        assert view._arrow_attrs is None
+        assert view._subtitle is None
+        assert view._subtitle_attrs is None
 
-    def test_set_mode_fields(self):
+    def test_set_subtitle(self):
         view = RecordingIndicatorView()
-        view._mode_name = "Proofread"
-        view._mode_nav = (True, True)
-        assert view._mode_name == "Proofread"
-        assert view._mode_nav == (True, True)
+        view._subtitle = "Proofread"
+        assert view._subtitle == "Proofread"
+
+
+class TestBuildSubtitle:
+    def test_both_none(self):
+        assert _build_subtitle(None, None) is None
+
+    def test_mode_only(self):
+        assert _build_subtitle("Proofread", None) == "Proofread"
+
+    def test_device_only(self):
+        assert _build_subtitle(None, "MacBook Mic") == "MacBook Mic"
+
+    def test_both(self):
+        assert _build_subtitle("Proofread", "MacBook Mic") == "Proofread · MacBook Mic"
 
 
 class TestRecordingIndicatorPanel:
@@ -65,28 +79,32 @@ class TestRecordingIndicatorPanel:
         panel.enabled = True
         assert panel.enabled is True
 
-    def test_update_level_ema_smoothing(self):
+    def test_update_level_asymmetric_ema(self):
         panel = RecordingIndicatorPanel()
         panel._indicator_view = RecordingIndicatorView()
 
-        # First update: smoothed = 0.3 * 1.0 + 0.7 * 0.0 = 0.3
+        # First update: level=1.0 > smoothed=0.0 → attack (alpha=0.6)
+        # smoothed = 0.6 * 1.0 + 0.4 * 0.0 = 0.6
         panel.update_level(1.0)
-        assert abs(panel._smoothed_level - 0.3) < 0.01
+        assert abs(panel._smoothed_level - 0.6) < 0.01
 
-        # Second update: smoothed = 0.3 * 1.0 + 0.7 * 0.3 = 0.51
+        # Second update: level=1.0 > smoothed=0.6 → attack
+        # smoothed = 0.6 * 1.0 + 0.4 * 0.6 = 0.84
         panel.update_level(1.0)
-        assert abs(panel._smoothed_level - 0.51) < 0.01
+        assert abs(panel._smoothed_level - 0.84) < 0.01
 
-        # Drop to zero: smoothed = 0.3 * 0.0 + 0.7 * 0.51 = 0.357
+        # Drop to zero: level=0.0 < smoothed=0.84 → release (alpha=0.25)
+        # smoothed = 0.25 * 0.0 + 0.75 * 0.84 = 0.63
         panel.update_level(0.0)
-        assert abs(panel._smoothed_level - 0.357) < 0.01
+        assert abs(panel._smoothed_level - 0.63) < 0.01
 
     def test_update_level_without_view(self):
         panel = RecordingIndicatorPanel()
         panel._indicator_view = None
-        # Should not raise
+        # Should not raise; level=0.5 > smoothed=0.0 → attack
+        # smoothed = 0.6 * 0.5 + 0.4 * 0.0 = 0.3
         panel.update_level(0.5)
-        assert abs(panel._smoothed_level - 0.15) < 0.01
+        assert abs(panel._smoothed_level - 0.3) < 0.01
 
     def test_hide_cleans_up(self):
         panel = RecordingIndicatorPanel()
@@ -96,6 +114,8 @@ class TestRecordingIndicatorPanel:
         panel._panel = mock_panel
         panel._indicator_view = RecordingIndicatorView()
         panel._smoothed_level = 0.5
+        panel._mode_name = "Proofread"
+        panel._device_name = "Mic"
 
         panel.hide()
 
@@ -105,6 +125,8 @@ class TestRecordingIndicatorPanel:
         assert panel._panel is None
         assert panel._indicator_view is None
         assert panel._smoothed_level == 0.0
+        assert panel._mode_name is None
+        assert panel._device_name is None
 
     def test_hide_noop_when_not_shown(self):
         panel = RecordingIndicatorPanel()
@@ -144,44 +166,6 @@ class TestRecordingIndicatorPanel:
         assert panel.current_frame is mock_frame
         mock_panel.frame.assert_called_once()
 
-    def test_update_device_name_noop_when_no_panel(self):
-        panel = RecordingIndicatorPanel()
-        # Should not raise when panel is not shown
-        panel.update_device_name("Test Mic")
-        assert panel._panel is None
-
-    def test_update_device_name_noop_when_same_name(self):
-        panel = RecordingIndicatorPanel()
-        panel._panel = MagicMock()
-        view = RecordingIndicatorView(device_name="Same Mic")
-        panel._indicator_view = view
-
-        panel.update_device_name("Same Mic")
-        # Panel should not be resized since name didn't change
-        panel._panel.setContentSize_.assert_not_called()
-
-    def test_update_device_name_updates_view_and_resets_attrs(self):
-        panel = RecordingIndicatorPanel()
-        view = RecordingIndicatorView(device_name=None)
-        # Pre-set label attrs to verify they get reset
-        view._label_attrs = {"some": "attrs"}
-        panel._indicator_view = view
-        mock_panel = MagicMock()
-        panel._panel = mock_panel
-        mock_timer = MagicMock()
-        panel._timer = mock_timer
-
-        # Patch the whole method's internals since it imports AppKit/Foundation
-        # Just verify the state changes by letting the exception path handle it
-        try:
-            panel.update_device_name("New Mic")
-        except Exception:
-            pass
-
-        # These are set before any AppKit calls
-        assert view._device_name == "New Mic"
-        assert view._label_attrs is None
-
     def test_animate_out_calls_completion_when_no_panel(self):
         panel = RecordingIndicatorPanel()
         callback = MagicMock()
@@ -193,47 +177,101 @@ class TestRecordingIndicatorPanel:
         # Should not raise
         panel.animate_out()
 
-    def test_update_mode_sets_view_fields(self):
+    def test_update_mode_sets_subtitle(self):
         panel = RecordingIndicatorPanel()
         view = RecordingIndicatorView()
         panel._indicator_view = view
-        panel._panel = None  # no real panel — just test view updates
+        panel._panel = None
 
-        panel.update_mode("Translate EN", True, False)
+        panel.update_mode("Translate EN")
 
-        assert view._mode_name == "Translate EN"
-        assert view._mode_nav == (True, False)
+        assert panel._mode_name == "Translate EN"
+        assert view._subtitle == "Translate EN"
 
-    def test_update_mode_noop_when_same_values(self):
+    def test_update_mode_merges_with_device(self):
         panel = RecordingIndicatorPanel()
         view = RecordingIndicatorView()
-        view._mode_name = "Proofread"
-        view._mode_nav = (True, True)
-        view._mode_ns_str = "cached"  # should not be reset
         panel._indicator_view = view
+        panel._panel = None
+        panel._device_name = "MacBook Mic"
 
-        panel.update_mode("Proofread", True, True)
+        panel.update_mode("Proofread")
 
-        # Cached NSString should be preserved (no invalidation)
-        assert view._mode_ns_str == "cached"
+        assert view._subtitle == "Proofread · MacBook Mic"
+
+    def test_update_mode_noop_when_same_name(self):
+        panel = RecordingIndicatorPanel()
+        view = RecordingIndicatorView()
+        view._subtitle = "Proofread"
+        view._subtitle_ns_str = "cached"
+        panel._indicator_view = view
+        panel._mode_name = "Proofread"
+
+        panel.update_mode("Proofread")
+
+        # Cached NSString should be preserved
+        assert view._subtitle_ns_str == "cached"
 
     def test_update_mode_noop_when_no_view(self):
         panel = RecordingIndicatorPanel()
         panel._indicator_view = None
         # Should not raise
-        panel.update_mode("Proofread", False, True)
+        panel.update_mode("Proofread")
 
-    def test_clear_mode_resets_fields(self):
+    def test_clear_mode_clears_subtitle(self):
         panel = RecordingIndicatorPanel()
         view = RecordingIndicatorView()
-        view._mode_name = "Proofread"
-        view._mode_nav = (True, True)
+        view._subtitle = "Proofread"
         panel._indicator_view = view
+        panel._mode_name = "Proofread"
 
         panel.clear_mode()
 
-        assert view._mode_name is None
-        assert view._mode_nav == (False, False)
+        assert panel._mode_name is None
+        assert view._subtitle is None
+
+    def test_clear_mode_preserves_device_in_subtitle(self):
+        panel = RecordingIndicatorPanel()
+        view = RecordingIndicatorView()
+        view._subtitle = "Proofread · MacBook Mic"
+        panel._indicator_view = view
+        panel._mode_name = "Proofread"
+        panel._device_name = "MacBook Mic"
+
+        panel.clear_mode()
+
+        assert view._subtitle == "MacBook Mic"
+
+    def test_update_device_name_noop_when_no_panel(self):
+        panel = RecordingIndicatorPanel()
+        panel.update_device_name("Test Mic")
+        assert panel._panel is None
+
+    def test_update_device_name_noop_when_same_name(self):
+        panel = RecordingIndicatorPanel()
+        panel._panel = MagicMock()
+        panel._indicator_view = RecordingIndicatorView()
+        panel._device_name = "Same Mic"
+
+        panel.update_device_name("Same Mic")
+        # Panel should not be resized since name didn't change
+        panel._panel.setContentSize_.assert_not_called()
+
+    def test_update_device_name_updates_subtitle(self):
+        panel = RecordingIndicatorPanel()
+        view = RecordingIndicatorView()
+        panel._indicator_view = view
+        panel._panel = MagicMock()
+        panel._device_name = None
+
+        # Will fail on AppKit calls but state should be set first
+        try:
+            panel.update_device_name("New Mic")
+        except Exception:
+            pass
+
+        assert panel._device_name == "New Mic"
+        assert view._subtitle == "New Mic"
 
     def test_set_recording_active_updates_view(self):
         panel = RecordingIndicatorPanel()
@@ -256,38 +294,15 @@ class TestRecordingIndicatorPanel:
         panel.enabled = False  # prevent actual AppKit panel creation
         panel.show()
         # Panel not created (disabled), but verify the contract:
-        # a fresh RecordingIndicatorView always starts inactive
         view = RecordingIndicatorView()
         assert view._recording_active is False
 
     def test_clear_mode_noop_when_no_view(self):
         panel = RecordingIndicatorPanel()
         panel._indicator_view = None
-        # Should not raise
+        panel._mode_name = "Proofread"
         panel.clear_mode()
-
-    def test_update_device_name_preserves_panel_width(self):
-        """update_device_name should use current panel width, not _PANEL_WIDTH."""
-        panel = RecordingIndicatorPanel()
-        view = RecordingIndicatorView(device_name=None)
-        panel._indicator_view = view
-        mock_panel = MagicMock()
-        # Simulate panel already widened to 220 by update_mode
-        mock_frame = MagicMock()
-        mock_frame.size.width = 220
-        mock_panel.frame.return_value = mock_frame
-        panel._panel = mock_panel
-        panel._timer = MagicMock()
-
-        try:
-            panel.update_device_name("New Mic")
-        except Exception:
-            pass
-
-        # Verify setContentSize_ was called with width 220 (not 120)
-        if mock_panel.setContentSize_.called:
-            args = mock_panel.setContentSize_.call_args[0][0]
-            assert args[0] == 220.0
+        assert panel._mode_name is None
 
     def test_animate_out_stops_timer(self):
         panel = RecordingIndicatorPanel()
@@ -296,7 +311,6 @@ class TestRecordingIndicatorPanel:
         panel._timer = mock_timer
         panel._panel = mock_panel
 
-        # animate_out will try to import NSAnimationContext; mock it
         mock_ctx = MagicMock()
         mock_animation_context = MagicMock()
         mock_animation_context.currentContext.return_value = mock_ctx
@@ -305,8 +319,6 @@ class TestRecordingIndicatorPanel:
             "wenzi.audio.recording_indicator.RecordingIndicatorPanel.animate_out",
             wraps=panel.animate_out,
         ):
-            # Just verify the timer gets invalidated
-            # We can't easily test the full animation, so test the fallback path
             with patch.dict(
                 "sys.modules",
                 {"AppKit": MagicMock(NSAnimationContext=mock_animation_context)},

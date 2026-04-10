@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import logging
 import subprocess
-import threading
 import time
 
 import objc
 from AppKit import NSPasteboard, NSPasteboardTypeString, NSString
+
+from wenzi import async_loop
 
 logger = logging.getLogger(__name__)
 
@@ -169,15 +170,9 @@ def _get_text_via_cmd_c() -> str | None:
     if new_clip == old_clip:
         return None  # Cmd+C didn't change clipboard — no selection
 
-    # Restore original clipboard in background
+    # Restore original clipboard after a short delay
     if old_clip is not None:
-        def _restore():
-            time.sleep(0.5)
-            try:
-                _set_pasteboard_concealed(old_clip)
-            except Exception:
-                pass
-        threading.Thread(target=_restore, daemon=True).start()
+        async_loop.call_later(0.5, _restore_clipboard_safe, old_clip)
 
     return new_clip
 
@@ -278,6 +273,14 @@ def _set_pasteboard_concealed(text: str) -> bool:
         return True
 
 
+def _restore_clipboard_safe(text: str) -> None:
+    """Restore clipboard content, silently ignoring errors."""
+    try:
+        _set_pasteboard_concealed(text)
+    except Exception:
+        pass
+
+
 def _set_pasteboard_string(text: str) -> None:
     """Write *text* to the pasteboard without concealed markers (for restore)."""
     pb = NSPasteboard.generalPasteboard()
@@ -315,15 +318,9 @@ def _type_via_clipboard(payload: str) -> bool:
         return False
     finally:
         if old_clip is not None:
-            def _restore():
-                time.sleep(1.0)
-                try:
-                    # Use concealed markers so clipboard monitors skip
-                    # this restore and don't record a ghost entry.
-                    _set_pasteboard_concealed(old_clip)
-                except Exception:
-                    pass
-            threading.Thread(target=_restore, daemon=True).start()
+            # Restore original clipboard after a delay; concealed markers
+            # ensure clipboard monitors skip this restore.
+            async_loop.call_later(1.0, _restore_clipboard_safe, old_clip)
 
 
 def _type_via_applescript(payload: str) -> bool:

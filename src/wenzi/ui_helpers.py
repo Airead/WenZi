@@ -14,6 +14,41 @@ from .statusbar import InputWindow
 logger = logging.getLogger(__name__)
 
 
+def release_panel_surfaces(panel) -> None:
+    """Deactivate NSVisualEffectView(s) and shrink panel to release IOSurface memory.
+
+    Call before or after ``orderOut_`` when hiding any panel that uses
+    ``NSVisualEffectView`` with behind-window blending.  See CLAUDE.md
+    "NSVisualEffectView Memory Management" for why this is needed.
+
+    Safe to call on any NSPanel/NSWindow — no-ops gracefully if no VFX view.
+    """
+    if panel is None:
+        return
+    # Deactivate all NSVisualEffectViews (content view itself or direct subviews)
+    try:
+        from AppKit import NSVisualEffectView
+
+        cv = panel.contentView()
+        if isinstance(cv, NSVisualEffectView):
+            cv.setState_(0)  # NSVisualEffectStateInactive
+        if cv is not None:
+            for sv in cv.subviews():
+                if isinstance(sv, NSVisualEffectView):
+                    sv.setState_(0)
+    except Exception:
+        pass
+    # Shrink to 1×1 to force Core Animation to release the CA Whippet
+    # Drawable backing store (RGBA half-float IOSurface ~72 MB at retina).
+    try:
+        from Foundation import NSMakeRect
+
+        f = panel.frame()
+        panel.setFrame_display_(NSMakeRect(f.origin.x, f.origin.y, 1, 1), False)
+    except Exception:
+        pass
+
+
 def activate_for_dialog() -> None:
     """Set activation policy so modal dialogs can show from non-bundled process.
 
