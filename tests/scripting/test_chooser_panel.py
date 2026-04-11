@@ -451,7 +451,7 @@ class TestPushItemsToJS:
         ]
         panel._push_items_to_js()
         call_args = panel._eval_js.call_args[0][0]
-        sr_part = call_args.split(";")[0]
+        sr_part = next(p for p in call_args.split(";") if "setResults(" in p)
         inner = sr_part[len("setResults("):-1]
         json_part = inner.rsplit(",", 1)[0]
         parsed = json.loads(json_part)

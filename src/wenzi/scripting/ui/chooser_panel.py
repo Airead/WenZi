@@ -224,6 +224,7 @@ class ChooserPanel:
         self._items_version: int = 0  # incremented on every setResults push
         self._closing: bool = False
         self._last_query: str = ""  # Track query for usage recording
+        self._search_query: str = ""
 
         self._usage_tracker = usage_tracker
         self._query_history = None
@@ -1050,6 +1051,8 @@ class ChooserPanel:
                         query = query[len(trigger) :]
                         break
 
+        self._search_query = query
+
         # Track active source and toggle create button in JS
         prev_source = self._active_source
         self._active_source = source
@@ -1289,6 +1292,7 @@ class ChooserPanel:
             idx_arg = ""
         else:
             idx_arg = f",{selected_index}"
+        parts.append(f"setSearchQuery({json.dumps(self._search_query, ensure_ascii=False)})")
         parts.append(f"setResults({json.dumps(js_items, ensure_ascii=False)},{self._items_version}{idx_arg})")
 
         if source is not None and source.action_hints:
