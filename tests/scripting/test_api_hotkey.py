@@ -24,6 +24,18 @@ class TestHotkeyAPI:
         assert len(reg.hotkeys) == 1
         assert reg.hotkeys[0].hotkey_str == "ctrl+cmd+v"
 
+    def test_unbind_removes_shared_tap_binding_when_token_is_zero(self):
+        reg = ScriptingRegistry()
+        api = HotkeyAPI(reg)
+        api.bind("ctrl+cmd+v", lambda: None)
+        reg.hotkeys[0].tap_key = 0
+        api._shared_tap = MagicMock()
+
+        api.unbind("ctrl+cmd+v")
+
+        api._shared_tap.remove.assert_called_once_with(0)
+        assert reg.hotkeys == []
+
     @patch("wenzi.scripting.api.hotkey.AppHelper", create=True)
     def test_leader_press_activates(self, mock_helper):
         _, api = self._make_api()

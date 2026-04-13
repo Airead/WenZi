@@ -39,7 +39,7 @@ class HotkeyBinding:
 
     hotkey_str: str
     callback: Callable
-    listener: Any = None  # TapHotkeyListener instance, set at start time
+    tap_key: int | None = None  # SharedHotkeyTap registration token, set at start time
 
 
 @dataclass
@@ -132,18 +132,18 @@ class ScriptingRegistry:
         self._hotkeys.append(HotkeyBinding(hotkey_str=hotkey_str, callback=callback))
         logger.info("Registered hotkey: %s", hotkey_str)
 
-    def unregister_hotkey(self, hotkey_str: str) -> None:
-        """Remove and stop a hotkey binding by its hotkey string."""
+    def unregister_hotkey(self, hotkey_str: str) -> list[HotkeyBinding]:
+        """Remove a hotkey binding by its hotkey string.
+
+        Returns the removed bindings so the caller can clean up the
+        shared tap.
+        """
         to_remove = [b for b in self._hotkeys if b.hotkey_str == hotkey_str]
         for binding in to_remove:
-            if binding.listener:
-                try:
-                    binding.listener.stop()
-                except Exception:
-                    pass
             self._hotkeys.remove(binding)
         if to_remove:
             logger.info("Unregistered hotkey: %s", hotkey_str)
+        return to_remove
 
     def register_remap(self, entry: RemapEntry) -> None:
         """Register a key remap."""
@@ -231,13 +231,7 @@ class ScriptingRegistry:
                 if entry._timer:
                     entry._timer.cancel()
             self._timers.clear()
-        # Stop hotkey listeners
-        for binding in self._hotkeys:
-            if binding.listener:
-                try:
-                    binding.listener.stop()
-                except Exception:
-                    pass
+        # Hotkey bindings only — HotkeyAPI owns the tap lifecycle.
         self._hotkeys.clear()
         self._leaders.clear()
         # Stop remap listener

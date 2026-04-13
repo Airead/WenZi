@@ -1882,21 +1882,17 @@ class SettingsController:
         ss_cfg["enabled"] = enabled
         self._save_and_reload()
 
-        # Start or stop the hotkey listener
+        # Start or stop the hotkey
         if enabled:
             hotkey = ss_cfg.get("hotkey", "")
-            if hotkey and not app._screenshot_hotkey_listener:
-                from wenzi.hotkey import TapHotkeyListener
-
-                app._screenshot_hotkey_listener = TapHotkeyListener(
-                    hotkey_str=hotkey,
-                    on_activate=app._on_screenshot,
+            if hotkey and app._screenshot_hotkey_key is None:
+                app._screenshot_hotkey_key = app._app_hotkey_tap.add(
+                    hotkey, app._on_screenshot,
                 )
-                app._screenshot_hotkey_listener.start()
         else:
-            if app._screenshot_hotkey_listener:
-                app._screenshot_hotkey_listener.stop()
-                app._screenshot_hotkey_listener = None
+            if app._screenshot_hotkey_key is not None:
+                app._app_hotkey_tap.remove(app._screenshot_hotkey_key)
+                app._screenshot_hotkey_key = None
 
         logger.info("Screenshot set to: %s", enabled)
 
@@ -1911,17 +1907,13 @@ class SettingsController:
         ss_cfg["hotkey"] = recorded_key
         self._save_and_reload()
 
-        # Rebind the hotkey listener if screenshot is enabled
+        # Rebind the hotkey if screenshot is enabled
         if ss_cfg.get("enabled", False):
-            if app._screenshot_hotkey_listener:
-                app._screenshot_hotkey_listener.stop()
-            from wenzi.hotkey import TapHotkeyListener
-
-            app._screenshot_hotkey_listener = TapHotkeyListener(
-                hotkey_str=recorded_key,
-                on_activate=app._on_screenshot,
+            if app._screenshot_hotkey_key is not None:
+                app._app_hotkey_tap.remove(app._screenshot_hotkey_key)
+            app._screenshot_hotkey_key = app._app_hotkey_tap.add(
+                recorded_key, app._on_screenshot,
             )
-            app._screenshot_hotkey_listener.start()
 
         app._settings_panel.update_screenshot_hotkey(recorded_key)
         logger.info("Screenshot hotkey recorded: %s", recorded_key)
@@ -1933,9 +1925,9 @@ class SettingsController:
         ss_cfg["hotkey"] = ""
         self._save_and_reload()
 
-        if app._screenshot_hotkey_listener:
-            app._screenshot_hotkey_listener.stop()
-            app._screenshot_hotkey_listener = None
+        if app._screenshot_hotkey_key is not None:
+            app._app_hotkey_tap.remove(app._screenshot_hotkey_key)
+            app._screenshot_hotkey_key = None
 
         app._settings_panel.update_screenshot_hotkey("")
         logger.info("Screenshot hotkey cleared")

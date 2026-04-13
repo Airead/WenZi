@@ -339,7 +339,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "interval_hours": 6,
     },
     "logging": {
-        "level": "INFO",
+        "level": "DEBUG",
     },
     "scripting": {
         "enabled": False,

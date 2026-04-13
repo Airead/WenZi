@@ -393,6 +393,142 @@ class TapHotkeyListener:
 
 
 # ---------------------------------------------------------------------------
+# SharedHotkeyTap — single CGEventTap for many hotkey combinations
+# ---------------------------------------------------------------------------
+
+class SharedHotkeyTap:
+    """Single CGEventTap that multiplexes multiple hotkey combinations.
+
+    Replaces per-hotkey TapHotkeyListener instances with one shared tap,
+    reducing the number of CGEventTaps from N to 1.
+    """
+
+    def __init__(self) -> None:
+        self._bindings: dict[tuple[int, int], dict[int, Callable[[], None]]] = {}
+        self._tokens: dict[int, tuple[int, int]] = {}
+        self._next_token = 0
+        self._runner = None  # CGEventTapRunner | None
+        self._cg = None  # cached _cgeventtap module
+        self._lock = threading.Lock()
+
+    def add(self, hotkey_str: str, on_activate: Callable[[], None]) -> int:
+        """Register a hotkey. Returns a unique token for later removal.
+
+        Starts the underlying tap automatically on the first add().
+        """
+        mod_flags, keycode = _parse_hotkey_for_quartz(hotkey_str)
+        key = (mod_flags, keycode)
+        with self._lock:
+            token = self._next_token
+            self._next_token += 1
+            callbacks = self._bindings.setdefault(key, {})
+            callbacks[token] = on_activate
+            self._tokens[token] = key
+            if self._runner is None:
+                self._start_tap()
+        logger.debug("SharedHotkeyTap: added %s (flags=0x%x kc=%d, token=%d)",
+                     hotkey_str, mod_flags, keycode, token)
+        return token
+
+    def remove(self, token: int) -> None:
+        """Unregister a hotkey by its registration token.
+
+        When the last binding is removed the tap is auto-stopped.
+        """
+        with self._lock:
+            key = self._tokens.pop(token, None)
+            if key is None:
+                return
+
+            callbacks = self._bindings.get(key)
+            if callbacks is None:
+                return
+
+            callbacks.pop(token, None)
+            if not callbacks:
+                self._bindings.pop(key, None)
+            if not self._bindings:
+                self._stop_tap_locked()
+
+    def stop(self) -> None:
+        """Stop the tap and remove all bindings."""
+        with self._lock:
+            self._bindings.clear()
+            self._tokens.clear()
+            self._stop_tap_locked()
+        logger.info("SharedHotkeyTap stopped")
+
+    def _stop_tap_locked(self) -> None:
+        """Stop the underlying tap. Caller must hold *_lock*."""
+        if self._runner is not None:
+            self._runner.stop()
+            self._runner = None
+
+    def _start_tap(self) -> None:
+        """Create and start the CGEventTap.  Caller must hold *_lock*."""
+        from wenzi import _cgeventtap as cg
+
+        self._cg = cg
+        mask = cg.CGEventMaskBit(cg.kCGEventKeyDown)
+        self._runner = cg.CGEventTapRunner()
+        self._runner.start(mask, self._callback)
+        logger.info("SharedHotkeyTap: CGEventTap created (bindings=%d)", len(self._bindings))
+
+    def _callback(self, proxy, event_type, event, refcon):
+        cg = self._cg
+
+        try:
+            if event_type == cg.kCGEventTapDisabledByTimeout:
+                logger.warning("SharedHotkeyTap disabled by timeout, re-enabling")
+                if self._runner is not None and self._runner.tap is not None:
+                    cg.CGEventTapEnable(self._runner.tap, True)
+                return event
+
+            if event_type != cg.kCGEventKeyDown:
+                return event
+
+            keycode = cg.CGEventGetIntegerValueField(
+                event, cg.kCGKeyboardEventKeycode
+            )
+            flags = cg.CGEventGetFlags(event) & _MOD_MASK
+            key = (flags, keycode)
+
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug("SharedHotkeyTap: keydown flags=0x%x kc=%d (%s)",
+                             flags, keycode, _VK_TO_NAME.get(keycode, "?"))
+
+            d = self._bindings.get(key)
+            if d is None:
+                return event
+
+            with self._lock:
+                callbacks = tuple(d.values())
+
+            if callbacks:
+                logger.info("SharedHotkeyTap matched: %s",
+                            _format_hotkey(flags, keycode))
+                for callback in callbacks:
+                    _submit_callback(callback)
+                return None  # Swallow the event
+
+            return event
+        except Exception:
+            logger.warning("[SharedHotkeyTap] callback exception", exc_info=True)
+            return event
+
+
+# Ordered list for _format_hotkey — iterate instead of hard-coding each flag.
+_MOD_DISPLAY_ORDER = ("cmd", "ctrl", "alt", "shift")
+
+
+def _format_hotkey(flags: int, keycode: int) -> str:
+    """Format modifier flags + keycode into a human-readable string."""
+    parts = [name for name in _MOD_DISPLAY_ORDER if flags & _MOD_FLAGS[name]]
+    parts.append(_VK_TO_NAME.get(keycode, f"vk{keycode}"))
+    return "+".join(parts)
+
+
+# ---------------------------------------------------------------------------
 # KeyRemapListener — remap one key to another via CGEventTap
 # ---------------------------------------------------------------------------
 

@@ -250,7 +250,7 @@ class CGEventTapRunner:
             self._loop = CFRunLoopGetCurrent()
             CFRunLoopAddSource(self._loop, source, kCFRunLoopDefaultMode.value)
             CGEventTapEnable(tap, True)
-            _runner_logger.debug("CGEventTap started")
+            _runner_logger.info("CGEventTap created (tap=%#x, option=%d, mask=0x%x)", tap, option, mask)
             self._ready.set()
             CFRunLoopRun()
 

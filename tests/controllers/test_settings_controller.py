@@ -17,6 +17,7 @@ def mock_app():
         "hotkeys": {"fn": True, "ctrl": False},
         "feedback": {"sound_enabled": True, "visual_indicator": True},
         "output": {"method": "type", "append_newline": False, "preview": True},
+        "screenshot": {"enabled": True, "hotkey": "ctrl+cmd+5"},
         "asr": {
             "backend": "funasr",
             "preset": "funasr-zh",
@@ -78,6 +79,10 @@ def mock_app():
     app._asr_remove_provider_items = {}
     app._llm_remove_provider_items = {}
     app._settings_panel = MagicMock()
+    app._app_hotkey_tap = MagicMock()
+    app._screenshot_hotkey_key = None
+    app._on_screenshot = MagicMock()
+    app.record_combo_hotkey_modal = MagicMock()
     return app
 
 
@@ -217,6 +222,42 @@ class TestPreviewToggle:
         assert mock_app._preview_item.state == 0
         assert mock_app._config["output"]["preview"] is False
         mock_save.assert_called_once()
+
+
+class TestScreenshotHotkey:
+    def test_record_rebinds_existing_token_zero(self, ctrl, mock_app):
+        mock_app._screenshot_hotkey_key = 0
+        mock_app.record_combo_hotkey_modal.return_value = "ctrl+cmd+6"
+        mock_app._app_hotkey_tap.add.return_value = 1
+
+        with patch.object(ctrl, "_save_and_reload") as mock_reload:
+            ctrl.screenshot_hotkey_record()
+
+        mock_reload.assert_called_once()
+        mock_app._app_hotkey_tap.remove.assert_called_once_with(0)
+        mock_app._app_hotkey_tap.add.assert_called_once_with(
+            "ctrl+cmd+6", mock_app._on_screenshot,
+        )
+        assert mock_app._screenshot_hotkey_key == 1
+
+    def test_clear_removes_existing_token_zero(self, ctrl, mock_app):
+        mock_app._screenshot_hotkey_key = 0
+
+        with patch.object(ctrl, "_save_and_reload") as mock_reload:
+            ctrl.screenshot_hotkey_clear()
+
+        mock_reload.assert_called_once()
+        mock_app._app_hotkey_tap.remove.assert_called_once_with(0)
+        assert mock_app._screenshot_hotkey_key is None
+
+    def test_enable_does_not_duplicate_when_token_zero_already_bound(self, ctrl, mock_app):
+        mock_app._screenshot_hotkey_key = 0
+
+        with patch.object(ctrl, "_save_and_reload") as mock_reload:
+            ctrl.screenshot_toggle(True)
+
+        mock_reload.assert_called_once()
+        mock_app._app_hotkey_tap.add.assert_not_called()
 
 
 class TestSttSelect:

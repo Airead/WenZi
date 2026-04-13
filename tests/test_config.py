@@ -406,7 +406,7 @@ class TestValidateConfig:
     def test_invalid_log_level(self):
         config = self._make_config({"logging.level": "TRACE"})
         validate_config(config)
-        assert config["logging"]["level"] == "INFO"
+        assert config["logging"]["level"] == "DEBUG"
 
     def test_volume_out_of_range(self):
         config = self._make_config({"feedback.sound_volume": 1.5})

@@ -20,6 +20,7 @@ class HotkeyAPI:
         self._registry = registry
         self._leader_alert = LeaderAlertPanel()
         self._listener = None  # _QuartzAllKeysListener
+        self._shared_tap = None  # SharedHotkeyTap
         self._active_leader: LeaderConfig | None = None
         self._leader_triggered: bool = False
         self._sticky_leader: bool = False
@@ -51,7 +52,11 @@ class HotkeyAPI:
 
     def unbind(self, hotkey_str: str) -> None:
         """Remove and stop a hotkey binding."""
-        self._registry.unregister_hotkey(hotkey_str)
+        removed = self._registry.unregister_hotkey(hotkey_str)
+        if self._shared_tap:
+            for binding in removed:
+                if binding.tap_key is not None:
+                    self._shared_tap.remove(binding.tap_key)
 
     def remap(self, source: str, target: str) -> None:
         """Remap one key to another.
@@ -146,10 +151,11 @@ class HotkeyAPI:
         if self._listener:
             self._listener.stop()
             self._listener = None
+        if self._shared_tap:
+            self._shared_tap.stop()
+            self._shared_tap = None
         for binding in self._registry.hotkeys:
-            if binding.listener:
-                binding.listener.stop()
-                binding.listener = None
+            binding.tap_key = None
         # Stop remap listener
         if self._registry.remap_listener:
             self._registry.remap_listener.stop()
@@ -186,21 +192,24 @@ class HotkeyAPI:
         )
 
     def _start_hotkey_listeners(self) -> None:
-        """Start individual TapHotkeyListener for each registered hotkey."""
-        from wenzi.hotkey import TapHotkeyListener
+        """Register all hotkeys on a single shared CGEventTap."""
+        if not self._registry.hotkeys:
+            return
+
+        from wenzi.hotkey import SharedHotkeyTap
+
+        if self._shared_tap is None:
+            self._shared_tap = SharedHotkeyTap()
 
         for binding in self._registry.hotkeys:
-            if binding.listener is not None:
+            if binding.tap_key is not None:
                 continue
             try:
-                listener = TapHotkeyListener(
-                    hotkey_str=binding.hotkey_str,
-                    on_activate=binding.callback,
+                binding.tap_key = self._shared_tap.add(
+                    binding.hotkey_str, binding.callback,
                 )
-                listener.start()
-                binding.listener = listener
             except Exception as exc:
-                logger.error("Failed to start hotkey %s: %s", binding.hotkey_str, exc)
+                logger.error("Failed to add hotkey %s: %s", binding.hotkey_str, exc)
 
     def _start_remap_listener(self, new_entry: RemapEntry | None = None) -> None:
         """Start (or update) the shared KeyRemapListener for registered remaps.

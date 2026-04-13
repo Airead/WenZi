@@ -42,7 +42,7 @@ from .controllers.universal_action_controller import UniversalActionController
 from .controllers.update_controller import UpdateController
 from .enhance.conversation_history import ConversationHistory
 from .enhance.enhancer import MODE_OFF, create_enhancer
-from .hotkey import MultiHotkeyListener, TapHotkeyListener, _is_fn_key
+from .hotkey import MultiHotkeyListener, SharedHotkeyTap, _is_fn_key
 from .i18n import t
 from .statusbar import (
     StatusBarApp,
@@ -440,8 +440,9 @@ class WenZiApp(StatusBarApp):
         self._screenshot_item = StatusMenuItem(
             "Screenshot", callback=self._on_screenshot
         )
-        self._screenshot_hotkey_listener = None
-        self._clipboard_hotkey_listener = None
+        self._app_hotkey_tap = SharedHotkeyTap()
+        self._screenshot_hotkey_key = None
+        self._clipboard_hotkey_key = None
         self._screenshot_annotation = None
 
         # Feedback toggle items
@@ -1144,10 +1145,7 @@ class WenZiApp(StatusBarApp):
             self._script_engine.stop()
         if self._hotkey_listener:
             self._hotkey_listener.stop()
-        if self._clipboard_hotkey_listener:
-            self._clipboard_hotkey_listener.stop()
-        if self._screenshot_hotkey_listener:
-            self._screenshot_hotkey_listener.stop()
+        self._app_hotkey_tap.stop()
         if self._settings_panel.is_visible:
             self._settings_panel.close()
         if self._vocab_controller is not None:
@@ -1543,23 +1541,19 @@ class WenZiApp(StatusBarApp):
                 self._refresh_status_bar
             )
 
-        # Start clipboard enhance hotkey listener if configured
+        # Start clipboard enhance hotkey if configured
         clip_hotkey = self._config.get("clipboard_enhance", {}).get("hotkey", "")
         if clip_hotkey:
-            self._clipboard_hotkey_listener = TapHotkeyListener(
-                hotkey_str=clip_hotkey,
-                on_activate=self._preview_controller.on_clipboard_enhance,
+            self._clipboard_hotkey_key = self._app_hotkey_tap.add(
+                clip_hotkey, self._preview_controller.on_clipboard_enhance,
             )
-            self._clipboard_hotkey_listener.start()
 
-        # Start screenshot hotkey listener if configured
+        # Start screenshot hotkey if configured
         ss_cfg = self._config.get("screenshot", {})
         if ss_cfg.get("enabled", False) and ss_cfg.get("hotkey", ""):
-            self._screenshot_hotkey_listener = TapHotkeyListener(
-                hotkey_str=ss_cfg["hotkey"],
-                on_activate=self._on_screenshot,
+            self._screenshot_hotkey_key = self._app_hotkey_tap.add(
+                ss_cfg["hotkey"], self._on_screenshot,
             )
-            self._screenshot_hotkey_listener.start()
 
         # Schedule warmup after the event loop starts to pre-create heavy
         # objects (WKWebView, NSSound) so the first user interaction is snappy.

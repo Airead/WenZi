@@ -51,7 +51,8 @@ def mock_app():
     app._visual_indicator_item = MagicMock()
     app._sound_manager = MagicMock()
     app._recording_indicator = MagicMock()
-    app._clipboard_hotkey_listener = None
+    app._app_hotkey_tap = MagicMock()
+    app._clipboard_hotkey_key = None
     app._menu_builder = MagicMock()
     app._preview_controller = MagicMock()
     return app
@@ -157,7 +158,8 @@ class TestOnReloadConfig:
         mock_app._preview_item = MagicMock()
         mock_app._sound_feedback_item = MagicMock()
         mock_app._visual_indicator_item = MagicMock()
-        mock_app._clipboard_hotkey_listener = None
+        mock_app._app_hotkey_tap = MagicMock()
+        mock_app._clipboard_hotkey_key = None
 
         ctrl.on_reload_config(None)
 
@@ -172,6 +174,24 @@ class TestOnReloadConfig:
         mock_notify.assert_called_once()
         subtitle = mock_notify.call_args[0][1]
         assert "Reload Failed" in subtitle or "reload_failed" in subtitle
+
+    @patch("wenzi.controllers.config_controller.send_notification")
+    @patch("wenzi.controllers.config_controller.load_config")
+    def test_reload_removes_clipboard_hotkey_when_token_is_zero(self, mock_load, mock_notify, ctrl, mock_app):
+        mock_load.return_value = ({
+            "output": {"method": "type", "append_newline": False, "preview": True},
+            "logging": {"level": "INFO"},
+            "ai_enhance": {"enabled": True, "mode": "proofread"},
+            "feedback": {"sound_enabled": True, "sound_volume": 0.4, "visual_indicator": True},
+            "clipboard_enhance": {"hotkey": ""},
+        }, None)
+        mock_app._clipboard_hotkey_key = 0
+
+        ctrl.on_reload_config(None)
+
+        mock_app._app_hotkey_tap.remove.assert_called_once_with(0)
+        assert mock_app._clipboard_hotkey_key is None
+        mock_notify.assert_called_once()
 
 
 class TestOnBrowseHistory:
@@ -189,4 +209,3 @@ class TestOnBrowseHistory:
         mock_app._history_browser = MagicMock()
         ctrl.on_browse_history(None)
         mock_app._history_browser.show.assert_called_once()
-

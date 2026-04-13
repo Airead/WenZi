@@ -14,6 +14,7 @@ from wenzi.hotkey import (
     HoldHotkeyListener,
     KeyRemapListener,
     MultiHotkeyListener,
+    SharedHotkeyTap,
     TapHotkeyListener,
     _is_fn_key,
     _name_to_vk,
@@ -330,6 +331,191 @@ class TestTapHotkeyListener:
 
         mock_runner.stop.assert_called_once()
         assert listener._runner is None
+
+
+class TestSharedHotkeyTap:
+    def test_add_parses_and_stores(self):
+        tap = SharedHotkeyTap()
+        cb = MagicMock()
+        token = tap.add("ctrl+cmd+v", cb)
+        key = (_MOD_FLAGS["ctrl"] | _MOD_FLAGS["cmd"], _KEYCODE_MAP["v"])
+        assert token in tap._bindings[key]
+        assert tap._bindings[key][token] is cb
+        assert tap._tokens[token] == key
+        # Cleanup — stop the auto-started runner
+        tap.stop()
+
+    def test_remove(self):
+        tap = SharedHotkeyTap()
+        cb = MagicMock()
+        token = tap.add("cmd+space", cb)
+        key = (_MOD_FLAGS["cmd"], _SPECIAL_VK["space"])
+        assert token in tap._bindings[key]
+        tap.remove(token)
+        assert key not in tap._bindings
+        tap.stop()
+
+    def test_remove_nonexistent_key_is_noop(self):
+        tap = SharedHotkeyTap()
+        tap.remove(999)  # no error
+
+    def test_stop_clears_bindings_and_runner(self):
+        tap = SharedHotkeyTap()
+        tap.add("cmd+a", MagicMock())
+        assert tap._runner is not None
+        tap.stop()
+        assert tap._bindings == {}
+        assert tap._tokens == {}
+        assert tap._runner is None
+
+    def test_callback_matches_and_dispatches(self):
+        """Simulate a kCGEventKeyDown event and verify callback dispatch."""
+        import time
+
+        tap = SharedHotkeyTap()
+        cb = MagicMock()
+        tap.add("cmd+v", cb)
+
+        from wenzi import _cgeventtap as cg
+
+        # Build a fake event: cmd (0x100000) + v (keycode 9)
+        mock_event = 0xDEAD  # non-zero sentinel
+        get_field_orig = cg.CGEventGetIntegerValueField
+        get_flags_orig = cg.CGEventGetFlags
+
+        def fake_get_field(event, field):
+            if field == cg.kCGKeyboardEventKeycode:
+                return 9  # 'v'
+            return 0
+
+        def fake_get_flags(event):
+            return 0x100000  # cmd
+
+        cg.CGEventGetIntegerValueField = fake_get_field
+        cg.CGEventGetFlags = fake_get_flags
+        try:
+            result = tap._callback(None, cg.kCGEventKeyDown, mock_event, None)
+            assert result is None  # swallowed
+            # Wait for _submit_callback dispatch
+            for _ in range(50):
+                if cb.called:
+                    break
+                time.sleep(0.01)
+            cb.assert_called_once()
+        finally:
+            cg.CGEventGetIntegerValueField = get_field_orig
+            cg.CGEventGetFlags = get_flags_orig
+            tap.stop()
+
+    def test_callback_passes_through_non_matching(self):
+        tap = SharedHotkeyTap()
+        tap.add("cmd+v", MagicMock())
+
+        from wenzi import _cgeventtap as cg
+
+        mock_event = 0xBEEF
+        get_field_orig = cg.CGEventGetIntegerValueField
+        get_flags_orig = cg.CGEventGetFlags
+
+        def fake_get_field(event, field):
+            if field == cg.kCGKeyboardEventKeycode:
+                return 0  # 'a', not 'v'
+            return 0
+
+        def fake_get_flags(event):
+            return 0x100000  # cmd
+
+        cg.CGEventGetIntegerValueField = fake_get_field
+        cg.CGEventGetFlags = fake_get_flags
+        try:
+            result = tap._callback(None, cg.kCGEventKeyDown, mock_event, None)
+            assert result == mock_event  # passed through
+        finally:
+            cg.CGEventGetIntegerValueField = get_field_orig
+            cg.CGEventGetFlags = get_flags_orig
+            tap.stop()
+
+    def test_multiple_hotkeys_single_tap(self):
+        """Multiple add() calls should share one runner."""
+        tap = SharedHotkeyTap()
+        tap.add("cmd+a", MagicMock())
+        runner1 = tap._runner
+        tap.add("cmd+b", MagicMock())
+        assert tap._runner is runner1  # same runner, not recreated
+        assert len(tap._bindings) == 2
+        tap.stop()
+
+    def test_duplicate_hotkeys_get_distinct_tokens(self):
+        tap = SharedHotkeyTap()
+        cb1 = MagicMock()
+        cb2 = MagicMock()
+
+        token1 = tap.add("cmd+a", cb1)
+        token2 = tap.add("cmd+a", cb2)
+
+        key = (_MOD_FLAGS["cmd"], _KEYCODE_MAP["a"])
+        assert token1 != token2
+        assert set(tap._bindings[key]) == {token1, token2}
+
+        tap.remove(token1)
+        assert set(tap._bindings[key]) == {token2}
+        assert token1 not in tap._tokens
+        assert tap._runner is not None
+
+        tap.remove(token2)
+        assert key not in tap._bindings
+        assert token2 not in tap._tokens
+        assert tap._runner is None
+
+    def test_duplicate_hotkeys_dispatch_all_callbacks(self):
+        import time
+
+        tap = SharedHotkeyTap()
+        cb1 = MagicMock()
+        cb2 = MagicMock()
+        tap.add("cmd+v", cb1)
+        tap.add("cmd+v", cb2)
+
+        from wenzi import _cgeventtap as cg
+
+        mock_event = 0xDEAD
+        get_field_orig = cg.CGEventGetIntegerValueField
+        get_flags_orig = cg.CGEventGetFlags
+
+        def fake_get_field(event, field):
+            if field == cg.kCGKeyboardEventKeycode:
+                return 9
+            return 0
+
+        def fake_get_flags(event):
+            return 0x100000
+
+        cg.CGEventGetIntegerValueField = fake_get_field
+        cg.CGEventGetFlags = fake_get_flags
+        try:
+            result = tap._callback(None, cg.kCGEventKeyDown, mock_event, None)
+            assert result is None
+            for _ in range(50):
+                if cb1.called and cb2.called:
+                    break
+                time.sleep(0.01)
+            cb1.assert_called_once()
+            cb2.assert_called_once()
+        finally:
+            cg.CGEventGetIntegerValueField = get_field_orig
+            cg.CGEventGetFlags = get_flags_orig
+            tap.stop()
+
+    def test_remove_last_binding_stops_runner(self):
+        tap = SharedHotkeyTap()
+        runner = MagicMock()
+        tap._runner = runner
+        token = tap.add("cmd+a", MagicMock())
+
+        tap.remove(token)
+
+        runner.stop.assert_called_once()
+        assert tap._runner is None
 
 
 class TestMultiHotkeyListener:

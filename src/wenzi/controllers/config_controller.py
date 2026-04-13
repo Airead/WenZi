@@ -182,7 +182,6 @@ class ConfigController:
     def on_reload_config(self, _) -> None:
         """Reload configuration from disk and apply changes."""
         from wenzi.enhance.enhancer import MODE_OFF
-        from wenzi.hotkey import TapHotkeyListener
 
         app = self._app
 
@@ -264,19 +263,13 @@ class ConfigController:
         # Clipboard enhance hotkey
         clip_cfg = new_config.get("clipboard_enhance", {})
         new_clip_hotkey = clip_cfg.get("hotkey", "")
-        old_clip_hotkey = ""
-        if app._clipboard_hotkey_listener:
-            old_clip_hotkey = app._clipboard_hotkey_listener._hotkey_str
-        if new_clip_hotkey != old_clip_hotkey:
-            if app._clipboard_hotkey_listener:
-                app._clipboard_hotkey_listener.stop()
-                app._clipboard_hotkey_listener = None
-            if new_clip_hotkey:
-                app._clipboard_hotkey_listener = TapHotkeyListener(
-                    hotkey_str=new_clip_hotkey,
-                    on_activate=app._preview_controller.on_clipboard_enhance,
-                )
-                app._clipboard_hotkey_listener.start()
+        if app._clipboard_hotkey_key is not None:
+            app._app_hotkey_tap.remove(app._clipboard_hotkey_key)
+            app._clipboard_hotkey_key = None
+        if new_clip_hotkey:
+            app._clipboard_hotkey_key = app._app_hotkey_tap.add(
+                new_clip_hotkey, app._preview_controller.on_clipboard_enhance,
+            )
 
         logger.info("Configuration reloaded successfully")
         send_notification(t("app.name"), t("notification.config.reloaded"), t("notification.config.reloaded.subtitle"))
