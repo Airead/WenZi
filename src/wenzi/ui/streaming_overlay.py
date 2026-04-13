@@ -955,6 +955,9 @@ class StreamingOverlayPanel:
             self._recalc_timer = None
 
         if self._panel is not None:
+            from wenzi.ui_helpers import release_panel_surfaces
+
+            release_panel_surfaces(self._panel)
             self._panel.orderOut_(None)
             self._panel = None
 

@@ -159,6 +159,9 @@ class StatsChartPanel:
                 if self._close_delegate is not None:
                     self._close_delegate._panel_ref = None
                 self._close_delegate = None
+                from wenzi.ui_helpers import release_panel_surfaces
+
+                release_panel_surfaces(self._panel)
                 self._panel.orderOut_(None)
                 self._panel = None
         except Exception:

@@ -136,6 +136,9 @@ class VocabManagerPanel:
         if self._panel is not None:
             self._panel.setDelegate_(None)
             self._close_delegate = None
+            from wenzi.ui_helpers import release_panel_surfaces
+
+            release_panel_surfaces(self._panel)
             self._panel.orderOut_(None)
             self._panel = None
         cleanup_webview(self._webview)

@@ -409,6 +409,9 @@ class RecordingIndicatorPanel:
             self._clear_view_backref()
 
             if self._panel is not None:
+                from wenzi.ui_helpers import release_panel_surfaces
+
+                release_panel_surfaces(self._panel)
                 self._panel.orderOut_(None)
                 self._panel = None
 
@@ -441,6 +444,10 @@ class RecordingIndicatorPanel:
         self._clear_view_backref()
 
         new_height = self._panel_height()
+
+        from wenzi.ui_helpers import release_panel_surfaces
+
+        release_panel_surfaces(self._panel)
         glass = self._make_glass_view(_PANEL_WIDTH, new_height)
         indicator = self._indicator_view.create_view(_PANEL_WIDTH, new_height)
         glass.setContentView_(indicator)
