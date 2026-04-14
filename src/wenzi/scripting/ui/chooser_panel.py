@@ -353,6 +353,10 @@ class ChooserPanel:
             from wenzi.ui_helpers import configure_glass_appearance
 
             configure_glass_appearance(self._glass_view)
+            try:
+                self._glass_view.setState_(1)  # active compositing
+            except Exception:
+                pass
 
     def _reconnect_panel_refs(self) -> None:
         """Restore ``_panel_ref`` back-references broken by :meth:`close`."""
@@ -364,12 +368,20 @@ class ChooserPanel:
             self._panel_delegate._panel_ref = self
 
     def _deactivate_glass(self) -> None:
-        """Shrink the hidden panel to 1x1 to force Core Animation to release
-        the NSGlassEffectView IOSurface backing store (~72 MB+ at retina).
+        """Deactivate glass compositing and shrink the hidden panel to 1x1
+        to force Core Animation to release the CA Whippet Drawable IOSurface
+        backing store (~63-72 MB at retina).
 
+        Both steps are required: ``setState_(0)`` stops behind-window
+        sampling, and the 1×1 shrink releases the compositor surface.
         ``orderOut_`` alone does not release these surfaces.
         """
         self._last_screen = None
+        if self._glass_view is not None:
+            try:
+                self._glass_view.setState_(0)  # stop compositing
+            except Exception:
+                pass
         if self._panel is not None:
             try:
                 from Foundation import NSMakeRect
@@ -967,6 +979,9 @@ class ChooserPanel:
         cleanup_webview(self._webview, handler_name="chooser")
         if self._panel is not None:
             self._panel.setDelegate_(None)
+            from wenzi.ui_helpers import release_panel_surfaces
+
+            release_panel_surfaces(self._panel)
             self._panel.orderOut_(None)
         self._panel = None
         self._webview = None
