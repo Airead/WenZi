@@ -37,6 +37,15 @@ min_wenzi_version = "0.1.14"
 source = "https://raw.githubusercontent.com/Airead/WenZi/refs/heads/main/plugins/dictionary/plugin.toml"
 
 [[plugins]]
+id = "io.github.airead.wenzi.emoji-search"
+name = "Emoji Search"
+description = "Search and paste emoji via the launcher (prefix: e)"
+version = "0.1.0"
+author = "WenZi"
+min_wenzi_version = "0.1.14"
+source = "https://raw.githubusercontent.com/Airead/WenZi/refs/heads/main/plugins/emoji_search/plugin.toml"
+
+[[plugins]]
 id = "io.github.airead.wenzi.menu_search"
 name = "Menu Search"
 description = "Search and trigger WenZi menu items (prefix: m)"
