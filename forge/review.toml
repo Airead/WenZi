@@ -1,0 +1,6 @@
+ignore_paths = [".venv/", ".venv-lite/", "dev/", "tmp_plan/", "dist/", "build/", "uv.lock", "resources/", "site/"]
+
+[review]
+strictness = "normal"
+model = "sonnet"
+prompt_template = "./prompts/review_template.md"
