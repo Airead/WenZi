@@ -7,18 +7,24 @@ import os
 import subprocess
 from pathlib import Path
 
+# Disable OpenCode session loading so unit tests run in isolation
+from cc_sessions import opencode_store as _test_oc_store
+from cc_sessions.git_utils import (
+    _find_git_root,
+    _git_remote_name,
+    _name_from_cwd,
+    resolve_project_name,
+)
 from cc_sessions.scanner import (
     SessionScanner,
     _choose_title,
     _clean_first_prompt,
-    _find_git_root,
-    _git_remote_name,
-    _name_from_cwd,
     _project_name_from_dir,
-    _resolve_project_name,
     _scan_session_jsonl,
     is_noise_message,
 )
+
+_test_oc_store.list_opencode_sessions = lambda: []
 
 # ---------------------------------------------------------------------------
 # _project_name_from_dir
@@ -130,17 +136,16 @@ class TestIndexSupplements:
         proj = tmp_path / "projects" / "proj"
         proj.mkdir(parents=True, exist_ok=True)
         jsonl = proj / f"{session_id}.jsonl"
-        jsonl.write_text(
-            json.dumps({"type": "user", "timestamp": "2026-01-01T00:00:00Z",
-                        "message": {"content": prompt}}) + "\n"
-        )
+        jsonl.write_text(json.dumps({"type": "user", "timestamp": "2026-01-01T00:00:00Z", "message": {"content": prompt}}) + "\n")
         index_data = [{"sessionId": session_id, **index_entry}]
         (proj / "sessions-index.json").write_text(json.dumps(index_data))
         return tmp_path / "projects"
 
     def test_merges_summary_and_custom_title(self, tmp_path: Path):
         base = self._make_proj_with_index_and_jsonl(
-            tmp_path, "s1", "Hello",
+            tmp_path,
+            "s1",
+            "Hello",
             {"summary": "A good summary", "customTitle": "My Title"},
         )
         scanner = SessionScanner(base_dir=base, cache_path=None)
@@ -152,7 +157,9 @@ class TestIndexSupplements:
 
     def test_title_priority_summary_over_prompt(self, tmp_path: Path):
         base = self._make_proj_with_index_and_jsonl(
-            tmp_path, "s2", "prompt text",
+            tmp_path,
+            "s2",
+            "prompt text",
             {"summary": "summary text", "customTitle": ""},
         )
         scanner = SessionScanner(base_dir=base, cache_path=None)
@@ -163,8 +170,7 @@ class TestIndexSupplements:
         proj = tmp_path / "projects" / "proj"
         proj.mkdir(parents=True)
         (proj / "s1.jsonl").write_text(
-            json.dumps({"type": "user", "timestamp": "2026-01-01T00:00:00Z",
-                        "message": {"content": "Just a prompt"}}) + "\n"
+            json.dumps({"type": "user", "timestamp": "2026-01-01T00:00:00Z", "message": {"content": "Just a prompt"}}) + "\n"
         )
         scanner = SessionScanner(base_dir=tmp_path / "projects", cache_path=None)
         sessions = scanner.scan_all()
@@ -175,8 +181,7 @@ class TestIndexSupplements:
         proj = tmp_path / "projects" / "proj"
         proj.mkdir(parents=True)
         (proj / "s1.jsonl").write_text(
-            json.dumps({"type": "user", "timestamp": "2026-01-01T00:00:00Z",
-                        "message": {"content": "Hello"}}) + "\n"
+            json.dumps({"type": "user", "timestamp": "2026-01-01T00:00:00Z", "message": {"content": "Hello"}}) + "\n"
         )
         (proj / "sessions-index.json").write_text("{broken json")
         scanner = SessionScanner(base_dir=tmp_path / "projects", cache_path=None)
@@ -257,9 +262,10 @@ class TestSessionScanner:
         proj = tmp_path / "proj"
         proj.mkdir()
         (proj / "s1.jsonl").write_text(
-            json.dumps({"type": "user", "timestamp": "2026-01-01T00:00:00Z",
-                        "cwd": "/Users/me/work/MyApp",
-                        "message": {"content": "Hello"}}) + "\n"
+            json.dumps(
+                {"type": "user", "timestamp": "2026-01-01T00:00:00Z", "cwd": "/Users/me/work/MyApp", "message": {"content": "Hello"}}
+            )
+            + "\n"
         )
         index = [{"sessionId": "s1", "summary": "A summary", "customTitle": ""}]
         (proj / "sessions-index.json").write_text(json.dumps(index))
@@ -273,9 +279,7 @@ class TestSessionScanner:
         proj = tmp_path / "proj"
         proj.mkdir()
         jsonl = proj / "sess1.jsonl"
-        jsonl.write_text(
-            json.dumps({"type": "user", "timestamp": "2026-01-01T00:00:00Z", "message": {"content": "Hi"}}) + "\n"
-        )
+        jsonl.write_text(json.dumps({"type": "user", "timestamp": "2026-01-01T00:00:00Z", "message": {"content": "Hi"}}) + "\n")
 
         scanner = SessionScanner(base_dir=tmp_path, cache_path=None)
         sessions = scanner.scan_all()
@@ -286,9 +290,7 @@ class TestSessionScanner:
         proj = tmp_path / "proj"
         proj.mkdir()
         jsonl = proj / "cached.jsonl"
-        jsonl.write_text(
-            json.dumps({"type": "user", "timestamp": "2026-01-01T00:00:00Z", "message": {"content": "First"}}) + "\n"
-        )
+        jsonl.write_text(json.dumps({"type": "user", "timestamp": "2026-01-01T00:00:00Z", "message": {"content": "First"}}) + "\n")
 
         scanner = SessionScanner(base_dir=tmp_path, cache_path=tmp_path / "cache.json")
         results1 = scanner.scan_all()
@@ -308,15 +310,9 @@ class TestSessionScanner:
         proj = tmp_path / "proj"
         proj.mkdir()
         old_file = proj / "old.jsonl"
-        old_file.write_text(
-            json.dumps({"type": "user", "timestamp": "2026-01-01T00:00:00Z",
-                        "message": {"content": "Old"}}) + "\n"
-        )
+        old_file.write_text(json.dumps({"type": "user", "timestamp": "2026-01-01T00:00:00Z", "message": {"content": "Old"}}) + "\n")
         new_file = proj / "new.jsonl"
-        new_file.write_text(
-            json.dumps({"type": "user", "timestamp": "2026-01-02T00:00:00Z",
-                        "message": {"content": "New"}}) + "\n"
-        )
+        new_file.write_text(json.dumps({"type": "user", "timestamp": "2026-01-02T00:00:00Z", "message": {"content": "New"}}) + "\n")
         # Set explicit mtime so sorting by file mtime is deterministic
         os.utime(old_file, (1_000_000, 1_000_000))
         os.utime(new_file, (2_000_000, 2_000_000))
@@ -346,11 +342,14 @@ class TestSessionScannerPersistentCache:
         proj.mkdir(parents=True)
         jsonl = proj / "persist1.jsonl"
         jsonl.write_text(
-            json.dumps({
-                "type": "user",
-                "timestamp": "2026-01-01T00:00:00Z",
-                "message": {"content": "Persist test"},
-            }) + "\n"
+            json.dumps(
+                {
+                    "type": "user",
+                    "timestamp": "2026-01-01T00:00:00Z",
+                    "message": {"content": "Persist test"},
+                }
+            )
+            + "\n"
         )
         cache_path = tmp_path / "cache" / "cc_sessions_cache.json"
 
@@ -376,12 +375,16 @@ class TestSessionScannerPersistentCache:
 
         # Add a new session file
         jsonl = proj / "new1.jsonl"
+        scanner._scan_all_cached_at = 0.0
         jsonl.write_text(
-            json.dumps({
-                "type": "user",
-                "timestamp": "2026-01-01T00:00:00Z",
-                "message": {"content": "New session"},
-            }) + "\n"
+            json.dumps(
+                {
+                    "type": "user",
+                    "timestamp": "2026-01-01T00:00:00Z",
+                    "message": {"content": "New session"},
+                }
+            )
+            + "\n"
         )
         sessions = scanner.scan_all()
         assert len(sessions) == 1
@@ -393,11 +396,14 @@ class TestSessionScannerPersistentCache:
         proj.mkdir(parents=True)
         jsonl = proj / "mod1.jsonl"
         jsonl.write_text(
-            json.dumps({
-                "type": "user",
-                "timestamp": "2026-01-01T00:00:00Z",
-                "message": {"content": "Original"},
-            }) + "\n"
+            json.dumps(
+                {
+                    "type": "user",
+                    "timestamp": "2026-01-01T00:00:00Z",
+                    "message": {"content": "Original"},
+                }
+            )
+            + "\n"
         )
         cache_path = tmp_path / "cache" / "cc_sessions_cache.json"
 
@@ -407,13 +413,18 @@ class TestSessionScannerPersistentCache:
 
         # Modify the file (change mtime)
         import time
+
         time.sleep(0.05)
+        scanner._scan_all_cached_at = 0.0
         jsonl.write_text(
-            json.dumps({
-                "type": "user",
-                "timestamp": "2026-01-01T00:00:00Z",
-                "message": {"content": "Updated"},
-            }) + "\n"
+            json.dumps(
+                {
+                    "type": "user",
+                    "timestamp": "2026-01-01T00:00:00Z",
+                    "message": {"content": "Updated"},
+                }
+            )
+            + "\n"
         )
         sessions = scanner.scan_all()
         assert sessions[0]["first_prompt"] == "Updated"
@@ -424,11 +435,14 @@ class TestSessionScannerPersistentCache:
         proj.mkdir(parents=True)
         jsonl = proj / "del1.jsonl"
         jsonl.write_text(
-            json.dumps({
-                "type": "user",
-                "timestamp": "2026-01-01T00:00:00Z",
-                "message": {"content": "Will be deleted"},
-            }) + "\n"
+            json.dumps(
+                {
+                    "type": "user",
+                    "timestamp": "2026-01-01T00:00:00Z",
+                    "message": {"content": "Will be deleted"},
+                }
+            )
+            + "\n"
         )
         cache_path = tmp_path / "cache" / "cc_sessions_cache.json"
 
@@ -436,6 +450,7 @@ class TestSessionScannerPersistentCache:
         assert len(scanner.scan_all()) == 1
 
         # Delete the file
+        scanner._scan_all_cached_at = 0.0
         jsonl.unlink()
         sessions = scanner.scan_all()
         assert len(sessions) == 0
@@ -446,11 +461,14 @@ class TestSessionScannerPersistentCache:
         proj.mkdir(parents=True)
         jsonl = proj / "mem1.jsonl"
         jsonl.write_text(
-            json.dumps({
-                "type": "user",
-                "timestamp": "2026-01-01T00:00:00Z",
-                "message": {"content": "Memory only"},
-            }) + "\n"
+            json.dumps(
+                {
+                    "type": "user",
+                    "timestamp": "2026-01-01T00:00:00Z",
+                    "message": {"content": "Memory only"},
+                }
+            )
+            + "\n"
         )
 
         scanner = SessionScanner(base_dir=tmp_path / "projects", cache_path=None)
@@ -470,11 +488,9 @@ class TestSessionMetadataFields:
         proj = tmp_path / "projects" / "proj"
         proj.mkdir(parents=True)
         (proj / "s1.jsonl").write_text(
-            json.dumps({"type": "user", "timestamp": "2026-01-01T00:00:00Z",
-                        "message": {"content": "Hello"}}) + "\n"
+            json.dumps({"type": "user", "timestamp": "2026-01-01T00:00:00Z", "message": {"content": "Hello"}}) + "\n"
         )
-        index = [{"sessionId": "s1", "summary": "Refactored config module",
-                   "customTitle": "Config Refactor"}]
+        index = [{"sessionId": "s1", "summary": "Refactored config module", "customTitle": "Config Refactor"}]
         (proj / "sessions-index.json").write_text(json.dumps(index))
         scanner = SessionScanner(base_dir=tmp_path / "projects", cache_path=None)
         sessions = scanner.scan_all()
@@ -485,8 +501,7 @@ class TestSessionMetadataFields:
         proj = tmp_path / "projects" / "proj"
         proj.mkdir(parents=True)
         (proj / "s2.jsonl").write_text(
-            json.dumps({"type": "user", "timestamp": "2026-01-01T00:00:00Z",
-                        "message": {"content": "Hi"}}) + "\n"
+            json.dumps({"type": "user", "timestamp": "2026-01-01T00:00:00Z", "message": {"content": "Hi"}}) + "\n"
         )
         index = [{"sessionId": "s2", "summary": "A summary", "customTitle": ""}]
         (proj / "sessions-index.json").write_text(json.dumps(index))
@@ -500,11 +515,11 @@ class TestNoiseFiltering:
     """Test filtering of system-injected noise messages."""
 
     def test_is_noise_message_local_command_caveat(self):
-        text = '<local-command-caveat>Caveat: The messages below were generated...</local-command-caveat>'
+        text = "<local-command-caveat>Caveat: The messages below were generated...</local-command-caveat>"
         assert is_noise_message(text) is True
 
     def test_is_noise_message_command_name(self):
-        text = '<command-name>/clear</command-name> <command-message>clear</command-message>'
+        text = "<command-name>/clear</command-name> <command-message>clear</command-message>"
         assert is_noise_message(text) is True
 
     def test_is_noise_message_normal_text(self):
@@ -514,7 +529,7 @@ class TestNoiseFiltering:
         assert is_noise_message("") is False
 
     def test_clean_first_prompt_strips_tags(self):
-        raw = '<command-name>/clear</command-name> <command-message>clear</command-message>'
+        raw = "<command-name>/clear</command-name> <command-message>clear</command-message>"
         result = _clean_first_prompt(raw)
         assert "<" not in result
         assert result == "/clear clear"
@@ -526,21 +541,28 @@ class TestNoiseFiltering:
         title = _choose_title(
             None,
             "A good summary",
-            '<local-command-caveat>Caveat: noise</local-command-caveat>',
+            "<local-command-caveat>Caveat: noise</local-command-caveat>",
         )
         assert title == "A good summary"
 
     def test_scan_jsonl_skips_noise_first_message(self, tmp_path: Path):
         """Scanner skips noise messages and finds the real first prompt."""
         jsonl = tmp_path / "cleared.jsonl"
-        jsonl.write_text("\n".join(json.dumps(obj) for obj in [
-            {"type": "user", "timestamp": "2026-01-01T00:00:00Z",
-             "message": {"content": "<local-command-caveat>Caveat: noise</local-command-caveat>"}},
-            {"type": "user", "timestamp": "2026-01-01T00:00:01Z",
-             "message": {"content": "<command-name>/clear</command-name>"}},
-            {"type": "user", "timestamp": "2026-01-01T00:00:02Z",
-             "message": {"content": "refactor the config module"}},
-        ]) + "\n")
+        jsonl.write_text(
+            "\n".join(
+                json.dumps(obj)
+                for obj in [
+                    {
+                        "type": "user",
+                        "timestamp": "2026-01-01T00:00:00Z",
+                        "message": {"content": "<local-command-caveat>Caveat: noise</local-command-caveat>"},
+                    },
+                    {"type": "user", "timestamp": "2026-01-01T00:00:01Z", "message": {"content": "<command-name>/clear</command-name>"}},
+                    {"type": "user", "timestamp": "2026-01-01T00:00:02Z", "message": {"content": "refactor the config module"}},
+                ]
+            )
+            + "\n"
+        )
         result = _scan_session_jsonl(jsonl, "Proj")
         assert result is not None
         assert result["first_prompt"] == "refactor the config module"
@@ -550,10 +572,16 @@ class TestNoiseFiltering:
         proj = tmp_path / "projects" / "proj"
         proj.mkdir(parents=True)
         (proj / "s1.jsonl").write_text(
-            json.dumps({"type": "user", "timestamp": "2026-01-01T00:00:00Z",
-                        "message": {"content": "<local-command-caveat>noise</local-command-caveat>"}}) + "\n"
-            + json.dumps({"type": "user", "timestamp": "2026-01-01T00:00:01Z",
-                          "message": {"content": "real question"}}) + "\n"
+            json.dumps(
+                {
+                    "type": "user",
+                    "timestamp": "2026-01-01T00:00:00Z",
+                    "message": {"content": "<local-command-caveat>noise</local-command-caveat>"},
+                }
+            )
+            + "\n"
+            + json.dumps({"type": "user", "timestamp": "2026-01-01T00:00:01Z", "message": {"content": "real question"}})
+            + "\n"
         )
         index = [{"sessionId": "s1", "summary": "Real summary", "customTitle": ""}]
         (proj / "sessions-index.json").write_text(json.dumps(index))
@@ -618,7 +646,9 @@ class TestProjectNameResolution:
         subprocess.run(["git", "init"], cwd=repo, capture_output=True, check=True)
         subprocess.run(
             ["git", "remote", "add", "origin", "git@github.com:Airead/WenZi.git"],
-            cwd=repo, capture_output=True, check=True,
+            cwd=repo,
+            capture_output=True,
+            check=True,
         )
         assert _git_remote_name(str(repo)) == "WenZi"
 
@@ -628,7 +658,9 @@ class TestProjectNameResolution:
         subprocess.run(["git", "init"], cwd=repo, capture_output=True, check=True)
         subprocess.run(
             ["git", "remote", "add", "origin", "https://github.com/Airead/WenZi.git"],
-            cwd=repo, capture_output=True, check=True,
+            cwd=repo,
+            capture_output=True,
+            check=True,
         )
         assert _git_remote_name(str(repo)) == "WenZi"
 
@@ -639,25 +671,35 @@ class TestProjectNameResolution:
         subprocess.run(["git", "init"], cwd=repo, capture_output=True, check=True)
         subprocess.run(
             ["git", "config", "user.email", "test@test.com"],
-            cwd=repo, capture_output=True, check=True,
+            cwd=repo,
+            capture_output=True,
+            check=True,
         )
         subprocess.run(
             ["git", "config", "user.name", "Test"],
-            cwd=repo, capture_output=True, check=True,
+            cwd=repo,
+            capture_output=True,
+            check=True,
         )
         subprocess.run(
             ["git", "remote", "add", "origin", "git@github.com:Airead/WenZi.git"],
-            cwd=repo, capture_output=True, check=True,
+            cwd=repo,
+            capture_output=True,
+            check=True,
         )
         # Create an initial commit so worktree can be created
         subprocess.run(
             ["git", "commit", "--allow-empty", "-m", "init"],
-            cwd=repo, capture_output=True, check=True,
+            cwd=repo,
+            capture_output=True,
+            check=True,
         )
         wt = tmp_path / "wt1"
         subprocess.run(
             ["git", "worktree", "add", str(wt), "-b", "wt-branch"],
-            cwd=repo, capture_output=True, check=True,
+            cwd=repo,
+            capture_output=True,
+            check=True,
         )
         assert _git_remote_name(str(wt)) == "WenZi"
 
@@ -666,34 +708,31 @@ class TestProjectNameResolution:
 
     def test_resolve_project_name_caches(self, tmp_path: Path):
         """Second call uses cache, not filesystem."""
-        from cc_sessions.scanner import _project_name_cache
+        from cc_sessions.git_utils import _project_name_cache
 
         cwd = str(tmp_path / "nonexistent")
         # Clear any existing cache entry
         _project_name_cache.pop(cwd, None)
-        name1 = _resolve_project_name(cwd, "fallback")
+        name1 = resolve_project_name(cwd, "fallback")
         assert name1 == "nonexistent"  # from _name_from_cwd
 
         # Cached — even with different fallback, returns same
-        name2 = _resolve_project_name(cwd, "other")
+        name2 = resolve_project_name(cwd, "other")
         assert name2 == "nonexistent"
 
         # Cleanup
         _project_name_cache.pop(cwd, None)
 
     def test_resolve_project_name_empty_cwd_uses_fallback(self):
-        assert _resolve_project_name("", "MyFallback") == "MyFallback"
+        assert resolve_project_name("", "MyFallback") == "MyFallback"
 
     def test_scan_jsonl_uses_cwd_for_project(self, tmp_path: Path):
         """JSONL scanner resolves project name from cwd, not dir name."""
-        from cc_sessions.scanner import _project_name_cache
+        from cc_sessions.git_utils import _project_name_cache
 
         jsonl = tmp_path / "s1.jsonl"
         cwd = "/Users/fan/work/VoiceText.feat-branch"
-        jsonl.write_text(
-            json.dumps({"type": "user", "timestamp": "2026-01-01T00:00:00Z",
-                        "cwd": cwd, "message": {"content": "Hi"}}) + "\n"
-        )
+        jsonl.write_text(json.dumps({"type": "user", "timestamp": "2026-01-01T00:00:00Z", "cwd": cwd, "message": {"content": "Hi"}}) + "\n")
         # Clear cache
         _project_name_cache.pop(cwd, None)
         result = _scan_session_jsonl(jsonl, "branch")
@@ -705,7 +744,7 @@ class TestProjectNameResolution:
 
     def test_resolve_from_subdirectory(self, tmp_path: Path):
         """Session started from repo subdirectory resolves to repo name."""
-        from cc_sessions.scanner import _project_name_cache
+        from cc_sessions.git_utils import _project_name_cache
 
         # Set up real git repo with remote
         repo = tmp_path / "repo"
@@ -713,19 +752,21 @@ class TestProjectNameResolution:
         subprocess.run(["git", "init"], cwd=repo, capture_output=True, check=True)
         subprocess.run(
             ["git", "remote", "add", "origin", "git@github.com:Airead/WenZi.git"],
-            cwd=repo, capture_output=True, check=True,
+            cwd=repo,
+            capture_output=True,
+            check=True,
         )
         sub = repo / "docs"
         sub.mkdir()
 
         cwd = str(sub)
         _project_name_cache.pop(cwd, None)
-        assert _resolve_project_name(cwd, "docs") == "WenZi"
+        assert resolve_project_name(cwd, "docs") == "WenZi"
         _project_name_cache.pop(cwd, None)
 
     def test_resolve_subdirectory_no_remote(self, tmp_path: Path):
         """Subdirectory of repo without remote falls back to repo dir basename."""
-        from cc_sessions.scanner import _project_name_cache
+        from cc_sessions.git_utils import _project_name_cache
 
         # Git repo without remote
         (tmp_path / ".git").mkdir()
@@ -735,30 +776,26 @@ class TestProjectNameResolution:
 
         cwd = str(sub)
         _project_name_cache.pop(cwd, None)
-        assert _resolve_project_name(cwd, "lib") == tmp_path.name
+        assert resolve_project_name(cwd, "lib") == tmp_path.name
         _project_name_cache.pop(cwd, None)
 
     def test_scan_jsonl_subdirectory_resolves_to_repo(self, tmp_path: Path):
         """Integration: JSONL with subdirectory CWD resolves project from git root."""
-        from cc_sessions.scanner import _project_name_cache
+        from cc_sessions.git_utils import _project_name_cache
 
         # Set up git repo
         repo = tmp_path / "MyProject"
         repo.mkdir()
         git_dir = repo / ".git"
         git_dir.mkdir()
-        (git_dir / "config").write_text(
-            '[remote "origin"]\n'
-            "    url = git@github.com:User/MyProject.git\n"
-        )
+        (git_dir / "config").write_text('[remote "origin"]\n    url = git@github.com:User/MyProject.git\n')
         sub = repo / "docs"
         sub.mkdir()
 
         cwd = str(sub)
         jsonl = tmp_path / "s1.jsonl"
         jsonl.write_text(
-            json.dumps({"type": "user", "timestamp": "2026-01-01T00:00:00Z",
-                        "cwd": cwd, "message": {"content": "Hello"}}) + "\n"
+            json.dumps({"type": "user", "timestamp": "2026-01-01T00:00:00Z", "cwd": cwd, "message": {"content": "Hello"}}) + "\n"
         )
         _project_name_cache.pop(cwd, None)
         result = _scan_session_jsonl(jsonl, "docs")
@@ -772,7 +809,7 @@ class TestScannerClearCache:
 
     def test_clear_cache_resets_all(self, tmp_path: Path):
         """clear_cache() empties disk cache, index supplements, and project name cache."""
-        from cc_sessions.scanner import _project_name_cache
+        from cc_sessions.git_utils import _project_name_cache
 
         base = tmp_path / "projects"
         base.mkdir()

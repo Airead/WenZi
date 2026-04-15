@@ -162,9 +162,7 @@ def _get_message_handler_class():
     class WebViewPanelMessageHandler(NSObject, protocols=[WKScriptMessageHandler]):
         _panel_ref = None
 
-        def userContentController_didReceiveScriptMessage_(
-            self, controller, message
-        ):
+        def userContentController_didReceiveScriptMessage_(self, controller, message):
             if self._panel_ref is None:
                 return
             raw = message.body()
@@ -229,18 +227,18 @@ def _get_file_scheme_handler_class():
             try:
                 from Foundation import NSHTTPURLResponse
 
-                response = NSHTTPURLResponse.alloc() \
-                    .initWithURL_statusCode_HTTPVersion_headerFields_(
-                        url, 200, "HTTP/1.1", {
-                            "Content-Type": mime,
-                            "Content-Length": str(len(data)),
-                            "Access-Control-Allow-Origin": "*",
-                        },
-                    )
-                task.didReceiveResponse_(response)
-                task.didReceiveData_(
-                    NSData.dataWithBytes_length_(data, len(data))
+                response = NSHTTPURLResponse.alloc().initWithURL_statusCode_HTTPVersion_headerFields_(
+                    url,
+                    200,
+                    "HTTP/1.1",
+                    {
+                        "Content-Type": mime,
+                        "Content-Length": str(len(data)),
+                        "Access-Control-Allow-Origin": "*",
+                    },
                 )
+                task.didReceiveResponse_(response)
+                task.didReceiveData_(NSData.dataWithBytes_length_(data, len(data)))
                 task.didFinish()
             except Exception:
                 # Task may have been stopped — ignore
@@ -262,7 +260,8 @@ def _get_file_scheme_handler_class():
                 from Foundation import NSError
 
                 error = NSError.errorWithDomain_code_userInfo_(
-                    "WZFileSchemeHandler", code,
+                    "WZFileSchemeHandler",
+                    code,
                     {"NSLocalizedDescription": message},
                 )
                 task.didFailWithError_(error)
@@ -359,6 +358,7 @@ class WebViewPanel:
 
         if self._titlebar_hidden:
             import weakref
+
             ref = weakref.ref(self)
             self.on("close", lambda _data: (r := ref()) and r.close())
 
@@ -437,7 +437,11 @@ class WebViewPanel:
             from AppKit import NSApp
 
             self._panel.orderOut_(None)
-            NSApp.setActivationPolicy_(1)  # Accessory (statusbar-only)
+            other_visible = any(w.isVisible() for w in NSApp.windows() if w != self._panel)
+            if other_visible:
+                NSApp.activateIgnoringOtherApps_(True)
+            else:
+                NSApp.setActivationPolicy_(1)  # Accessory (statusbar-only)
 
         self._webview = None
         self._panel = None
@@ -474,9 +478,11 @@ class WebViewPanel:
 
     def handle(self, name: str) -> Callable:
         """Decorator to register a call handler for JS wz.call() requests."""
+
         def decorator(fn: Callable) -> Callable:
             self._call_handlers[name] = fn
             return fn
+
         return decorator
 
     def on_close(self, callback: Callable) -> None:
@@ -496,9 +502,7 @@ class WebViewPanel:
             from AppKit import NSSound
             from Foundation import NSURL
 
-            sound = NSSound.alloc().initWithContentsOfURL_byReference_(
-                NSURL.URLWithString_(url), False
-            )
+            sound = NSSound.alloc().initWithContentsOfURL_byReference_(NSURL.URLWithString_(url), False)
             if sound:
                 sound.play()
         except Exception:
@@ -559,9 +563,7 @@ class WebViewPanel:
             return
 
         def _do():
-            payload = json.dumps(
-                result if result is not None else None, ensure_ascii=False
-            )
+            payload = json.dumps(result if result is not None else None, ensure_ascii=False)
             self.eval_js(f"wz._resolve({json.dumps(call_id)}, {payload})")
 
         try:
@@ -577,9 +579,7 @@ class WebViewPanel:
             return
 
         def _do():
-            self.eval_js(
-                f"wz._reject({json.dumps(call_id)}, {json.dumps(error)})"
-            )
+            self.eval_js(f"wz._reject({json.dumps(call_id)}, {json.dumps(error)})")
 
         try:
             from PyObjCTools import AppHelper
@@ -613,8 +613,10 @@ class WebViewPanel:
             mouse = NSEvent.mouseLocation()
             target = None
             for screen in NSScreen.screens():
-                if screen.frame().origin.x <= mouse.x < screen.frame().origin.x + screen.frame().size.width \
-                        and screen.frame().origin.y <= mouse.y < screen.frame().origin.y + screen.frame().size.height:
+                if (
+                    screen.frame().origin.x <= mouse.x < screen.frame().origin.x + screen.frame().size.width
+                    and screen.frame().origin.y <= mouse.y < screen.frame().origin.y + screen.frame().size.height
+                ):
                     target = screen
                     break
             if target is None:
@@ -685,7 +687,9 @@ class WebViewPanel:
             panel.setTitlebarAppearsTransparent_(True)
             panel.setTitleVisibility_(NSWindowTitleHidden)
             for button_type in (
-                NSWindowCloseButton, NSWindowMiniaturizeButton, NSWindowZoomButton,
+                NSWindowCloseButton,
+                NSWindowMiniaturizeButton,
+                NSWindowZoomButton,
             ):
                 btn = panel.standardWindowButton_(button_type)
                 if btn:
@@ -732,13 +736,9 @@ class WebViewPanel:
         # Build allowed path prefixes: allowed_read_paths + HTML file's dir
         allowed = [os.path.expanduser(p) for p in self._allowed_read_paths]
         if self._html_file:
-            allowed.append(os.path.dirname(os.path.abspath(
-                os.path.expanduser(self._html_file)
-            )))
+            allowed.append(os.path.dirname(os.path.abspath(os.path.expanduser(self._html_file))))
         # Pre-resolve and normalize prefixes (each ends with os.sep)
-        file_handler._allowed_prefixes = [
-            os.path.realpath(p) + os.sep for p in allowed
-        ]
+        file_handler._allowed_prefixes = [os.path.realpath(p) + os.sep for p in allowed]
         config.setURLSchemeHandler_forURLScheme_(file_handler, "wz-file")
         self._file_handler = file_handler
 
@@ -798,7 +798,10 @@ class WebViewPanel:
 
         if self._allowed_read_paths:
             tmp = tempfile.NamedTemporaryFile(
-                suffix=".html", delete=False, mode="w", encoding="utf-8",
+                suffix=".html",
+                delete=False,
+                mode="w",
+                encoding="utf-8",
             )
             tmp.write(html)
             tmp.close()
@@ -816,9 +819,7 @@ class WebViewPanel:
 
             self._webview.loadFileURL_allowingReadAccessToURL_(file_url, access_url)
         else:
-            self._webview.loadHTMLString_baseURL_(
-                html, NSURL.URLWithString_("about:blank")
-            )
+            self._webview.loadHTMLString_baseURL_(html, NSURL.URLWithString_("about:blank"))
 
     def _load_file(self, file_path: str) -> None:
         """Load an HTML file directly via loadFileURL.

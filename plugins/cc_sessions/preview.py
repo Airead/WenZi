@@ -12,39 +12,27 @@ def build_preview_html(session: dict[str, Any], detail: dict[str, Any]) -> str:
     parts: list[str] = []
 
     # Title section
-    title = (
-        session.get("custom_title")
-        or session.get("summary")
-        or session.get("first_prompt", "")
-    )
+    title = session.get("custom_title") or session.get("summary") or session.get("first_prompt", "")
     if title:
-        parts.append(
-            f'<div style="font-weight:600;font-size:13px;margin-bottom:8px">'
-            f"{escape(title)}</div>"
-        )
+        parts.append(f'<div style="font-weight:600;font-size:13px;margin-bottom:8px">{escape(title)}</div>')
 
     # Metadata tags
     tags = _build_tags(session, detail)
     if tags:
-        parts.append(
-            f'<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px">'
-            f"{tags}</div>"
-        )
+        parts.append(f'<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px">{tags}</div>')
 
     # Time info
     time_info = _build_time_info(session)
     if time_info:
-        parts.append(
-            f'<div style="font-size:11px;color:var(--secondary);margin-bottom:10px">'
-            f"{time_info}</div>"
-        )
+        parts.append(f'<div style="font-size:11px;color:var(--secondary);margin-bottom:10px">{time_info}</div>')
 
     # Conversation turns
     turns = detail.get("turns", [])
+    from .opencode_store import SOURCE_OPENCODE
+
+    assistant_label = "OPENCODE" if session.get("source") == SOURCE_OPENCODE else "CLAUDE"
     if turns:
-        parts.append(
-            '<div style="border-top:1px solid var(--border);padding-top:8px">'
-        )
+        parts.append('<div style="border-top:1px solid var(--border);padding-top:8px">')
         for turn in turns:
             role = turn["role"]
             text = escape(turn["text"])
@@ -61,7 +49,7 @@ def build_preview_html(session: dict[str, Any], detail: dict[str, Any]) -> str:
                 parts.append(
                     f'<div style="margin-bottom:6px">'
                     f'<span style="font-size:10px;font-weight:600;color:var(--secondary)">'
-                    f"CLAUDE</span>"
+                    f"{assistant_label}</span>"
                     f'<div style="font-size:12px;margin-top:2px;color:var(--secondary);{truncate}">'
                     f"{text}</div>"
                     f"</div>"
@@ -73,10 +61,7 @@ def build_preview_html(session: dict[str, Any], detail: dict[str, Any]) -> str:
 
 def _build_tags(session: dict[str, Any], detail: dict[str, Any]) -> str:
     """Build pill-shaped metadata tags."""
-    tag_style = (
-        "display:inline-block;font-size:10px;padding:2px 6px;"
-        "border-radius:4px;background:var(--item-hover);color:var(--text)"
-    )
+    tag_style = "display:inline-block;font-size:10px;padding:2px 6px;border-radius:4px;background:var(--item-hover);color:var(--text)"
     tags: list[str] = []
 
     project = session.get("project", "")
@@ -89,7 +74,10 @@ def _build_tags(session: dict[str, Any], detail: dict[str, Any]) -> str:
 
     version = session.get("version", "")
     if version:
-        tags.append(f'<span style="{tag_style}">Claude {escape(version)}</span>')
+        from .opencode_store import SOURCE_OPENCODE
+
+        label = "OpenCode" if session.get("source") == SOURCE_OPENCODE else "Claude"
+        tags.append(f'<span style="{tag_style}">{label} {escape(version)}</span>')
 
     count = session.get("message_count", 0)
     if count:

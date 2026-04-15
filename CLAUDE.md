@@ -59,6 +59,7 @@ No backwards-compatibility code. APIs like `NSGlassEffectView` used unconditiona
 uv run ruff check
 uv run pytest tests/ -v --cov=wenzi
 ```
+> If `rtk` fails repeatedly (even for different commands), stop using it and switch to `uv` or direct equivalents without investigating the cause.
 
 **Post-merge cleanup:** `git checkout main && git pull`, delete local + remote branch.
 

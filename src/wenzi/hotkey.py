@@ -31,50 +31,125 @@ def shutdown_hotkey_executor() -> None:
 
 def _submit_callback(fn: Callable, *args) -> None:
     """Submit a callback to the shared hotkey executor with error logging."""
+
     def _safe():
         try:
             fn(*args)
         except Exception as e:
             logger.error("Hotkey callback error (%s): %s", fn.__name__, e)
+
     _hotkey_executor.submit(_safe)
 
 
 # --- Virtual keycode mappings ---
 
 _KEYCODE_MAP = {
-    "a": 0, "s": 1, "d": 2, "f": 3, "h": 4, "g": 5, "z": 6, "x": 7,
-    "c": 8, "v": 9, "b": 11, "q": 12, "w": 13, "e": 14, "r": 15,
-    "y": 16, "t": 17, "1": 18, "2": 19, "3": 20, "4": 21, "6": 22,
-    "5": 23, "9": 25, "7": 26, "8": 28, "0": 29, "o": 31, "u": 32,
-    "i": 34, "p": 35, "l": 37, "j": 38, "k": 40, "n": 45, "m": 46,
+    "a": 0,
+    "s": 1,
+    "d": 2,
+    "f": 3,
+    "h": 4,
+    "g": 5,
+    "z": 6,
+    "x": 7,
+    "c": 8,
+    "v": 9,
+    "b": 11,
+    "q": 12,
+    "w": 13,
+    "e": 14,
+    "r": 15,
+    "y": 16,
+    "t": 17,
+    "1": 18,
+    "2": 19,
+    "3": 20,
+    "4": 21,
+    "6": 22,
+    "5": 23,
+    "9": 25,
+    "7": 26,
+    "8": 28,
+    "0": 29,
+    "o": 31,
+    "u": 32,
+    "i": 34,
+    "p": 35,
+    "l": 37,
+    "j": 38,
+    "k": 40,
+    "n": 45,
+    "m": 46,
 }
 
 # Special key virtual keycodes (macOS)
 _SPECIAL_VK = {
-    "f1": 122, "f2": 120, "f3": 99, "f4": 118,
-    "f5": 96, "f6": 97, "f7": 98, "f8": 100,
-    "f9": 101, "f10": 109, "f11": 103, "f12": 111,
-    "f13": 105, "f14": 107, "f15": 113, "f16": 106,
-    "f17": 64, "f18": 79, "f19": 80, "f20": 90,
-    "fn": 63, "esc": 53, "space": 49,
-    "return": 36, "delete": 51, "tab": 48,
-    "up": 126, "down": 125, "left": 123, "right": 124,
-    "home": 115, "end": 119, "pageup": 116, "pagedown": 121,
+    "f1": 122,
+    "f2": 120,
+    "f3": 99,
+    "f4": 118,
+    "f5": 96,
+    "f6": 97,
+    "f7": 98,
+    "f8": 100,
+    "f9": 101,
+    "f10": 109,
+    "f11": 103,
+    "f12": 111,
+    "f13": 105,
+    "f14": 107,
+    "f15": 113,
+    "f16": 106,
+    "f17": 64,
+    "f18": 79,
+    "f19": 80,
+    "f20": 90,
+    "fn": 63,
+    "esc": 53,
+    "space": 49,
+    "return": 36,
+    "delete": 51,
+    "tab": 48,
+    "up": 126,
+    "down": 125,
+    "left": 123,
+    "right": 124,
+    "home": 115,
+    "end": 119,
+    "pageup": 116,
+    "pagedown": 121,
     "printscreen": 105,  # PC keyboards map PrintScreen to F13
     # Keypad (kp = keypad, distinguishes from main keyboard keys)
-    "kp0": 82, "kp1": 83, "kp2": 84, "kp3": 85,
-    "kp4": 86, "kp5": 87, "kp6": 88, "kp7": 89,
-    "kp8": 91, "kp9": 92,
-    "kp.": 65, "kp*": 67, "kp+": 69, "kp-": 78,
-    "kp/": 75, "kp_enter": 76, "kp=": 81, "kp_clear": 71,
+    "kp0": 82,
+    "kp1": 83,
+    "kp2": 84,
+    "kp3": 85,
+    "kp4": 86,
+    "kp5": 87,
+    "kp6": 88,
+    "kp7": 89,
+    "kp8": 91,
+    "kp9": 92,
+    "kp.": 65,
+    "kp*": 67,
+    "kp+": 69,
+    "kp-": 78,
+    "kp/": 75,
+    "kp_enter": 76,
+    "kp=": 81,
+    "kp_clear": 71,
 }
 
 # Modifier key virtual keycodes and their CGEventFlags bitmask
 _MOD_VK = {
-    "cmd": (55, 0x100000), "cmd_r": (54, 0x100000),
-    "ctrl": (59, 0x040000), "ctrl_r": (62, 0x040000),
-    "alt": (58, 0x080000), "alt_r": (61, 0x080000),
-    "shift": (56, 0x020000), "shift_r": (60, 0x020000),
+    "cmd": (55, 0x100000),
+    "cmd_r": (54, 0x100000),
+    "ctrl": (59, 0x040000),
+    "ctrl_r": (62, 0x040000),
+    "alt": (58, 0x080000),
+    "alt_r": (61, 0x080000),
+    "shift": (56, 0x020000),
+    "shift_r": (60, 0x020000),
 }
 
 # Reverse lookup: virtual keycode -> key name
@@ -85,6 +160,7 @@ _VK_TO_NAME.update({vk: name for name, (vk, _flag) in _MOD_VK.items()})
 
 # All known key names (for validation)
 _ALL_KEY_NAMES = set(_KEYCODE_MAP) | set(_SPECIAL_VK) | set(_MOD_VK) | {"option", "command"}
+
 
 def _normalize_key_name(name: str) -> str:
     """Normalize a key name: strip, lowercase, and map aliases."""
@@ -106,9 +182,11 @@ MODIFIER_KEY_NAMES = set(_MOD_VK.keys())  # {"cmd", "cmd_r", "ctrl", ...}
 
 # Modifier flag constants
 _MOD_FLAGS = {
-    "cmd": 0x100000, "command": 0x100000,
+    "cmd": 0x100000,
+    "command": 0x100000,
     "ctrl": 0x040000,
-    "alt": 0x080000, "option": 0x080000,
+    "alt": 0x080000,
+    "option": 0x080000,
     "shift": 0x020000,
 }
 _MOD_MASK = 0x100000 | 0x040000 | 0x080000 | 0x020000
@@ -190,9 +268,7 @@ def _parse_hotkey_for_quartz(hotkey_str: str) -> tuple[int, int]:
     if mod_flags == 0:
         raise ValueError(f"Hotkey must include at least one modifier: {hotkey_str!r}")
     if len(trigger_keys) != 1:
-        raise ValueError(
-            f"Hotkey must include exactly one trigger key, got {len(trigger_keys)}: {hotkey_str!r}"
-        )
+        raise ValueError(f"Hotkey must include exactly one trigger key, got {len(trigger_keys)}: {hotkey_str!r}")
 
     kind, key = trigger_keys[0]
     vk = _KEYCODE_MAP[key] if kind == "letter" else _SPECIAL_VK[key]
@@ -202,6 +278,7 @@ def _parse_hotkey_for_quartz(hotkey_str: str) -> tuple[int, int]:
 # ---------------------------------------------------------------------------
 # Quartz-based key listener (thread-safe, no NSEvent)
 # ---------------------------------------------------------------------------
+
 
 class _QuartzAllKeysListener:
     """Listen for key press/release via Quartz CGEventTap using only C APIs.
@@ -229,9 +306,8 @@ class _QuartzAllKeysListener:
         # restart is not misinterpreted as a new press.
         try:
             from wenzi import _cgeventtap as _cg
-            self._mod_flags_prev = _cg.CGEventSourceFlagsState(
-                _cg.kCGEventSourceStateCombinedSessionState
-            )
+
+            self._mod_flags_prev = _cg.CGEventSourceFlagsState(_cg.kCGEventSourceStateCombinedSessionState)
         except Exception:
             self._mod_flags_prev = 0
 
@@ -248,9 +324,7 @@ class _QuartzAllKeysListener:
                 # forever.  Poll the current system flags and fire synthetic
                 # releases for any modifiers that went away.
                 try:
-                    new_flags = cg.CGEventSourceFlagsState(
-                        cg.kCGEventSourceStateCombinedSessionState
-                    )
+                    new_flags = cg.CGEventSourceFlagsState(cg.kCGEventSourceStateCombinedSessionState)
                     seen_masks: set = set()
                     for _name, (_vk, _mask) in _MOD_VK.items():
                         if _mask in seen_masks:
@@ -262,14 +336,10 @@ class _QuartzAllKeysListener:
                         self._on_release("fn")
                     self._mod_flags_prev = new_flags
                 except Exception:
-                    logger.warning(
-                        "Failed to re-sync modifier flags", exc_info=True
-                    )
+                    logger.warning("Failed to re-sync modifier flags", exc_info=True)
                 return event
 
-            keycode = cg.CGEventGetIntegerValueField(
-                event, cg.kCGKeyboardEventKeycode
-            )
+            keycode = cg.CGEventGetIntegerValueField(event, cg.kCGKeyboardEventKeycode)
             flags = cg.CGEventGetFlags(event) if event_type == cg.kCGEventFlagsChanged else 0
 
             if event_type == cg.kCGEventKeyDown:
@@ -317,11 +387,7 @@ class _QuartzAllKeysListener:
     def start(self) -> None:
         from wenzi import _cgeventtap as cg
 
-        mask = (
-            cg.CGEventMaskBit(cg.kCGEventKeyDown)
-            | cg.CGEventMaskBit(cg.kCGEventKeyUp)
-            | cg.CGEventMaskBit(cg.kCGEventFlagsChanged)
-        )
+        mask = cg.CGEventMaskBit(cg.kCGEventKeyDown) | cg.CGEventMaskBit(cg.kCGEventKeyUp) | cg.CGEventMaskBit(cg.kCGEventFlagsChanged)
         option = cg.kCGEventTapOptionListenOnly if self._listen_only else cg.kCGEventTapOptionDefault
         self._runner = cg.CGEventTapRunner()
         self._runner.start(mask, self._callback, option=option)
@@ -336,6 +402,7 @@ class _QuartzAllKeysListener:
 # ---------------------------------------------------------------------------
 # TapHotkeyListener — intercept and swallow a hotkey combination
 # ---------------------------------------------------------------------------
+
 
 class TapHotkeyListener:
     """Listen for a hotkey combination (single tap, not hold).
@@ -363,9 +430,7 @@ class TapHotkeyListener:
             if event_type != cg.kCGEventKeyDown:
                 return event
 
-            keycode = cg.CGEventGetIntegerValueField(
-                event, cg.kCGKeyboardEventKeycode
-            )
+            keycode = cg.CGEventGetIntegerValueField(event, cg.kCGKeyboardEventKeycode)
             flags = cg.CGEventGetFlags(event) & _MOD_MASK
 
             if keycode == self._keycode and flags == self._mod_flags:
@@ -395,6 +460,7 @@ class TapHotkeyListener:
 # ---------------------------------------------------------------------------
 # SharedHotkeyTap — single CGEventTap for many hotkey combinations
 # ---------------------------------------------------------------------------
+
 
 class SharedHotkeyTap:
     """Single CGEventTap that multiplexes multiple hotkey combinations.
@@ -426,8 +492,7 @@ class SharedHotkeyTap:
             self._tokens[token] = key
             if self._runner is None:
                 self._start_tap()
-        logger.debug("SharedHotkeyTap: added %s (flags=0x%x kc=%d, token=%d)",
-                     hotkey_str, mod_flags, keycode, token)
+        logger.debug("SharedHotkeyTap: added %s (flags=0x%x kc=%d, token=%d)", hotkey_str, mod_flags, keycode, token)
         return token
 
     def remove(self, token: int) -> None:
@@ -487,15 +552,9 @@ class SharedHotkeyTap:
             if event_type != cg.kCGEventKeyDown:
                 return event
 
-            keycode = cg.CGEventGetIntegerValueField(
-                event, cg.kCGKeyboardEventKeycode
-            )
+            keycode = cg.CGEventGetIntegerValueField(event, cg.kCGKeyboardEventKeycode)
             flags = cg.CGEventGetFlags(event) & _MOD_MASK
             key = (flags, keycode)
-
-            if logger.isEnabledFor(logging.DEBUG):
-                logger.debug("SharedHotkeyTap: keydown flags=0x%x kc=%d (%s)",
-                             flags, keycode, _VK_TO_NAME.get(keycode, "?"))
 
             d = self._bindings.get(key)
             if d is None:
@@ -505,8 +564,7 @@ class SharedHotkeyTap:
                 callbacks = tuple(d.values())
 
             if callbacks:
-                logger.info("SharedHotkeyTap matched: %s",
-                            _format_hotkey(flags, keycode))
+                logger.info("SharedHotkeyTap matched: %s", _format_hotkey(flags, keycode))
                 for callback in callbacks:
                     _submit_callback(callback)
                 return None  # Swallow the event
@@ -531,6 +589,7 @@ def _format_hotkey(flags: int, keycode: int) -> str:
 # ---------------------------------------------------------------------------
 # KeyRemapListener — remap one key to another via CGEventTap
 # ---------------------------------------------------------------------------
+
 
 class KeyRemapListener:
     """Remap keys by intercepting events and synthesizing replacements.
@@ -568,9 +627,7 @@ class KeyRemapListener:
                 return event
 
             if event_type == cg.kCGEventFlagsChanged:
-                keycode = cg.CGEventGetIntegerValueField(
-                    event, cg.kCGKeyboardEventKeycode
-                )
+                keycode = cg.CGEventGetIntegerValueField(event, cg.kCGKeyboardEventKeycode)
                 remap = self._remaps.get(keycode)
                 if remap and remap[1]:  # is_modifier source
                     target_vk, _, mod_flag = remap
@@ -586,9 +643,7 @@ class KeyRemapListener:
                 return event
 
             if event_type in (cg.kCGEventKeyDown, cg.kCGEventKeyUp):
-                keycode = cg.CGEventGetIntegerValueField(
-                    event, cg.kCGKeyboardEventKeycode
-                )
+                keycode = cg.CGEventGetIntegerValueField(event, cg.kCGKeyboardEventKeycode)
                 remap = self._remaps.get(keycode)
                 if remap and not remap[1]:  # non-modifier source
                     target_vk = remap[0]
@@ -609,11 +664,7 @@ class KeyRemapListener:
     def start(self) -> None:
         from wenzi import _cgeventtap as cg
 
-        mask = (
-            cg.CGEventMaskBit(cg.kCGEventFlagsChanged)
-            | cg.CGEventMaskBit(cg.kCGEventKeyDown)
-            | cg.CGEventMaskBit(cg.kCGEventKeyUp)
-        )
+        mask = cg.CGEventMaskBit(cg.kCGEventFlagsChanged) | cg.CGEventMaskBit(cg.kCGEventKeyDown) | cg.CGEventMaskBit(cg.kCGEventKeyUp)
         self._runner = cg.CGEventTapRunner()
         self._runner.start(mask, self._callback)
 
@@ -627,6 +678,7 @@ class KeyRemapListener:
 # ---------------------------------------------------------------------------
 # HoldHotkeyListener — single key hold detection
 # ---------------------------------------------------------------------------
+
 
 class HoldHotkeyListener:
     """Listen for a hotkey: call on_press when pressed, on_release when released.
@@ -687,6 +739,7 @@ class HoldHotkeyListener:
 # ---------------------------------------------------------------------------
 # MultiHotkeyListener — multiple keys + recording mode
 # ---------------------------------------------------------------------------
+
 
 class MultiHotkeyListener:
     """Listen for multiple hotkeys using a single Quartz CGEventTap.
@@ -760,7 +813,8 @@ class MultiHotkeyListener:
         self._listener.start()
         logger.info(
             "Multi-hotkey listener started, keys=%s, listen_only=%s",
-            list(self._enabled_names), listen_only,
+            list(self._enabled_names),
+            listen_only,
         )
 
     def stop(self) -> None:
@@ -898,23 +952,11 @@ class MultiHotkeyListener:
                     action = "restart"
                 elif self._on_cancel and self._held and name == self._cancel_key:
                     action = "cancel"
-                elif (
-                    self._on_preview_history
-                    and self._held
-                    and name == self._preview_history_key
-                ):
+                elif self._on_preview_history and self._held and name == self._preview_history_key:
                     action = "preview_history"
-                elif (
-                    self._on_mode_prev
-                    and self._held
-                    and name in ("left", "up", "home", "pageup")
-                ):
+                elif self._on_mode_prev and self._held and name in ("left", "up", "home", "pageup"):
                     action = "mode_prev"
-                elif (
-                    self._on_mode_next
-                    and self._held
-                    and name in ("right", "down", "end", "pagedown")
-                ):
+                elif self._on_mode_next and self._held and name in ("right", "down", "end", "pagedown"):
                     action = "mode_next"
                 else:
                     return False

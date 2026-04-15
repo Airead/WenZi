@@ -2,7 +2,7 @@
 id = "io.github.airead.wenzi.cc-sessions"
 name = "Claude Code Sessions"
 description = "Browse and view Claude Code session history through the launcher"
-version = "0.1.5"
+version = "0.1.6"
 author = "WenZi"
 url = "https://github.com/Airead/WenZi"
 icon = "claude_icon.png"
