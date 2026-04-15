@@ -7,6 +7,7 @@ from wenzi.scripting.sources import (
     _word_initials,
     fuzzy_match,
     fuzzy_match_fields,
+    set_pinyin_enabled,
 )
 
 
@@ -58,6 +59,25 @@ class TestChooserSource:
 
         result = src.search("chrome")
         assert len(result) == 0
+
+
+class TestChooserSourceStatic:
+    def test_load_field(self):
+        items = [ChooserItem(title="server-01")]
+        src = ChooserSource(name="ssh", prefix="ss", load=lambda: items)
+        assert src.load is not None
+        assert src.search is None
+        assert src.load() == items
+
+    def test_load_and_search_mutually_exclusive_by_convention(self):
+        """Static sources use load, dynamic sources use search."""
+        static = ChooserSource(name="s", load=lambda: [])
+        assert static.load is not None
+        assert static.search is None
+
+        dynamic = ChooserSource(name="d", search=lambda q: [])
+        assert dynamic.search is not None
+        assert dynamic.load is None
 
 
 class TestWordInitials:
@@ -171,6 +191,20 @@ class TestFuzzyMatch:
         _, initials_score = fuzzy_match("dd", "DragonDrop")
         _, scattered_score = fuzzy_match("dp", "DragonDrop")
         assert initials_score > scattered_score
+
+    def test_multi_term_all_match(self):
+        matched, score = fuzzy_match("btc euc", "aws-euc1a-btc-fw-12")
+        assert matched is True
+        assert score == 60  # both are substring matches
+
+    def test_multi_term_partial_miss(self):
+        matched, score = fuzzy_match("btc xyz", "aws-euc1a-btc-fw-12")
+        assert matched is False
+
+    def test_multi_term_order_irrelevant(self):
+        _, score1 = fuzzy_match("btc euc", "aws-euc1a-btc-fw-12")
+        _, score2 = fuzzy_match("euc btc", "aws-euc1a-btc-fw-12")
+        assert score1 == score2
 
 
 class TestFuzzyMatchFields:
@@ -297,3 +331,33 @@ class TestPinyinMatch:
         _, full_score = fuzzy_match("xitong", "系统设置")
         _, init_score = fuzzy_match("xtsh", "系统设置")
         assert full_score > init_score
+
+
+class TestPinyinDisabled:
+    """Pinyin matching can be disabled via set_pinyin_enabled."""
+
+    def setup_method(self):
+        set_pinyin_enabled(False)
+
+    def teardown_method(self):
+        set_pinyin_enabled(True)
+
+    def test_pinyin_skipped_when_disabled(self):
+        """Pinyin queries should not match Chinese text when disabled."""
+        matched, _ = fuzzy_match("xitong", "系统设置")
+        assert matched is False
+
+    def test_pinyin_initials_skipped(self):
+        matched, _ = fuzzy_match("xtsz", "系统设置")
+        assert matched is False
+
+    def test_ascii_match_still_works(self):
+        """Non-pinyin strategies remain unaffected."""
+        matched, score = fuzzy_match("saf", "Safari")
+        assert matched is True
+        assert score == 100
+
+    def test_scattered_still_works(self):
+        matched, score = fuzzy_match("sfr", "Safari")
+        assert matched is True
+        assert score == 40

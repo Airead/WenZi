@@ -465,6 +465,7 @@ class ChooserAPI:
         search_timeout: float | None = None,
         debounce_delay: float | None = None,
         universal_action: bool = False,
+        static: bool = False,
     ) -> Callable:
         """Decorator to register a search function as a chooser source.
 
@@ -479,6 +480,12 @@ class ChooserAPI:
                                description="Search TODOs")
             def search_todos(query):
                 return [{"title": "Fix bug #123", ...}]
+
+        Static sources (engine handles fuzzy matching)::
+
+            @wz.chooser.source("ssh", prefix="ss", static=True)
+            def load_ssh():
+                return [{"title": "aws-euc1a-btc-fw-12", ...}]
 
         Async sources::
 
@@ -496,46 +503,63 @@ class ChooserAPI:
                 ...
 
         Args:
+            static: When True, the decorated function takes no arguments and
+                returns all items.  The engine calls it once per chooser
+                session, caches the results, and applies fuzzy matching on
+                each keystroke.  The cache is refreshed every time the
+                chooser is opened.
             search_timeout: Per-source timeout in seconds for async sources.
                 None uses the global default (5.0s).
             debounce_delay: Debounce delay in seconds for async sources.
                 None uses the global default (0.15s), 0 disables debouncing.
         """
 
-        def decorator(func: Callable[[str], list[dict]]) -> Callable:
-            _is_async = asyncio.iscoroutinefunction(func)
-
-            if _is_async:
-
-                async def _async_search(query: str) -> list[ChooserItem]:
-                    return _convert_items(await func(query))
-
-                search_fn = _async_search
-            else:
-
-                def _search(query: str) -> list[ChooserItem]:
-                    return _convert_items(func(query))
-
-                search_fn = _search
-
-            src = ChooserSource(
+        def decorator(func: Callable) -> Callable:
+            common = dict(
                 name=name,
                 prefix=prefix,
-                search=search_fn,
                 priority=priority,
                 description=description,
                 action_hints=action_hints,
                 show_preview=show_preview,
-                is_async=_is_async,
-                search_timeout=search_timeout,
-                debounce_delay=debounce_delay,
                 universal_action=universal_action,
             )
+
+            if static:
+
+                def _load() -> list[ChooserItem]:
+                    return _convert_items(func())
+
+                src = ChooserSource(**common, load=_load)
+            else:
+                _is_async = asyncio.iscoroutinefunction(func)
+
+                if _is_async:
+
+                    async def _async_search(query: str) -> list[ChooserItem]:
+                        return _convert_items(await func(query))
+
+                    search_fn = _async_search
+                else:
+
+                    def _search(query: str) -> list[ChooserItem]:
+                        return _convert_items(func(query))
+
+                    search_fn = _search
+
+                src = ChooserSource(
+                    **common,
+                    search=search_fn,
+                    is_async=_is_async,
+                    search_timeout=search_timeout,
+                    debounce_delay=debounce_delay,
+                )
+
             self._panel.register_source(src)
             logger.info(
-                "User script registered chooser source: %s (async=%s)",
+                "User script registered chooser source: %s (static=%s)",
                 name,
-                _is_async,
+                static,
             )
             return func
 

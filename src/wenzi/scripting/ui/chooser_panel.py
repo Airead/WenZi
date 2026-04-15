@@ -15,7 +15,7 @@ from collections.abc import Callable
 from typing import NamedTuple
 
 from wenzi.i18n import t
-from wenzi.scripting.sources import ChooserItem, ChooserSource, fuzzy_match
+from wenzi.scripting.sources import ChooserItem, ChooserSource, fuzzy_match, fuzzy_match_fields
 from wenzi.ui_helpers import get_frontmost_app, reactivate_app
 
 logger = logging.getLogger(__name__)
@@ -252,6 +252,7 @@ class ChooserPanel:
         self._pending_async_count: int = 0
         self._loading_visible: bool = False
         self._debounce_state: dict[str, _DebounceEntry] = {}  # source_name -> pending debounce
+        self._static_cache: dict[str, list[ChooserItem]] = {}  # source_name -> loaded items
         self._recycle_timer = None  # deferred webview recycle timer
         self._recycle_mode: str = self._DEFAULT_RECYCLE_MODE
         self._recycle_preloading: bool = False
@@ -484,16 +485,24 @@ class ChooserPanel:
 
     def register_source(self, source: ChooserSource) -> None:
         """Register a data source."""
+        if source.load is not None and source.prefix is None:
+            logger.warning(
+                "Static source %s has no prefix; it will be unreachable in normal search",
+                source.name,
+            )
         self._sources[source.name] = source
+        self._static_cache.pop(source.name, None)
         logger.info("Chooser source registered: %s", source.name)
 
     def unregister_source(self, name: str) -> None:
         """Remove a data source by name."""
         self._sources.pop(name, None)
+        self._static_cache.pop(name, None)
 
     def reset(self) -> None:
         """Clear all sources and reset trackers."""
         self._sources.clear()
+        self._static_cache.clear()
         self._usage_tracker = None
         self._query_history = None
 
@@ -565,6 +574,7 @@ class ChooserPanel:
         """Replace the active visible session without tearing down the panel."""
         self._finish_active_session(defer_on_close=True)
         self._invalidate_search_session()
+        self._static_cache.clear()
 
         self._context_text = context_text
         self._exclusive_source = exclusive_source
@@ -882,6 +892,8 @@ class ChooserPanel:
         self._pending_placeholder = None
         self._recycle_preloading = False
 
+        self._static_cache.clear()
+
         if self._snippet_expander is not None:
             self._snippet_expander.resume()
         self._exit_calc_mode()
@@ -1113,6 +1125,20 @@ class ChooserPanel:
                 self._set_loading(False)
                 return
 
+        # Static source: load items once, filter with engine fuzzy matching.
+        # Static sources never produce calc results, so skip calc/compact logic.
+        if source is not None and source.load is not None:
+            all_items = self._search_static_source(source, query)
+            self._current_items = all_items[: self._MAX_TOTAL_RESULTS]
+            if self._usage_tracker and self._current_items:
+                self._boost_by_usage(self._usage_query(query))
+            self._calc_sticky = False
+            self._compact_results = False
+            self._show_preview = source.show_preview
+            self._push_items_to_js(source=source)
+            self._set_loading(False)
+            return
+
         # Partition sources into sync and async
         if source is not None:
             # Single source activated by prefix
@@ -1199,6 +1225,40 @@ class ChooserPanel:
                     self._schedule_debounced_search(asrc, query, generation, delay)
         else:
             self._set_loading(False)
+
+    def _search_static_source(
+        self,
+        source: ChooserSource,
+        query: str,
+    ) -> list[ChooserItem]:
+        """Load items from a static source and filter with engine fuzzy matching.
+
+        Items are loaded via ``source.load()`` on first query per session
+        (cache is cleared in :meth:`close`).  Subsequent queries within
+        the same session filter the cached items using
+        :func:`fuzzy_match_fields`.  An empty query returns all cached items.
+        """
+        # Load and cache items
+        if source.name not in self._static_cache:
+            try:
+                self._static_cache[source.name] = source.load()
+            except Exception:
+                logger.exception("Static source %s load error", source.name)
+                self._static_cache[source.name] = []
+
+        items = self._static_cache[source.name]
+
+        if not query.strip():
+            return list(items)
+
+        # Fuzzy filter
+        hits: list[tuple[int, ChooserItem]] = []
+        for item in items:
+            matched, score = fuzzy_match_fields(query, (item.title, item.subtitle))
+            if matched:
+                hits.append((score, item))
+        hits.sort(key=lambda x: -x[0])
+        return [item for _, item in hits]
 
     def _match_prefix_sources(self, query: str) -> list[ChooserItem]:
         """Return ChooserItems for registered prefixed sources matching *query*.

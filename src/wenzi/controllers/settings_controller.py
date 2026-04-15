@@ -438,6 +438,7 @@ class SettingsController:
             "on_launcher_prefix_change": self.launcher_prefix_change,
             "on_launcher_usage_learning_toggle": self.launcher_usage_learning_toggle,
             "on_launcher_switch_english_toggle": self.launcher_switch_english_toggle,
+            "on_launcher_pinyin_toggle": self.launcher_pinyin_toggle,
             "on_launcher_recycle_mode_change": self.launcher_recycle_mode_change,
             "on_launcher_refresh_icons": self.launcher_refresh_icons,
             "on_launcher_source_hotkey_record": self.launcher_source_hotkey_record,
@@ -1543,6 +1544,7 @@ class SettingsController:
             "hotkey": chooser_cfg.get("hotkey", ""),
             "usage_learning": chooser_cfg.get("usage_learning", True),
             "switch_english": chooser_cfg.get("switch_to_english", True),
+            "pinyin": chooser_cfg.get("pinyin", True),
             "recycle_mode": chooser_cfg.get("recycle_mode", "preload_html"),
             "new_snippet_hotkey": chooser_cfg.get("new_snippet_hotkey", ""),
             "universal_action_hotkey": chooser_cfg.get("universal_action_hotkey", ""),
@@ -1852,6 +1854,21 @@ class SettingsController:
             engine.wz.chooser._get_panel()._switch_english = enabled
 
         logger.info("Launcher switch-to-English set to: %s", enabled)
+
+    def launcher_pinyin_toggle(self, enabled: bool) -> None:
+        """Handle launcher pinyin matching toggle from Settings panel."""
+        app = self._app
+        chooser_cfg = app._config.setdefault("scripting", {}).setdefault(
+            "chooser", {}
+        )
+        chooser_cfg["pinyin"] = enabled
+        self._save_and_reload()
+
+        engine = getattr(app, "_script_engine", None)
+        if engine is not None:
+            engine.set_pinyin_enabled(enabled)
+
+        logger.info("Launcher pinyin matching set to: %s", enabled)
 
     def launcher_recycle_mode_change(self, mode: str) -> None:
         """Handle launcher idle recycle mode changes from Settings."""

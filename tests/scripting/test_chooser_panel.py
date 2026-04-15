@@ -1969,3 +1969,146 @@ class TestDeferredRecycle:
              patch.object(panel, "_deactivate_glass") as mock_release:
             panel._on_page_loaded()
         mock_release.assert_called_once_with()
+
+
+class TestStaticSource:
+    """Tests for static (load-based) sources with engine-side fuzzy matching."""
+
+    def _make_static_source(self, name="ssh", prefix="ss", items=None):
+        items = items or [
+            ChooserItem(title="aws-euc1a-btc-fw-12", subtitle="~/.ssh/ssm"),
+            ChooserItem(title="aws-euc1a-btc-node-01", subtitle="~/.ssh/ssm"),
+            ChooserItem(title="aws-use1a-eth-pool-05", subtitle="~/.ssh/ssm"),
+        ]
+        return ChooserSource(name=name, prefix=prefix, load=lambda: items)
+
+    def test_empty_query_returns_all_items(self):
+        panel = _make_panel()
+        panel.register_source(self._make_static_source())
+        panel._do_search("ss ")
+        assert len(panel._current_items) == 3
+
+    def test_single_term_filters(self):
+        panel = _make_panel()
+        panel.register_source(self._make_static_source())
+        panel._do_search("ss btc")
+        titles = [i.title for i in panel._current_items]
+        assert "aws-euc1a-btc-fw-12" in titles
+        assert "aws-euc1a-btc-node-01" in titles
+        assert "aws-use1a-eth-pool-05" not in titles
+
+    def test_multi_term_filters(self):
+        panel = _make_panel()
+        panel.register_source(self._make_static_source())
+        panel._do_search("ss btc euc")
+        titles = [i.title for i in panel._current_items]
+        assert "aws-euc1a-btc-fw-12" in titles
+        assert "aws-euc1a-btc-node-01" in titles
+        assert "aws-use1a-eth-pool-05" not in titles
+
+    def test_no_match(self):
+        panel = _make_panel()
+        panel.register_source(self._make_static_source())
+        panel._do_search("ss xyz")
+        assert len(panel._current_items) == 0
+
+    def test_items_are_cached(self):
+        call_count = 0
+
+        def _load():
+            nonlocal call_count
+            call_count += 1
+            return [ChooserItem(title="server-01")]
+
+        src = ChooserSource(name="ssh", prefix="ss", load=_load)
+        panel = _make_panel()
+        panel.register_source(src)
+
+        panel._do_search("ss ")
+        panel._do_search("ss ser")
+        panel._do_search("ss server")
+        assert call_count == 1
+
+    def test_cache_cleared_on_re_register(self):
+        call_count = 0
+
+        def _load():
+            nonlocal call_count
+            call_count += 1
+            return [ChooserItem(title="server-01")]
+
+        src = ChooserSource(name="ssh", prefix="ss", load=_load)
+        panel = _make_panel()
+        panel.register_source(src)
+        panel._do_search("ss ")
+        assert call_count == 1
+
+        panel.register_source(src)  # re-register clears cache
+        panel._do_search("ss ")
+        assert call_count == 2
+
+    def test_cache_cleared_on_unregister(self):
+        panel = _make_panel()
+        panel.register_source(self._make_static_source())
+        panel._do_search("ss ")
+        assert "ssh" in panel._static_cache
+
+        panel.unregister_source("ssh")
+        assert "ssh" not in panel._static_cache
+
+    def test_cache_cleared_on_reset(self):
+        panel = _make_panel()
+        panel.register_source(self._make_static_source())
+        panel._do_search("ss ")
+        assert "ssh" in panel._static_cache
+
+        panel.reset()
+        assert len(panel._static_cache) == 0
+
+    def test_subtitle_match(self):
+        """Multi-term query can match across title and subtitle."""
+        items = [
+            ChooserItem(title="aws-btc-fw-12", subtitle="production"),
+            ChooserItem(title="aws-btc-fw-14", subtitle="staging"),
+        ]
+        src = ChooserSource(name="ssh", prefix="ss", load=lambda: items)
+        panel = _make_panel()
+        panel.register_source(src)
+        panel._do_search("ss btc prod")
+        titles = [i.title for i in panel._current_items]
+        assert titles == ["aws-btc-fw-12"]
+
+    def test_results_sorted_by_score(self):
+        items = [
+            ChooserItem(title="abc-xyz-server"),   # scattered match for "sv"
+            ChooserItem(title="sv-main-server"),    # prefix match for "sv"
+        ]
+        src = ChooserSource(name="test", prefix="t", load=lambda: items)
+        panel = _make_panel()
+        panel.register_source(src)
+        panel._do_search("t sv")
+        assert panel._current_items[0].title == "sv-main-server"
+
+    def test_cache_cleared_on_show(self):
+        """Each chooser session gets fresh data from load()."""
+        call_count = 0
+
+        def _load():
+            nonlocal call_count
+            call_count += 1
+            return [ChooserItem(title="server-01")]
+
+        src = ChooserSource(name="ssh", prefix="ss", load=_load)
+        panel = _make_panel()
+        panel.register_source(src)
+
+        # First session
+        panel._do_search("ss ")
+        assert call_count == 1
+        panel._do_search("ss ser")
+        assert call_count == 1  # cached within session
+
+        # Simulate new session (show clears static cache)
+        panel._static_cache.clear()
+        panel._do_search("ss ")
+        assert call_count == 2  # reloaded

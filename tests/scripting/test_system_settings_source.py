@@ -251,11 +251,10 @@ class TestSystemSettingsSource:
         results = src.search("bluetooth")
         assert results[0].icon == ""
 
-    def test_mixed_search_limits_results(self, tmp_path):
+    def test_unprefixed_search_limits_results(self, tmp_path):
         src = self._make_source(tmp_path)
-        sources = src.as_chooser_source()
-        unprefixed = [s for s in sources if s.prefix is None][0]
-        results = unprefixed.search("a")
+        cs = src.as_chooser_source()
+        results = cs.search("a")
         assert len(results) <= 5
 
     def test_action_calls_on_open(self, tmp_path, monkeypatch):
@@ -288,41 +287,24 @@ class TestSystemSettingsSource:
 
 
 class TestAsChooserSource:
-    def test_returns_two_sources(self, tmp_path):
+    def test_returns_single_source(self, tmp_path):
         src = SystemSettingsSource(extensions_dir=str(tmp_path))
-        sources = src.as_chooser_source()
-        assert len(sources) == 2
+        cs = src.as_chooser_source()
+        assert cs.prefix is None
+        assert cs.name == "system_settings"
 
-    def test_prefixed_source(self, tmp_path):
+    def test_chooser_source(self, tmp_path):
         src = SystemSettingsSource(extensions_dir=str(tmp_path))
-        sources = src.as_chooser_source(prefix="ss")
-        prefixed = [s for s in sources if s.prefix is not None]
-        assert len(prefixed) == 1
-        assert prefixed[0].prefix == "ss"
-        assert prefixed[0].name == "system_settings"
-        assert prefixed[0].search is not None
-        assert "enter" in prefixed[0].action_hints
-        assert "cmd_enter" in prefixed[0].action_hints
-        assert prefixed[0].description
+        cs = src.as_chooser_source()
+        assert cs.name == "system_settings"
+        assert cs.prefix is None
+        assert cs.priority == -5
+        assert cs.search is not None
+        assert "enter" in cs.action_hints
+        assert "cmd_enter" in cs.action_hints
+        assert cs.description
 
-    def test_unprefixed_source(self, tmp_path):
+    def test_empty_query_returns_nothing(self, tmp_path):
         src = SystemSettingsSource(extensions_dir=str(tmp_path))
-        sources = src.as_chooser_source()
-        unprefixed = [s for s in sources if s.prefix is None]
-        assert len(unprefixed) == 1
-        assert unprefixed[0].name == "system_settings_mixed"
-        assert unprefixed[0].priority == -5
-        assert unprefixed[0].search is not None
-
-    def test_unprefixed_empty_query_returns_nothing(self, tmp_path):
-        src = SystemSettingsSource(extensions_dir=str(tmp_path))
-        sources = src.as_chooser_source()
-        unprefixed = [s for s in sources if s.prefix is None][0]
-        results = unprefixed.search("")
-        assert len(results) == 0
-
-    def test_custom_prefix(self, tmp_path):
-        src = SystemSettingsSource(extensions_dir=str(tmp_path))
-        sources = src.as_chooser_source(prefix="set")
-        prefixed = [s for s in sources if s.prefix is not None]
-        assert prefixed[0].prefix == "set"
+        cs = src.as_chooser_source()
+        assert cs.search("") == []

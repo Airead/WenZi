@@ -138,6 +138,19 @@ def search_todos(query):
     ]
 ```
 
+**静态数据源** — 使用 `static=True` 让引擎处理模糊匹配和缓存。函数不接受参数，返回所有数据项；引擎在每次启动器会话中只调用一次（首次查询时加载，关闭时释放缓存），之后每次键入时自动进行多词模糊匹配：
+
+```python
+@wz.chooser.source("ssh", prefix="ss", static=True, description="SSH 主机")
+def load_ssh_hosts():
+    return [
+        {"title": "aws-euc1a-btc-fw-12", "subtitle": "~/.ssh/ssm", "action": lambda: ...},
+        {"title": "aws-euc1a-btc-node-01", "subtitle": "~/.ssh/ssm", "action": lambda: ...},
+    ]
+```
+
+以上示例中，输入 `ss btc euc` 会匹配同时包含 "btc" 和 "euc" 的项目。适用于加载开销较大但在单次搜索会话内稳定的数据（SSH 主机、进程列表、窗口列表等）。
+
 ### 命令
 
 脚本可以注册命名命令，这些命令会出现在命令面板中（在启动器中输入 `> ` 激活）。命令支持参数传递、修饰键和 Tab 补全。
@@ -444,14 +457,24 @@ def greet(args):
     wz.notify("Hello", args.strip() or "World")
 ```
 
-### `@wz.chooser.source(name, prefix=None, priority=0, description="")`
+### `@wz.chooser.source(name, prefix=None, priority=0, description="", static=False)`
 
-装饰器，将搜索函数注册为启动器数据源。设置 `description` 可使该源出现在内置 `help` 命令的输出中。
+装饰器，将函数注册为启动器数据源。设置 `description` 可使该源出现在内置 `help` 命令的输出中。
+
+**动态模式**（默认） — 函数接收查询字符串，返回过滤后的结果：
 
 ```python
 @wz.chooser.source("notes", prefix="n", priority=5, description="Search notes")
 def search_notes(query):
     return [{"title": "...", "action": lambda: ...}]
+```
+
+**静态模式**（`static=True`） — 函数不接受参数，返回所有数据项。引擎每次启动器会话加载一次，关闭时释放缓存，并自动进行模糊匹配（多词、拼音、首字母等）：
+
+```python
+@wz.chooser.source("hosts", prefix="h", static=True, description="SSH 主机")
+def load_hosts():
+    return [{"title": "server-01", "subtitle": "prod", "action": lambda: ...}]
 ```
 
 ## 使用示例
@@ -655,7 +678,7 @@ wz.run(fetch_and_copy("https://example.com"))
 ### 限制
 
 - **不支持顶层 `await`** — `init.py` 是同步执行的。将异步逻辑写在 `async def` 函数中，注册为回调或通过 `wz.run()` 提交。
-- **Chooser source 必须同步** — `@wz.chooser.source()` 的搜索函数需要立即返回结果，不支持异步。
+- **Chooser source** — 支持同步和异步搜索函数。静态数据源（`static=True`）必须是同步的；加载函数每次启动器会话调用一次，关闭时释放缓存。
 - **不要在 async 回调中调用 `wz.run(coro).result()`** — 这会死锁。在 async 函数内直接用 `await`。
 - **无内置并发控制** — 快速连按快捷键会产生多个并发任务。如需互斥，自行使用 flag 或 `asyncio.Lock`。
 

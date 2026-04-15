@@ -109,6 +109,10 @@ class ChooserSource:
         default=None,
         repr=False,
     )  # Optional "create new" action; receives stripped query
+    load: Callable[[], list[ChooserItem]] | None = field(
+        default=None,
+        repr=False,
+    )  # Static mode: returns all items; engine handles fuzzy filtering
     is_async: bool = False
     search_timeout: float | None = None  # Async sources only; None = use global default
     debounce_delay: float | None = None  # Async sources only; None = use global default, 0 = no debounce
@@ -171,6 +175,16 @@ def _get_pinyin(text: str) -> tuple[str, str]:
 # Fuzzy matching
 # ---------------------------------------------------------------------------
 
+_pinyin_enabled: bool = True
+
+
+def set_pinyin_enabled(enabled: bool) -> None:
+    """Enable or disable pinyin matching globally."""
+    global _pinyin_enabled
+    _pinyin_enabled = enabled
+    if not enabled:
+        _get_pinyin.cache_clear()
+
 
 def fuzzy_match(query: str, text: str) -> tuple[bool, int]:
     """Match *query* against *text* using multiple strategies.
@@ -188,6 +202,17 @@ def fuzzy_match(query: str, text: str) -> tuple[bool, int]:
     """
     if not query:
         return False, 0
+
+    # Multi-term: split on whitespace, each term must match independently
+    terms = query.split()
+    if len(terms) > 1:
+        total = 0
+        for term in terms:
+            matched, score = fuzzy_match(term, text)
+            if not matched:
+                return False, 0
+            total += score
+        return True, total // len(terms)
 
     q = query.lower()
     t = text.lower()
@@ -210,7 +235,7 @@ def fuzzy_match(query: str, text: str) -> tuple[bool, int]:
         return True, 60
 
     # 4. Pinyin match — ASCII query against Chinese text
-    if _IS_ASCII.match(q) and _HAS_CJK.search(text):
+    if _pinyin_enabled and _IS_ASCII.match(q) and _HAS_CJK.search(text):
         full_py, init_py = _get_pinyin(text)
         if full_py:
             # Full pinyin prefix: "xitong" matches "系统设置"

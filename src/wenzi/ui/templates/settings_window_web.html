@@ -1167,6 +1167,15 @@ textarea.provider-form-textarea.error {
         </div>
         <div class="setting-row">
           <div class="setting-left">
+            <div class="setting-label" data-i18n="launcher_tab.pinyin">Pinyin Matching</div>
+            <div class="setting-desc" data-i18n="launcher_tab.pinyin_desc">Match Chinese characters by pinyin (e.g. "xtsh" matches "系统设置")</div>
+          </div>
+          <div class="setting-right">
+            <div id="ctl-launcher-pinyin" class="toggle" onclick="toggleClick(this, 'on_launcher_pinyin_toggle')"></div>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-left">
             <div class="setting-label" data-i18n="launcher_tab.recycle_mode">Recycle Mode</div>
             <div class="setting-desc" data-i18n="launcher_tab.recycle_mode_desc">Idle strategy after the launcher has been hidden for 60 seconds</div>
           </div>
@@ -2678,6 +2687,7 @@ function _initState(config) {
   setToggle('ctl-launcher-enabled', launcher.enabled);
   setToggle('ctl-launcher-usage-learning', launcher.usage_learning);
   setToggle('ctl-launcher-switch-english', launcher.switch_english);
+  setToggle('ctl-launcher-pinyin', launcher.pinyin);
   var launcherRecycleMode = document.getElementById('ctl-launcher-recycle-mode');
   if (launcherRecycleMode) launcherRecycleMode.value = launcher.recycle_mode || 'preload_html';
   var launcherHk = document.getElementById('ctl-launcher-hotkey');
@@ -3125,6 +3135,7 @@ function _updateState(state) {
     if (launcher.enabled !== undefined) setToggle('ctl-launcher-enabled', launcher.enabled);
     if (launcher.usage_learning !== undefined) setToggle('ctl-launcher-usage-learning', launcher.usage_learning);
     if (launcher.switch_english !== undefined) setToggle('ctl-launcher-switch-english', launcher.switch_english);
+    if (launcher.pinyin !== undefined) setToggle('ctl-launcher-pinyin', launcher.pinyin);
     var recycleModeEl = document.getElementById('ctl-launcher-recycle-mode');
     if (recycleModeEl && launcher.recycle_mode !== undefined) recycleModeEl.value = launcher.recycle_mode || 'preload_html';
     var lhk = document.getElementById('ctl-launcher-hotkey');

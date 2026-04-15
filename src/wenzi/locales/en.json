@@ -458,6 +458,8 @@
   "settings.launcher_tab.usage_learning_desc": "Learn from your selections to rank frequently used items higher",
   "settings.launcher_tab.switch_english": "Switch to English when open",
   "settings.launcher_tab.switch_english_desc": "Auto-switch to English input on open, restore previous IME on close",
+  "settings.launcher_tab.pinyin": "Pinyin Matching",
+  "settings.launcher_tab.pinyin_desc": "Match Chinese characters by pinyin (e.g. \"xtsh\" matches \"系统设置\")",
   "settings.launcher_tab.recycle_mode": "Recycle Mode",
   "settings.launcher_tab.recycle_mode_desc": "Idle strategy after the launcher has been hidden for 60 seconds",
   "settings.launcher_tab.recycle_mode_destroy": "Destroy",

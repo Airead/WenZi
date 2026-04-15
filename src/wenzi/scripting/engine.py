@@ -237,7 +237,6 @@ class ScriptEngine:
             self._snippet_expander = None
         if self._system_settings_source is not None:
             self._wz.chooser.unregister_source("system_settings")
-            self._wz.chooser.unregister_source("system_settings_mixed")
             self._system_settings_source = None
         if self._query_history is not None:
             self._query_history.flush_sync()
@@ -492,7 +491,6 @@ class ScriptEngine:
             self._wz.chooser.unregister_source(source_name)
         elif config_key == "system_settings":
             self._wz.chooser.unregister_source("system_settings")
-            self._wz.chooser.unregister_source("system_settings_mixed")
             self._system_settings_source = None
         else:
             self._wz.chooser.unregister_source(source_name)
@@ -581,7 +579,7 @@ class ScriptEngine:
         except Exception:
             logger.exception("Failed to enable calculator source")
 
-    def _enable_system_settings_source(self, prefix: str) -> None:
+    def _enable_system_settings_source(self, _prefix: str) -> None:
         try:
             from wenzi.scripting.sources.system_settings_source import (
                 SystemSettingsSource,
@@ -591,8 +589,7 @@ class ScriptEngine:
                 on_open=self._system_settings_open_cb,
             )
             self._system_settings_source = ss_source
-            for cs in ss_source.as_chooser_source(prefix=prefix or "ss"):
-                self._wz.chooser.register_source(cs)
+            self._wz.chooser.register_source(ss_source.as_chooser_source())
             logger.info("System settings source enabled at runtime")
         except Exception:
             logger.exception("Failed to enable system settings source")
@@ -625,6 +622,12 @@ class ScriptEngine:
             panel._usage_tracker = None
             logger.info("Usage learning disabled at runtime")
 
+    @staticmethod
+    def set_pinyin_enabled(enabled: bool) -> None:
+        """Enable or disable pinyin matching at runtime."""
+        from wenzi.scripting.sources import set_pinyin_enabled
+        set_pinyin_enabled(enabled)
+
     def _register_builtin_sources(self) -> None:
         """Register built-in chooser sources."""
         chooser_config = self._config.get("chooser", {})
@@ -650,6 +653,9 @@ class ScriptEngine:
         panel = self._wz.chooser._get_panel()
         panel._switch_english = chooser_config.get("switch_to_english", True)
         panel.set_recycle_mode(chooser_config.get("recycle_mode", "preload_html"))
+
+        # Pinyin matching toggle
+        self.set_pinyin_enabled(chooser_config.get("pinyin", True))
 
         # Usage learning tracker
         if chooser_config.get("usage_learning", True):
@@ -806,9 +812,7 @@ class ScriptEngine:
                     on_open=self._system_settings_open_cb,
                 )
                 self._system_settings_source = ss_source
-                prefix = prefixes.get("system_settings", "ss")
-                for cs in ss_source.as_chooser_source(prefix=prefix):
-                    self._wz.chooser.register_source(cs)
+                self._wz.chooser.register_source(ss_source.as_chooser_source())
                 logger.info("Built-in system settings source registered")
             except Exception:
                 logger.exception("Failed to register system settings source")

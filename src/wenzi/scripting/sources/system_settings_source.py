@@ -470,35 +470,24 @@ class SystemSettingsSource:
         scored.sort(key=lambda x: (-x[0], x[1].title.lower()))
         return [self._to_item(e) for _, e in scored[: self._MAX_RESULTS]]
 
-    def as_chooser_source(self, prefix: str = "ss") -> list:
-        """Return two ChooserSource instances: prefixed + unprefixed."""
+    def as_chooser_source(self):
+        """Return a single unprefixed ChooserSource for system settings."""
         from wenzi.i18n import t
 
-        ChooserSource = self._ChooserSource
-        return [
-            ChooserSource(
-                name="system_settings",
-                display_name=t("chooser.source.system_settings"),
-                prefix=prefix,
-                search=self.search,
-                priority=5,
-                description="Search macOS System Settings",
-                action_hints={
-                    "enter": t("chooser.action.open"),
-                    "cmd_enter": t("chooser.action.copy_url"),
-                },
-            ),
-            ChooserSource(
-                name="system_settings_mixed",
-                prefix=None,
-                search=self._search_mixed,
-                priority=-5,
-                description="System Settings (mixed)",
-            ),
-        ]
+        return self._ChooserSource(
+            name="system_settings",
+            prefix=None,
+            search=self._search_unprefixed,
+            priority=-5,
+            description="Search macOS System Settings",
+            action_hints={
+                "enter": t("chooser.action.open"),
+                "cmd_enter": t("chooser.action.copy_url"),
+            },
+        )
 
-    def _search_mixed(self, query: str) -> list[ChooserItem]:
-        """Search for unprefixed mode: no results on empty, limited count."""
+    def _search_unprefixed(self, query: str) -> list[ChooserItem]:
+        """Search with empty-query guard and result limit."""
         if not query.strip():
             return []
         return self.search(query)[:5]

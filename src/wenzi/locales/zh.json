@@ -458,6 +458,8 @@
   "settings.launcher_tab.usage_learning_desc": "从您的选择中学习，将常用项目排名提高",
   "settings.launcher_tab.switch_english": "打开时切换为英文输入",
   "settings.launcher_tab.switch_english_desc": "打开时自动切换到英文输入法，关闭时恢复之前的输入法",
+  "settings.launcher_tab.pinyin": "拼音匹配",
+  "settings.launcher_tab.pinyin_desc": "通过拼音匹配中文字符（如 \"xtsh\" 匹配 \"系统设置\"）",
   "settings.launcher_tab.recycle_mode": "回收模式",
   "settings.launcher_tab.recycle_mode_desc": "启动器隐藏 60 秒后的空闲 WebView 策略",
   "settings.launcher_tab.recycle_mode_destroy": "销毁",

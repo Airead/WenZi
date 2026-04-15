@@ -138,6 +138,19 @@ def search_todos(query):
     ]
 ```
 
+**Static sources** — use `static=True` to let the engine handle fuzzy matching and caching. The function takes no arguments and returns all items. The engine calls it once per Launcher session (items are loaded on first query after the Launcher opens, and the cache is released when it closes), then applies multi-term fuzzy matching on each keystroke:
+
+```python
+@wz.chooser.source("ssh", prefix="ss", static=True, description="SSH hosts")
+def load_ssh_hosts():
+    return [
+        {"title": "aws-euc1a-btc-fw-12", "subtitle": "~/.ssh/ssm", "action": lambda: ...},
+        {"title": "aws-euc1a-btc-node-01", "subtitle": "~/.ssh/ssm", "action": lambda: ...},
+    ]
+```
+
+With the example above, typing `ss btc euc` matches items containing both "btc" and "euc". This works well for data that is expensive to load but stable within a single search session (SSH hosts, process lists, window lists, etc.).
+
 ### Commands
 
 Scripts can register named commands that appear in the command palette (activated by typing `> ` in the Launcher). Commands support argument passing, modifier keys, and Tab completion.
@@ -444,14 +457,24 @@ def greet(args):
     wz.notify("Hello", args.strip() or "World")
 ```
 
-### `@wz.chooser.source(name, prefix=None, priority=0, description="")`
+### `@wz.chooser.source(name, prefix=None, priority=0, description="", static=False)`
 
-Decorator to register a search function as a Launcher data source. Set `description` so the source appears in the built-in `help` command output.
+Decorator to register a function as a Launcher data source. Set `description` so the source appears in the built-in `help` command output.
+
+**Dynamic mode** (default) — function receives a query and returns filtered results:
 
 ```python
 @wz.chooser.source("notes", prefix="n", priority=5, description="Search notes")
 def search_notes(query):
     return [{"title": "...", "action": lambda: ...}]
+```
+
+**Static mode** (`static=True`) — function takes no arguments and returns all items. The engine loads items once per Launcher session, caches them until close, and applies fuzzy matching (multi-term, pinyin, initials, etc.) automatically:
+
+```python
+@wz.chooser.source("hosts", prefix="h", static=True, description="SSH hosts")
+def load_hosts():
+    return [{"title": "server-01", "subtitle": "prod", "action": lambda: ...}]
 ```
 
 ## Examples
@@ -656,7 +679,7 @@ When scripts are reloaded (`wz.reload()`), all pending async tasks from the prev
 ### Limitations
 
 - **No top-level `await`** — `init.py` is executed synchronously. Use `async def` functions and register them as callbacks, or submit them via `wz.run()`.
-- **Chooser sources must be synchronous** — `@wz.chooser.source()` search functions must return results immediately. Async sources are not supported because the UI needs synchronous results to render.
+- **Chooser sources** — both sync and async search functions are supported. Static sources (`static=True`) must be synchronous; their load function is called once per Launcher session and results are cached until the panel closes.
 - **Don't call `wz.run(coro).result()` inside an async callback** — this will deadlock because you're already on the async event loop thread. Inside async functions, use `await` directly.
 - **No built-in concurrency control** — pressing a hotkey rapidly can launch multiple concurrent async tasks. Use a flag or `asyncio.Lock` if you need mutual exclusion.
 
