@@ -13,6 +13,12 @@ Type `e ` followed by a keyword in the launcher:
 Press **Enter** to paste the selected emoji into the active application.  
 Press **Cmd+Enter** to copy it to the clipboard.
 
+### Browse by group
+
+Type `e @` to browse all emoji categories. Each row shows the group name with its representative emoji on the left, and the preview panel on the right displays **all emoji in that group**.
+
+Press **Tab** on a selected group to auto-complete the search box to `e @groupname `, then continue typing a keyword to search within that group.
+
 ### Search by group
 
 Use `@groupname` to restrict the search to a specific category or subcategory. The group name supports fuzzy matching, so you do not need to type it exactly.
